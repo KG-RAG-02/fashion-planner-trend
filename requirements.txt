@@ -1,0 +1,1 @@
+# 의존성은 개발하면서 추가합니다. (예상: neo4j, LLM SDK, pydantic, pytest)
