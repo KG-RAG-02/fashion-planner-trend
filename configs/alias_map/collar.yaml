@@ -1,0 +1,22 @@
+# 별칭 사전 (collar). 문서: docs/schemas/sources/alias_map.md
+# 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
+#       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
+# 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.
+attribute: collar
+aliases:
+  셔츠칼라: [shirt-collar]
+  보우칼라: [bow-collar]
+  세일러칼라: [sailor-collar, 셀러칼라]
+  숄칼라: [shawl-collar]
+  폴로칼라: [polo-collar]
+  피터팬칼라: [peterpan-collar]
+  너치드칼라: [notched-collar]
+  차이나칼라: [standup-collar]
+  테일러드칼라: [tailored-collar, 타일러드칼라]
+  밴드칼라: [band-collar, bandcollar]
+approx: {}
+null_values: [UNKNOWN, 알수없음, 미지정, 미확인, 확인불가, 알려지지않음, 모르겠음, 불명, notapplicable, none, 'null', 없음, 없는, 카라, 칼라]
+route:
+  노카라: {to: neckline, value: 노카라}
+  터틀넥: {to: neckline, value: 터틀넥}
+  홀터넥: {to: neckline, value: 홀터넥}

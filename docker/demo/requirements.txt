@@ -1,0 +1,5 @@
+# 앱 이미지에 설치하는 패키지 (그래프 적재·검색·점수·테스트에 필요한 것만). 전체 의존성은 레포 루트 requirements.txt
+pydantic>=2.10
+pyyaml>=6
+neo4j>=5
+pytest>=8

@@ -1,0 +1,70 @@
+# 별칭 사전 (category_otpensource). 문서: docs/schemas/sources/alias_map.md
+# 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
+#       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
+# 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.
+attribute: category_otpensource
+subcategories:
+  긴소매 티셔츠: [티셔츠, 상의, null, 긴소매]
+  민소매 티셔츠: [티셔츠, 상의, null, 민소매]
+  반소매 티셔츠: [티셔츠, 상의, null, 반소매]
+  피케/카라 티셔츠: [티셔츠, 상의, null, null]
+  후드 티셔츠: [후드티, 상의, null, null]
+  맨투맨/스웨트: [티셔츠, 상의, null, null]
+  니트/스웨터: [니트웨어, 상의, null, null]
+  셔츠/블라우스: [null, 상의, null, null]
+  기타 상의: [null, 상의, null, null]
+  상의: [null, 상의, null, null]
+  겨울 싱글 코트: [코트, 아우터, null, null]
+  겨울 더블 코트: [코트, 아우터, null, null]
+  겨울 기타 코트: [코트, 아우터, null, null]
+  환절기 코트: [코트, 아우터, null, null]
+  블루종/MA-1: [점퍼, 아우터, null, null]
+  스타디움 재킷: [점퍼, 아우터, null, null]
+  나일론/코치 재킷: [재킷, 아우터, null, null]
+  레더/라이더스 재킷: [재킷, 아우터, null, null]
+  사파리/헌팅 재킷: [재킷, 아우터, null, null]
+  슈트/블레이저 재킷: [재킷, 아우터, null, null]
+  아노락 재킷: [재킷, 아우터, null, null]
+  트러커 재킷: [재킷, 아우터, null, null]
+  트레이닝 재킷: [재킷, 아우터, null, null]
+  롱패딩/헤비 아우터: [패딩, 아우터, 롱, null]
+  숏패딩/헤비 아우터: [패딩, 아우터, 숏패딩, null]
+  패딩 베스트: [베스트, 아우터, null, null]
+  베스트: [베스트, 아우터, null, null]
+  카디건: [가디건, 아우터, null, null]
+  후드 집업: [짚업, 아우터, null, null]
+  무스탕/퍼: [null, 아우터, null, null]
+  플리스/뽀글이: [null, 아우터, null, null]
+  기타 아우터: [null, 아우터, null, null]
+  아우터: [null, 아우터, null, null]
+  데님 팬츠: [청바지, 하의, null, null]
+  슈트 팬츠/슬랙스: [팬츠, 하의, null, null]
+  코튼 팬츠: [팬츠, 하의, null, null]
+  숏 팬츠: [팬츠, 하의, 숏팬츠, null]
+  숏 팬츠츠: [팬츠, 하의, 숏팬츠, null]
+  트레이닝/조거 팬츠: [조거팬츠, 하의, null, null]
+  점프 슈트/오버올: [점프수트, 원피스, null, null]
+  기타 하의: [null, 하의, null, null]
+  하의: [null, 하의, null, null]
+  의하: [null, 하의, null, null]
+  롱스커트: [스커트, 하의, 롱스커트, null]
+  미디스커트: [스커트, 하의, 미디, null]
+  미니스커트: [스커트, 하의, 미니, null]
+  스커트: [스커트, 하의, null, null]
+  맥시원피스: [드레스, 원피스, 맥시, null]
+  미디원피스: [드레스, 원피스, 미디, null]
+  미니원피스: [드레스, 원피스, 미니, null]
+  원피스: [드레스, 원피스, null, null]
+blouse_shirt_keywords:
+  블라우스: [블라우스]
+  셔츠: [셔츠, 남방]
+# 소분류가 빈 행의 상분류는 대분류로 정한다 (02 대분류는 표준 영역과 달라 소분류가 있으면 쓰지 않는다)
+big_category_fallback:
+  상의: 상의
+  아우터: 아우터
+  바지: 하의
+# 원피스_스커트의 빈 소분류는 상품명으로 정한다 (없으면 상분류 미정)
+skirt_dress_name_fallback:
+  스커트: [스커트, 하의]
+  원피스: [드레스, 원피스]
+  드레스: [드레스, 원피스]

@@ -1,0 +1,22 @@
+# 별칭 사전 (fit). 문서: docs/schemas/sources/alias_map.md
+# 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
+#       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
+# 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.
+attribute: fit
+aliases:
+  노멀: [normal, 정상, 스탠다드, 레귤러, 정핏, 보통, 일반, 정규, 정사이즈, 너멀, 노말, 기본, 알맞음]
+  루즈: [loose, 약간루즈]
+  오버사이즈: [oversized, oversize]
+  타이트: [tight]
+  스키니: [skinny, 스킨니]
+  와이드: [wide]
+  벨보텀: [bell-bottom]
+approx:
+  타이트: [슬림, 슬림한, 슬림핏, slim]
+null_values: [UNKNOWN, 알수없음, 미지정, 미확인, 확인불가, 알려지지않음, 모르겠음, 불명, notapplicable, none, 'null', 없음, 없는, 조거핏, 핏, 나머지, 너무큰, 바지핏,
+  탈비, 셔링, 너르]
+route:
+  플레어: {to: shape, value: 벨보텀/플레어}
+  부츠컷: {to: shape, value: 부츠컷}
+  일자: {to: shape, value: 스트레이트}
+  일자핏: {to: shape, value: 스트레이트}
