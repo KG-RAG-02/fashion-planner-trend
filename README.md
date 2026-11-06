@@ -103,7 +103,7 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 | Neo4j 적재 (`scripts/load_graph.py`) | ✅ 라벨 5건(Style 5, Item 36) + Product 33,323개. 다시 실행해도 같은 그래프 |
 | 유사도 가중치 설정 (`configs/weights.yaml`)·점수 계산 (`retrieval/scoring.py`) | ✅ 구현 (값은 임의 시작값) |
 | 검색·결과 출력 (`scripts/run_trend_search.py`) | ✅ 구현. 그래프 검색이 전체 Product 직접 점수 계산과 36/36 일치 |
-| 데이터를 구워 넣은 Docker 이미지 (`docker/demo/build.sh`) | ✅ 구현·동작 확인 (전달용, 팀 내부) |
+| 데이터를 구워 넣은 Docker 이미지 (`docker/demo/build.sh`) | ✅ 구현. CPU별로 `amd64`(Windows·Intel)와 `arm64`(Apple Silicon) 두 파일. arm64는 Apple Silicon에서 `docker compose`로 확인, amd64는 Apple Silicon 에뮬레이션에서 `docker run`으로만 확인 (**Windows·Intel PC 실행은 미확인**). 전달용, 팀 내부 |
 | 테스트 | ✅ 74개 통과 |
 | 기사 추출 프롬프트·실행기 (LLM) | ⬜ 미구현 |
 | 질의 전처리 (LLM) | ⬜ 미구현 (조건은 인자로 준다) |
