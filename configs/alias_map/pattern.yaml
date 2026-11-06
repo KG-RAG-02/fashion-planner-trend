@@ -1,0 +1,33 @@
+# 별칭 사전 (pattern). 문서: docs/schemas/sources/alias_map.md
+# 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
+#       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
+# 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.
+attribute: pattern
+aliases:
+  스트라이프: [줄무늬, stripe]
+  카무플라쥬: [카모, 카모플라쥬, camouflage]
+  무지: [無지, 민무늬, 솔리드, solid, 없음, 없는, none, 'null']
+  체크: [check]
+  지그재그: [zigzag]
+  호피: [leopard]
+  지브라: [zebra]
+  도트: [dot]
+  페이즐리: [paisley]
+  아가일: [argyle]
+  플로럴: [floral]
+  레터링: [lettering]
+  해골: [skull]
+  타이다이: [tie-dye, tiedye]
+  그라데이션: [gradation]
+  그래픽: [graphic]
+  하운즈투스: [hound'stooth, houndstooth]
+  깅엄: [gingham]
+approx:
+  그래픽: [로고]
+null_values: [UNKNOWN, 알수없음, 미지정, 미확인, 확인불가, 알려지지않음, 모르겠음, 불명, notapplicable, 청바지, 가디건, 스키니, 워싱, 레이어링, 투톤, 체리프린트, 유니언잭, 다이아몬드,
+  번호, 스타일프린트, 청키]
+route:
+  데님: {to: material, value: 데님}
+  플리츠: {to: detail, value: 플리츠}
+  패치워크: {to: detail, value: 패치워크}
+  자수: {to: detail, value: 자수}

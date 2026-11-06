@@ -1,1 +1,20 @@
-# 의존성은 개발하면서 추가합니다. (예상: neo4j, LLM SDK, pydantic, pytest)
+# 의존성은 개발하면서 추가합니다. (예상: LLM SDK)
+requests
+beautifulsoup4
+lxml
+
+# 노트북 확인용
+pandas
+ipykernel
+
+# 스키마·정규화
+pydantic>=2
+pyyaml
+huggingface_hub
+pyarrow  # 03 parquet
+
+# Knowledge Graph
+neo4j>=5
+
+# 테스트
+pytest
