@@ -125,9 +125,9 @@ cp .env.example .env            # Neo4j, LLM 키 입력
 
 ## 공통 계약 (다른 에이전트와의 연동)
 
-README에서 공통 응답 envelope와 상태값(`ok / partial / no_results / error`)을 연동 원칙으로 제안하고 있지만, 이 저장소에는 현재 공통 계약 파일이나 전송 어댑터가 없습니다. 따라서 `src/trend_agent/schemas/`의 `TrendResult` 모델은 내부 도메인 모델이며, 다른 에이전트와의 wire format으로 간주하면 안 됩니다. 공통 계약이 확정되면 `api/` 계층에서 내부 모델과 해당 계약을 변환합니다.
-
-현재 트렌드 도메인 모델은 이름, qualification, 시즌, 카테고리, 속성별 근거 ID, 전체 결과 상태와 제한사항을 보존합니다. 관찰 근거가 없는 속성을 사실로 보강하지 않습니다.
+모든 에이전트는 동일한 응답 envelope(`schema_version`, `request_id`, `agent_id`, `status`, `summary`, `findings`, `evidence`, `limitations`, `errors`)를 사용합니다.
+`status`는 `ok / partial / no_results / error` 중 하나이며, 근거가 없는 값은 추정하지 않고 미확보로 표시합니다.
+공통 계약 파일은 5개 레포에 동일한 경로·내용·버전으로 포함하며, 위치는 확정되면 이 문서에 추가합니다.
 
 ## 로드맵
 
