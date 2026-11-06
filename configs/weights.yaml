@@ -1,0 +1,28 @@
+# 유사도 가중치 기본값 (문서: docs/spec.md Step 9, §7.3). 모두 임의 시작값이고 평가 후 조정한다.
+#
+# 점수 = base_score + alpha × [category_minor 일치]
+#   base_score = Σ(일치한 속성의 적용 가중치 × 일치 비율) ÷ Σ(비교 가능한 속성의 적용 가중치)
+#   적용 가중치 = base_weights[속성] × 트렌드 배수(핵심 / 보조 / 해당 없음)
+#
+# 카테고리 (사용자 결정, default):
+#   - 상분류(category_major)는 점수가 아니라 후보 조건이다 (같은 상분류의 Product만 후보). 가중치를 두지 않는다.
+#   - 하분류(category_minor)는 가중치 합에 넣지 않고, 일치할 때만 alpha를 더한다. 불일치·미확인은 0 (감점 없음).
+#   - 순위가 어색하면 먼저 alpha를 올린다. 대안(하분류를 가중치 속성으로)은 평가 후 검토한다.
+#   - 트렌드가 카테고리 자체인 경우(스커트가 주인공인 트렌드 등)에는 Style의 focus에 `category`가 오고,
+#     그때 보너스는 alpha × focus_multipliers 배수(core 2.0 → 0.2)가 된다. `category`가 없으면 alpha 그대로.
+base_weights:
+  color: 3
+  detail: 3
+  pattern: 2
+  material: 2
+  fit: 2
+
+category:
+  major: gate            # gate = 후보 조건 (점수에 쓰지 않음)
+  minor_bonus_alpha: 0.1 # 하분류 일치 보너스
+
+# 트렌드(Style)의 핵심·보조 속성 배수. 모두 1.0으로 두면 기본 가중치만 쓴다.
+focus_multipliers:
+  core: 2.0
+  supporting: 1.5
+  default: 1.0
