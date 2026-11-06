@@ -1,0 +1,18 @@
+# 별칭 사전 (shape). 문서: docs/schemas/sources/alias_map.md
+# 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
+#       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
+# 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.
+attribute: shape
+aliases:
+  A라인: [a-line, a라인, 에이라인, aline]
+  H라인: [h-line, h라인, hline]
+  테이퍼드: [테이퍼, tapered]
+  스트레이트: [일자, 스트레이트핏, straight]
+  부츠컷: [boots-cut, bootscut]
+  벨보텀/플레어: [플레어, bell-bottom/flare]
+  비대칭: [언밸런스, asymmetrical]
+  머메이드: [mermaid]
+  페플럼: [peplum]
+  펜슬: [pencil]
+approx: {}
+null_values: [UNKNOWN, 알수없음, 미지정, 미확인, 확인불가, 알려지지않음, 모르겠음, 불명, notapplicable, none, 'null', 없음, 없는]

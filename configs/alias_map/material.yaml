@@ -1,0 +1,52 @@
+# 별칭 사전 (material). 문서: docs/schemas/sources/alias_map.md
+# 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
+#       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
+# 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.
+attribute: material
+aliases:
+  퍼: [fur]
+  무스탕: [mouton]
+  스웨이드: [suede]
+  앙고라: [angora]
+  코듀로이: [corduroy]
+  시퀸/글리터: [sequin, glitter]
+  데님: [denim, 덴임]
+  저지: [jersey, 져지]
+  트위드: [tweed]
+  벨벳: [velvet]
+  비닐/PVC: [vinyl, pvc]
+  울/캐시미어: [wool, cashmere, 울, 캐시미어, 울혼방, 울블렌드, 캐시미어블렌드]
+  합성섬유: [polyester, synthetic, nylon, 폴리에스터, 나일론]
+  니트: [knit, 스웨터]
+  레이스: [lace]
+  린넨: [linen]
+  메시: [mesh]
+  플리스: [fleece, 프리스, 후리스]
+  네오프렌: [neoprene]
+  실크: [silk]
+  스판덱스: [spandex]
+  자카드: [jacquard]
+  가죽: [leather, 레더]
+  면: [cotton, 코튼, 무명]
+  시폰: [chiffon]
+approx:
+  플리스: [기모, 쉐르파]
+  저지: [스웨트, 스웻, sweat]
+  니트: [골지, 부클]
+  면: [피그먼트, 피케, 트윌, 테리, 옥스포드, 특양면, 거즈]
+  울/캐시미어: [모직]
+  가죽: [유사가죽, 비건레더, 램스킨]
+  합성섬유: [푸퍼, 고어텍스]
+null_values: [UNKNOWN, 알수없음, 미지정, 미확인, 확인불가, 알려지지않음, 모르겠음, 불명, notapplicable, none, 'null', 없음, 없는, 우븐]
+route:
+  퀼팅: {to: detail, value: 퀼팅}
+hint:
+  다운: {category_minor: 패딩}
+  구스다운: {category_minor: 패딩}
+  덕다운: {category_minor: 패딩}
+  패딩: {category_minor: 패딩}
+  오리털: {category_minor: 패딩}
+  거위털: {category_minor: 패딩}
+  down: {category_minor: 패딩}
+  구스: {category_minor: 패딩}
+  덕: {category_minor: 패딩}

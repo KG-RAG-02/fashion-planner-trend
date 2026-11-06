@@ -1,0 +1,24 @@
+# 별칭 사전 (neckline). 문서: docs/schemas/sources/alias_map.md
+# 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
+#       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
+# 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.
+attribute: neckline
+aliases:
+  라운드넥: [round-neck, roundneck, 라우드넥]
+  유넥: [u-neck]
+  브이넥: [v-neck, v넥]
+  홀터넥: [halter-neck]
+  오프숄더: [off-shoulder]
+  원숄더: [one-shoulder]
+  스퀘어넥: [square-neck, 스쿼어넥, 스쿼넥]
+  노카라: [collarless, 무카라]
+  후드: [hood]
+  터틀넥: [turtleneck]
+  보트넥: [boatneck]
+  스위트하트: [sweetheart]
+approx: {}
+null_values: [UNKNOWN, 알수없음, 미지정, 미확인, 확인불가, 알려지지않음, 모르겠음, 불명, notapplicable, none, 'null', 없음, 없는, 스탠드넥, 하이넥, 스탠드, 카라, 칼라,
+  기타, 버튼다운, 버튼업]
+route:
+  셔츠칼라: {to: collar, value: 셔츠칼라}
+  폴로: {to: collar, value: 폴로칼라}

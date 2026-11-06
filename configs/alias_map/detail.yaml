@@ -1,0 +1,64 @@
+# 별칭 사전 (detail). 문서: docs/schemas/sources/alias_map.md
+# 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
+#       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
+# 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.
+attribute: detail
+aliases:
+  비즈: [beads]
+  단추: [버튼, buttoned]
+  니트꽈배기: [꽈배기, cable]
+  체인: [chain]
+  컷오프: [cutoff, cut-off]
+  더블브레스티드: [double-breasted]
+  드롭숄더: [drop-shoulder]
+  자수: [embroidery]
+  프릴: [frill]
+  프린지: [fringe]
+  플레어: [flare]
+  퀼팅: [quilting]
+  리본: [ribbon]
+  롤업: [roll-up]
+  러플: [ruffle]
+  셔링: [shirring]
+  슬릿: [slit]
+  스팽글: [spangle]
+  스티치: [stitch]
+  스터드: [stud]
+  퍼트리밍: [fur-trimmed]
+  글리터: [glitter]
+  후드: [hood]
+  레이스업: [lace-up]
+  패딩: [padding]
+  패치워크: [patchwork]
+  페플럼: [peplum]
+  플리츠: [pleats]
+  포켓: [주머니, pockets]
+  폼폼: [pompom]
+  퍼프: [puff]
+  태슬: [tassel]
+  집업: [지퍼, zip-up]
+  띠: [허리끈, sash]
+  디스트로이드: [찢어진, destroyed]
+  드롭웨이스트: [low-waist]
+  버클: [buckle]
+  컷아웃: [cut-out, cutout]
+  X스트랩: [x-strap]
+  비대칭: [unbalanced]
+approx:
+  띠: [벨트, 허리벨트]
+  플리츠: [주름]
+  컷오프: [커팅, 절개]
+null_values: [UNKNOWN, 알수없음, 미지정, 미확인, 확인불가, 알려지지않음, 모르겠음, 불명, notapplicable, none, 'null', 없음, 없는, 퍼]
+route:
+  프린트: {to: pattern, value: null}
+  로고: {to: pattern, value: null}
+  스트라이프: {to: pattern, value: 스트라이프}
+  줄무늬: {to: pattern, value: 스트라이프}
+  레터링: {to: pattern, value: 레터링}
+  무지: {to: pattern, value: 무지}
+  체크: {to: pattern, value: 체크}
+  해골: {to: pattern, value: 해골}
+  그래픽: {to: pattern, value: 그래픽}
+  민소매: {to: sleeve_length, value: 민소매}
+  홀터넥: {to: neckline, value: 홀터넥}
+  터틀넥: {to: neckline, value: 터틀넥}

@@ -1,0 +1,13 @@
+# 별칭 사전 (sleeve_length). 문서: docs/schemas/sources/alias_map.md
+# 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
+#       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
+# 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.
+attribute: sleeve_length
+aliases:
+  긴팔: [long, longsleeve, long-sleeve, 롱, 긴소매]
+  반팔: [short, shortsleeve, short-sleeve, 짧은팔, 단팔, 짧은소매, 반소매]
+  민소매: [sleeveless, 슬리브리스]
+  캡: [cap-sleeve, capsleeve]
+  7부소매: [3/4th-sleeve, 7부]
+approx: {}
+null_values: [UNKNOWN, 알수없음, 미지정, 미확인, 확인불가, 알려지지않음, 모르겠음, 불명, notapplicable, none, 'null', 없음, 없는]
