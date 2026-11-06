@@ -162,7 +162,7 @@ trend-analysis-agent/
 | Docker 볼륨 `trend-agent_neo4j_data` | **Neo4j 그래프 데이터** (git 밖, 이 PC의 Docker 안) | `docker compose up -d` 후 `scripts/load_graph.py` |
 | `docker/demo/dump/neo4j.dump`, `docker/demo/out/*.tar.gz` | 그래프 덤프, 전달용 이미지 파일 | `bash docker/demo/build.sh` |
 
-**팀 내부로 전달받는 파일**: Vogue 원문과 그 라벨에는 Vogue 본문 인용이 들어 있어 커밋하지 않습니다. 같은 그래프를 만들려면 받아서 **위 표의 같은 위치**에 둡니다. Product(02·03)는 공개 데이터라 스크립트가 직접 만들므로 전달이 필요 없습니다. 이미지(`trend-agent-demo-images.tar.gz`)에도 인용문이 들어 있어 내부로만 전달합니다.
+**팀 내부로 전달받는 파일**: Vogue 원문과 그 라벨에는 Vogue 본문 인용이 들어 있어 커밋하지 않습니다. 같은 그래프를 만들려면 받아서 **위 표의 같은 위치**에 둡니다. Product(02·03)는 공개 데이터라 스크립트가 직접 만들므로 전달이 필요 없습니다. 이미지(`trend-agent-demo-images-amd64.tar.gz`, `-arm64.tar.gz`)에도 인용문이 들어 있어 내부로만 전달합니다.
 
 ## 환경변수
 
@@ -187,8 +187,9 @@ trend-analysis-agent/
 그래프 데이터(정답 라벨 5건 + 무신사 Product 02·03)와 파이썬 환경을 **Docker 이미지에 구워 넣은** 전달 방식입니다. 가상환경 설치·정규화·적재·`.env`가 필요 없고, **Docker와 이 레포의 코드 폴더**만 있으면 됩니다.
 
 ```bash
-# 1. 이미지 가져오기 (처음 한 번. tar.gz 파일은 전달받는다)
-docker load -i trend-agent-demo-images.tar.gz
+# 1. 이미지 가져오기 (처음 한 번. tar.gz 파일은 전달받는다). 내 CPU에 맞는 파일 하나만 쓴다
+docker load -i trend-agent-demo-images-amd64.tar.gz     # Windows / Intel PC
+docker load -i trend-agent-demo-images-arm64.tar.gz     # Apple Silicon Mac
 
 # 2. 시작 (Neo4j에는 이미 데이터가 들어 있다)
 #    개발용 Neo4j(방법 B)가 떠 있으면 같은 포트(7474/7687)라 시작에 실패한다 → 먼저 `docker compose stop neo4j`
@@ -211,11 +212,22 @@ docker compose --profile demo down
 - 코드(`src`, `scripts`, `configs`, `tests`)는 이미지에 없고 **호스트 폴더를 그대로 연결**합니다. 고친 파일이 곧바로 쓰입니다. 검색 결과 JSON은 호스트의 `data/processed/results/`에 저장됩니다.
 - **확인할 수 있는 수정**: `search.py`, `scoring.py`, `weights.yaml`, 결과 출력. **확인할 수 없는 수정**: `loader.py`·그래프 구조처럼 **데이터가 바뀌는 수정**입니다. 이미지의 데이터는 고정된 스냅샷이므로 [실행 방법 B](#b-처음부터-환경을-만들기)로 처음부터 적재해야 합니다.
 - 이미지의 Neo4j는 인증을 끄고(비밀번호 없음) 이 PC의 `127.0.0.1`에만 열립니다. 브라우저는 http://localhost:7474 입니다. 포트가 겹치면 `DEMO_BOLT_PORT`, `DEMO_HTTP_PORT`를 바꿉니다.
-- **이미지의 CPU 아키텍처는 만든 PC를 따릅니다.** Apple Silicon Mac에서 `build.sh`를 실행하면 `linux/arm64` 이미지가 만들어지고, 이 tar.gz는 Windows·Intel PC에서 바로 실행되지 않습니다. 받는 사람이 Windows·Intel이면 만드는 쪽에서 `DOCKER_DEFAULT_PLATFORM=linux/amd64 bash docker/demo/build.sh`로 만듭니다 (Apple Silicon에서는 에뮬레이션이라 느리고, 이 방식은 아직 검증하지 않았습니다). 반대로 amd64 이미지를 Apple Silicon Mac에서 받으면 에뮬레이션으로 돌아가 느릴 수 있습니다.
+- **CPU 아키텍처에 맞는 파일을 받아야 합니다.** 이미지는 CPU마다 따로 만들고, 파일 이름 끝이 아키텍처입니다: **Windows·Intel PC → `-amd64`, Apple Silicon Mac(M1 이상) → `-arm64`**. 맞지 않는 파일은 에뮬레이션으로 돌아가 매우 느리고(검색이 10초 안팎에서 약 50초로), Apple Silicon에서 amd64를 `docker compose`로 돌리면 healthcheck(`cypher-shell`)가 쌓여 메모리 부족으로 Neo4j가 종료될 수 있습니다 (exit 137). 맞는 파일을 쓰면 이 문제가 없습니다.
 
-**이미지를 만들어 전달하는 사람**: 그래프가 적재돼 있는 상태에서 `bash docker/demo/build.sh` (Windows는 Git Bash). 지금 그래프를 덤프해 `trend-agent-demo-neo4j`(데이터 포함)와 `trend-agent-demo-app`(파이썬 환경) 이미지를 만들고 `docker/demo/out/trend-agent-demo-images.tar.gz`(약 370MB)로 저장합니다 (`--no-save`로 파일 저장은 생략). 그래프나 라벨을 바꾼 뒤에는 `python scripts/load_graph.py`를 하고 다시 실행해 새 스냅샷을 만듭니다. **전달할 것: ① 이 tar.gz ② 레포 코드** (`.env`와 `data`는 필요 없음). 덤프하는 동안 개발용 Neo4j가 잠깐 멈췄다가 자동으로 다시 시작됩니다.
+**이미지를 만들어 전달하는 사람**: 그래프가 적재돼 있는 상태에서 `bash docker/demo/build.sh` (Windows는 Git Bash). 지금 그래프를 덤프해 `trend-agent-demo-neo4j`(데이터 포함)와 `trend-agent-demo-app`(파이썬 환경) 이미지를 만들고 `docker/demo/out/trend-agent-demo-images-<arch>.tar.gz`(각 약 370MB)로 저장합니다 (`--no-save`로 파일 저장은 생략). 그래프나 라벨을 바꾼 뒤에는 `python scripts/load_graph.py`를 하고 다시 실행해 새 스냅샷을 만듭니다. 덤프하는 동안 개발용 Neo4j가 잠깐 멈췄다가 자동으로 다시 시작됩니다.
 
-만든 뒤에는 **개발용 Neo4j를 멈추고**(`docker compose stop neo4j`) 위 방법 A의 2~3번이 되는지 확인합니다. 그 상태에서 `docker compose --profile demo down`으로 끝낸 다음 개발용을 다시 켭니다. 이 절차로 확인한 결과: 그래프는 Style 5 · Item 36 · Product 33,323이고, 검색이 되며, 테스트 74개가 통과합니다.
+**받는 사람의 PC가 섞여 있으면 CPU별로 두 번 만듭니다.** 아무것도 안 주면 만드는 PC의 CPU용이 만들어지고, `PLATFORM`으로 다른 CPU용을 만듭니다 (덤프는 CPU와 무관):
+
+```bash
+bash docker/demo/build.sh                           # 이 PC의 CPU용 (Apple Silicon이면 arm64)
+PLATFORM=linux/amd64 bash docker/demo/build.sh      # Windows·Intel용. Apple Silicon에서는 에뮬레이션이라 느리다 (아래 시간 참고)
+```
+
+- 이미지 이름(태그)은 두 CPU 모두 `:latest`라서 **마지막에 만든 것이 이 PC의 `:latest`가 됩니다.** 파일 이름에만 `-amd64`, `-arm64`가 붙습니다.
+- Apple Silicon에서 amd64를 만든 실측: 이미지 빌드 약 1분, tar.gz 약 374MB. 에뮬레이션 Neo4j는 약 20초에 뜨고 검색·테스트(74개)가 통과했습니다. 다만 `docker compose`의 healthcheck가 쌓여 OOM(exit 137)이 날 수 있어, **amd64 파일은 Windows·Intel에서 쓰고 Mac에서는 arm64를 씁니다.**
+- **전달할 것: ① 받는 사람 CPU에 맞는 tar.gz ② 레포 코드** (`.env`와 `data`는 필요 없음).
+
+만든 뒤에는 **개발용 Neo4j를 멈추고**(`docker compose stop neo4j`) 위 방법 A의 2~3번이 되는지 확인합니다. 그 상태에서 `docker compose --profile demo down`으로 끝낸 다음 개발용을 다시 켭니다. 이 절차로 확인한 결과: 그래프는 Style 5 · Item 36 · Product 33,323이고, 검색이 되며, 테스트 74개가 통과합니다 (arm64는 Apple Silicon에서 `docker compose`로 확인, amd64는 `docker run`으로 확인. Windows·Intel PC에서의 실행은 이 PC에 없어 확인하지 못했습니다).
 
 ### B. 처음부터 환경을 만들기
 
@@ -307,7 +319,7 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 |---|---|
 | `ModuleNotFoundError: pydantic` | 시스템 파이썬으로 실행했다. `.venv`를 활성화하거나 `.venv/Scripts/python.exe`로 실행 |
 | 전달받은 이미지인데 `docker compose up -d`를 했더니 비밀번호 오류로 Neo4j가 종료된다 | 그냥 `up -d`는 **개발용**(빈 DB)을 시작한다. 이미지(demo)는 `docker compose up -d neo4j-demo app` |
-| `docker compose up -d neo4j-demo app`이 `pull access denied for trend-agent-demo-app`로 실패 | 이미지가 이 PC에 없다. 전달받은 파일로 `docker load -i trend-agent-demo-images.tar.gz`를 먼저 한다 (Docker Hub에는 없다) |
+| `docker compose up -d neo4j-demo app`이 `pull access denied for trend-agent-demo-app`로 실패 | 이미지가 이 PC에 없다. 전달받은 파일로 `docker load -i trend-agent-demo-images-<amd64 또는 arm64>.tar.gz`를 먼저 한다 (Docker Hub에는 없다) |
 | demo 시작이 `Bind for 127.0.0.1:7687 failed: port is already allocated`로 실패 | 개발용 Neo4j가 같은 포트를 쓰고 있다. `docker compose stop neo4j` 하거나 `DEMO_BOLT_PORT`, `DEMO_HTTP_PORT`를 바꾼다 |
 | 개발용 컨테이너가 시작 직후 종료되거나 `Restarting`을 반복한다 (`docker compose ps`) | `.env`의 `NEO4J_PASSWORD`가 비었거나 없다 (`Invalid value for NEO4J_AUTH: 'neo4j/'`). `docker logs trend-agent-neo4j`에서 확인 |
 | 컨테이너가 `Restarting`을 반복하고 `healthy`가 되지 않는다. 로그에는 오류 없이 "Started."만 반복된다 | Docker Desktop 메모리 부족(OOM). `docker inspect -f '{{.State.OOMKilled}}' trend-agent-neo4j`가 `true`면 확정이다. Docker Desktop 메모리를 4GB 이상으로 올리거나(Settings → Resources) 다른 컨테이너를 멈춘다 (`docker stats --no-stream`으로 확인) |
