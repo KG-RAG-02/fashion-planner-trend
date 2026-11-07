@@ -26,3 +26,28 @@ focus_multipliers:
   core: 2.0
   supporting: 1.5
   default: 1.0
+
+# ---------------------------------------------------------------------------------------------------------
+# v1.1 구조 (계약 G1, 2026-11-08). 구조는 L0, 값은 T4 평가 근거로만 바꾼다(contract_change).
+# 키가 없으면 코드 기본값 = v1.0 동작이다. 로더(retrieval/weights.py, T3)는 아래 키를 Optional + 기본값으로 읽는다.
+# ---------------------------------------------------------------------------------------------------------
+flags:
+  # strict | report — 용어 해석(Tier1 이름 일치·Tier3 의미 일치) 경로에만 적용한다.
+  #   report: 시즌 미확인·불일치 Style도 내보내고 season_status와 한계(limitations)로 알린다 (PLAN §5 Tier1).
+  #   시즌만 주는 기존 검색(search())은 이 값과 상관없이 strict(v1.0 동작: 시즌 미확인 Style 보류)다.
+  season_policy: report
+  image_first_tiebreak: false  # 동점이면 has_image 우선 — fast path·sort_key·verify_graph_search에 함께 적용
+  core_unknown_decay: 0.0      # γ: 미확인 core 속성 가중치를 분모에 더하는 비율 (0 = 끔 = v1.0 식)
+  snap_id_limit: 0             # Item별 상품 목록에서 같은 snap_id 최대 개수 (0 = 제한 없음)
+  item_gender_filter: false    # 결정 G0-③: Item 성별(남/여)과 반대 성별 상품 제외. 공용·미상은 통과. 기본 꺼짐
+
+tier4:                         # LLM 등급 → 코드 수치화 (LLM은 숫자를 내지 않는다)
+  value_weights: {primary: 1.0, secondary: 0.5}
+  core_unknown_decay: 0.5      # Tier4 모드에서 쓰는 γ (임시)
+  item_focus: {core: 1.0, supporting: 0.75}
+
+resolver:
+  tier3: {tau: null, delta: null}  # 코사인 ≥ τ 이고 1·2위 차이 ≥ δ. T4 보정 전에는 null → Tier3 건너뜀(steps: tier3_disabled)
+
+trend_topk:
+  pool_per_item: 20            # Item마다 모으는 후보 수 (트렌드 단위 Top-K 계산용)

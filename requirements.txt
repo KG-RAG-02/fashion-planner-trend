@@ -12,6 +12,7 @@ pydantic>=2
 pyyaml
 huggingface_hub
 pyarrow  # 03 parquet
+Pillow  # 이미지 크기·디코드 확인, 콘택트시트 (C2·T4)
 
 # Knowledge Graph
 neo4j>=5
