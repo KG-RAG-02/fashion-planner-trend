@@ -92,7 +92,7 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 
 ## 진행 상황
 
-기준일 2026-11-06, 브랜치 `feature/graphrag-prototype` (main에는 아직 합치지 않았고 PR 대기). 현재 범위는 **구현해서 결과를 출력하는 데까지**이고, 검증·평가는 후속입니다.
+기준일 2026-11-06. 현재 범위는 **구현해서 결과를 출력하는 데까지**이고, 검증·평가는 후속입니다.
 
 | 영역 | 상태 |
 |---|---|
@@ -103,7 +103,7 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 | Neo4j 적재 (`scripts/load_graph.py`) | ✅ 라벨 5건(Style 5, Item 36) + Product 33,323개. 다시 실행해도 같은 그래프 |
 | 유사도 가중치 설정 (`configs/weights.yaml`)·점수 계산 (`retrieval/scoring.py`) | ✅ 구현 (값은 임의 시작값) |
 | 검색·결과 출력 (`scripts/run_trend_search.py`) | ✅ 구현. 그래프 검색이 전체 Product 직접 점수 계산과 36/36 일치 |
-| 데이터를 구워 넣은 Docker 이미지 (`docker/demo/build.sh`) | ✅ 구현·동작 확인 (전달용, 팀 내부) |
+| 데이터를 구워 넣은 Docker 이미지 (`docker/demo/build.sh`) | ✅ 구현. CPU별로 `amd64`(Windows·Intel)와 `arm64`(Apple Silicon) 두 파일. arm64는 Apple Silicon에서 `docker compose`로 확인, amd64는 Apple Silicon 에뮬레이션에서 `docker run`으로만 확인 (**Windows·Intel PC 실행은 미확인**). 전달용, 팀 내부 |
 | 테스트 | ✅ 74개 통과 |
 | 기사 추출 프롬프트·실행기 (LLM) | ⬜ 미구현 |
 | 질의 전처리 (LLM) | ⬜ 미구현 (조건은 인자로 준다) |
@@ -162,7 +162,7 @@ trend-analysis-agent/
 | Docker 볼륨 `trend-agent_neo4j_data` | **Neo4j 그래프 데이터** (git 밖, 이 PC의 Docker 안) | `docker compose up -d` 후 `scripts/load_graph.py` |
 | `docker/demo/dump/neo4j.dump`, `docker/demo/out/*.tar.gz` | 그래프 덤프, 전달용 이미지 파일 | `bash docker/demo/build.sh` |
 
-**팀 내부로 전달받는 파일**: Vogue 원문과 그 라벨에는 Vogue 본문 인용이 들어 있어 커밋하지 않습니다. 같은 그래프를 만들려면 받아서 **위 표의 같은 위치**에 둡니다. Product(02·03)는 공개 데이터라 스크립트가 직접 만들므로 전달이 필요 없습니다. 이미지(`trend-agent-demo-images.tar.gz`)에도 인용문이 들어 있어 내부로만 전달합니다.
+**팀 내부로 전달받는 파일**: Vogue 원문과 그 라벨에는 Vogue 본문 인용이 들어 있어 커밋하지 않습니다. 같은 그래프를 만들려면 받아서 **위 표의 같은 위치**에 둡니다. Product(02·03)는 공개 데이터라 스크립트가 직접 만들므로 전달이 필요 없습니다. 이미지(`trend-agent-demo-images-amd64.tar.gz`, `-arm64.tar.gz`)에도 인용문이 들어 있어 내부로만 전달합니다.
 
 ## 환경변수
 
@@ -180,17 +180,19 @@ trend-analysis-agent/
 
 ## 실행 방법
 
-> **compose 파일은 `docker-compose.yml` 하나**이고, **기본은 개발용(빈 DB)** 입니다. `docker compose up -d`는 개발용 Neo4j를 시작합니다. 전달받은 이미지(demo)는 서비스 이름을 적어 시작합니다: `docker compose up -d neo4j-demo app`. (`docker compose down neo4j-demo app`이 안 되는 구버전 Compose는 `docker compose --profile demo down`)
+> **compose 파일은 `docker-compose.yml` 하나**이고, **기본은 개발용(빈 DB)** 입니다. `docker compose up -d`는 개발용 Neo4j를 시작합니다. 전달받은 이미지(demo)는 서비스 이름을 적어 시작합니다: `docker compose up -d neo4j-demo app`. (끝낼 때는 `docker compose --profile demo down`. `docker compose down neo4j-demo app`은 Compose 버전에 따라 `unknown command`가 난다)
 
 ### A. 이미지로 전달받았다면 (Docker만 있으면 된다)
 
 그래프 데이터(정답 라벨 5건 + 무신사 Product 02·03)와 파이썬 환경을 **Docker 이미지에 구워 넣은** 전달 방식입니다. 가상환경 설치·정규화·적재·`.env`가 필요 없고, **Docker와 이 레포의 코드 폴더**만 있으면 됩니다.
 
 ```bash
-# 1. 이미지 가져오기 (처음 한 번. tar.gz 파일은 전달받는다)
-docker load -i trend-agent-demo-images.tar.gz
+# 1. 이미지 가져오기 (처음 한 번. tar.gz 파일은 전달받는다). 내 CPU에 맞는 파일 하나만 쓴다
+docker load -i trend-agent-demo-images-amd64.tar.gz     # Windows / Intel PC
+docker load -i trend-agent-demo-images-arm64.tar.gz     # Apple Silicon Mac
 
 # 2. 시작 (Neo4j에는 이미 데이터가 들어 있다)
+#    개발용 Neo4j(방법 B)가 떠 있으면 같은 포트(7474/7687)라 시작에 실패한다 → 먼저 `docker compose stop neo4j`
 docker compose up -d neo4j-demo app
 
 # 3. 검색 실행
@@ -200,19 +202,36 @@ docker compose exec app python -m pytest -q
 # 4. 호스트에서 코드를 고치고(src/trend_agent/graph/search.py, retrieval/scoring.py, configs/weights.yaml …) 3번을 다시 실행하면 바로 반영된다
 
 # 5. 끝낼 때 (데이터는 전달받은 시점으로 돌아간다)
-docker compose down neo4j-demo app
+docker compose --profile demo down
 ```
+
+- 5번을 `docker compose down neo4j-demo app`으로 쓰면 `unknown command "neo4j-demo"`가 나오는 Compose 버전이 있다 (v2.15.1에서 확인). `--profile demo down`은 어느 버전에서나 된다.
+- 개발용 Neo4j를 멈춰 두었다면 demo를 끝낸 뒤 `docker compose up -d`(또는 `docker compose start neo4j`)로 다시 켠다. 개발용 데이터는 볼륨에 그대로 있다.
+- 메모리는 Docker Desktop에 **4GB 이상** 할당한다 ([방법 B의 메모리 안내](#b-처음부터-환경을-만들기)와 같다).
 
 - 코드(`src`, `scripts`, `configs`, `tests`)는 이미지에 없고 **호스트 폴더를 그대로 연결**합니다. 고친 파일이 곧바로 쓰입니다. 검색 결과 JSON은 호스트의 `data/processed/results/`에 저장됩니다.
 - **확인할 수 있는 수정**: `search.py`, `scoring.py`, `weights.yaml`, 결과 출력. **확인할 수 없는 수정**: `loader.py`·그래프 구조처럼 **데이터가 바뀌는 수정**입니다. 이미지의 데이터는 고정된 스냅샷이므로 [실행 방법 B](#b-처음부터-환경을-만들기)로 처음부터 적재해야 합니다.
 - 이미지의 Neo4j는 인증을 끄고(비밀번호 없음) 이 PC의 `127.0.0.1`에만 열립니다. 브라우저는 http://localhost:7474 입니다. 포트가 겹치면 `DEMO_BOLT_PORT`, `DEMO_HTTP_PORT`를 바꿉니다.
-- Apple Silicon(arm64) Mac에서는 amd64 이미지가 에뮬레이션으로 돌아가 느릴 수 있습니다.
+- **CPU 아키텍처에 맞는 파일을 받아야 합니다.** 이미지는 CPU마다 따로 만들고, 파일 이름 끝이 아키텍처입니다: **Windows·Intel PC → `-amd64`, Apple Silicon Mac(M1 이상) → `-arm64`**. 맞지 않는 파일은 에뮬레이션으로 돌아가 매우 느리고(검색이 10초 안팎에서 약 50초로), Apple Silicon에서 amd64를 `docker compose`로 돌리면 healthcheck(`cypher-shell`)가 쌓여 메모리 부족으로 Neo4j가 종료될 수 있습니다 (exit 137). 맞는 파일을 쓰면 이 문제가 없습니다.
 
-**이미지를 만들어 전달하는 사람**: 그래프가 적재돼 있는 상태에서 `bash docker/demo/build.sh` (Windows는 Git Bash). 지금 그래프를 덤프해 `trend-agent-demo-neo4j`(데이터 포함)와 `trend-agent-demo-app`(파이썬 환경) 이미지를 만들고 `docker/demo/out/trend-agent-demo-images.tar.gz`로 저장합니다 (`--no-save`로 파일 저장은 생략). 그래프나 라벨을 바꾼 뒤에는 `python scripts/load_graph.py`를 하고 다시 실행해 새 스냅샷을 만듭니다. **전달할 것: ① 이 tar.gz ② 레포 코드** (`.env`와 `data`는 필요 없음). 덤프하는 동안 개발용 Neo4j가 잠깐 멈췄다가 자동으로 다시 시작됩니다.
+**이미지를 만들어 전달하는 사람**: 그래프가 적재돼 있는 상태에서 `bash docker/demo/build.sh` (Windows는 Git Bash). 지금 그래프를 덤프해 `trend-agent-demo-neo4j`(데이터 포함)와 `trend-agent-demo-app`(파이썬 환경) 이미지를 만들고 `docker/demo/out/trend-agent-demo-images-<arch>.tar.gz`(각 약 370MB)로 저장합니다 (`--no-save`로 파일 저장은 생략). 그래프나 라벨을 바꾼 뒤에는 `python scripts/load_graph.py`를 하고 다시 실행해 새 스냅샷을 만듭니다. 덤프하는 동안 개발용 Neo4j가 잠깐 멈췄다가 자동으로 다시 시작됩니다.
+
+**받는 사람의 PC가 섞여 있으면 CPU별로 두 번 만듭니다.** 아무것도 안 주면 만드는 PC의 CPU용이 만들어지고, `PLATFORM`으로 다른 CPU용을 만듭니다 (덤프는 CPU와 무관):
+
+```bash
+bash docker/demo/build.sh                           # 이 PC의 CPU용 (Apple Silicon이면 arm64)
+PLATFORM=linux/amd64 bash docker/demo/build.sh      # Windows·Intel용. Apple Silicon에서는 에뮬레이션이라 느리다 (아래 시간 참고)
+```
+
+- 이미지 이름(태그)은 두 CPU 모두 `:latest`라서 **마지막에 만든 것이 이 PC의 `:latest`가 됩니다.** 파일 이름에만 `-amd64`, `-arm64`가 붙습니다.
+- Apple Silicon에서 amd64를 만든 실측: 이미지 빌드 약 1분, tar.gz 약 374MB. 에뮬레이션 Neo4j는 약 20초에 뜨고 검색·테스트(74개)가 통과했습니다. 다만 `docker compose`의 healthcheck가 쌓여 OOM(exit 137)이 날 수 있어, **amd64 파일은 Windows·Intel에서 쓰고 Mac에서는 arm64를 씁니다.**
+- **전달할 것: ① 받는 사람 CPU에 맞는 tar.gz ② 레포 코드** (`.env`와 `data`는 필요 없음).
+
+만든 뒤에는 **개발용 Neo4j를 멈추고**(`docker compose stop neo4j`) 위 방법 A의 2~3번이 되는지 확인합니다. 그 상태에서 `docker compose --profile demo down`으로 끝낸 다음 개발용을 다시 켭니다. 이 절차로 확인한 결과: 그래프는 Style 5 · Item 36 · Product 33,323이고, 검색이 되며, 테스트 74개가 통과합니다 (arm64는 Apple Silicon에서 `docker compose`로 확인, amd64는 `docker run`으로 확인. Windows·Intel PC에서의 실행은 이 PC에 없어 확인하지 못했습니다).
 
 ### B. 처음부터 환경을 만들기
 
-준비물: Python 3.12, Docker, Git. 아래는 **이 순서대로** 실행합니다 (명령은 레포 루트에서). Windows 콘솔에서 한글이 깨지면 `PYTHONIOENCODING=utf-8`을 앞에 붙입니다.
+준비물: Python 3.12 (3.9에서도 의존성 설치와 테스트 74개가 통과함을 확인했지만 3.12가 기준), Docker Desktop, Git. **Docker Desktop에는 메모리를 4GB 이상 할당**하고 다른 컨테이너는 정리해 둡니다 (Neo4j가 힙 1GB + 페이지캐시 512MB 등 약 2GB를 씁니다. 메모리가 부족하면 컨테이너가 OOM으로 계속 재시작합니다 → [자주 막히는 곳](#자주-막히는-곳)). 아래는 **이 순서대로** 실행합니다 (명령은 레포 루트에서). Windows 콘솔에서 한글이 깨지면 `PYTHONIOENCODING=utf-8`을 앞에 붙입니다.
 
 ```bash
 # 1. 받기 + 가상환경 + 의존성
@@ -231,13 +250,14 @@ python -m pytest -q                       # 74 passed
 python scripts/build_otpensource.py       # 02 → data/processed/otpensource_all.jsonl (8,827행)
 python scripts/build_musinsa_snap.py      # 03 → data/processed/musinsa_snap_all.jsonl (24,532 슬롯)
 
-# 5. Neo4j 시작 (처음에는 이미지를 내려받는다). healthy가 되면 사용 가능
+# 5. Neo4j 시작 (처음에는 이미지를 내려받는다. 받은 뒤 healthy까지 약 30초). healthy가 되면 사용 가능
+#    .env의 NEO4J_PASSWORD가 비어 있으면 컨테이너가 Restarting을 반복한다. 방법 A의 demo가 떠 있으면 포트가 겹친다
 docker compose up -d
 docker compose ps
 python scripts/check_neo4j.py             # "성공: Neo4j Kernel 5.26.x" 가 나오면 된다
 
 # 6. 라벨 두기: 팀 내부로 받은 라벨을 eval/datasets/article_extraction/labels/ 에 넣는다 ("파일과 경로" 참고)
-python scripts/validate_labels.py         # (선택) 라벨 검증. 원문이 data/raw에 있으면 인용 위치까지 검사
+python scripts/validate_labels.py         # (선택) 라벨 검증. 인용 위치는 원문(data/raw)이 있어야 검사한다. 원문이 없으면 "원본 기사를 찾을 수 없음"으로 FAIL이 나오지만 7번 적재에는 영향이 없다
 
 # 7. 그래프 적재 (약 15초). 여러 번 실행해도 같은 그래프가 나온다
 python scripts/load_graph.py              # 표준 값 + 02·03 Product + 라벨
@@ -299,7 +319,10 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 |---|---|
 | `ModuleNotFoundError: pydantic` | 시스템 파이썬으로 실행했다. `.venv`를 활성화하거나 `.venv/Scripts/python.exe`로 실행 |
 | 전달받은 이미지인데 `docker compose up -d`를 했더니 비밀번호 오류로 Neo4j가 종료된다 | 그냥 `up -d`는 **개발용**(빈 DB)을 시작한다. 이미지(demo)는 `docker compose up -d neo4j-demo app` |
-| 개발용 컨테이너가 시작 직후 종료된다 (`docker compose ps`에서 Exited) | `.env`의 `NEO4J_PASSWORD`가 비었거나 없다. `docker logs trend-agent-neo4j`에서 확인 |
+| `docker compose up -d neo4j-demo app`이 `pull access denied for trend-agent-demo-app`로 실패 | 이미지가 이 PC에 없다. 전달받은 파일로 `docker load -i trend-agent-demo-images-<amd64 또는 arm64>.tar.gz`를 먼저 한다 (Docker Hub에는 없다) |
+| demo 시작이 `Bind for 127.0.0.1:7687 failed: port is already allocated`로 실패 | 개발용 Neo4j가 같은 포트를 쓰고 있다. `docker compose stop neo4j` 하거나 `DEMO_BOLT_PORT`, `DEMO_HTTP_PORT`를 바꾼다 |
+| 개발용 컨테이너가 시작 직후 종료되거나 `Restarting`을 반복한다 (`docker compose ps`) | `.env`의 `NEO4J_PASSWORD`가 비었거나 없다 (`Invalid value for NEO4J_AUTH: 'neo4j/'`). `docker logs trend-agent-neo4j`에서 확인 |
+| 컨테이너가 `Restarting`을 반복하고 `healthy`가 되지 않는다. 로그에는 오류 없이 "Started."만 반복된다 | Docker Desktop 메모리 부족(OOM). `docker inspect -f '{{.State.OOMKilled}}' trend-agent-neo4j`가 `true`면 확정이다. Docker Desktop 메모리를 4GB 이상으로 올리거나(Settings → Resources) 다른 컨테이너를 멈춘다 (`docker stats --no-stream`으로 확인) |
 | Neo4j 기본 포트가 이미 사용 중 | 다른 Neo4j가 쓰고 있다. `.env`에 `NEO4J_BOLT_PORT`, `NEO4J_HTTP_PORT`를 정하고 `NEO4J_URI` 포트도 맞춘다 |
 | `check_neo4j.py` 실패 (인증) | 이미 만든 볼륨은 처음 비밀번호를 기억한다. 비밀번호를 바꿨다면 `docker compose down -v` 후 다시 시작 (그래프 삭제) |
 | 검색이 `no_results` | 그래프가 비었거나 라벨이 없다. `load_graph.py` 출력의 "라벨 …" 줄과 Style 개수를 확인 |
