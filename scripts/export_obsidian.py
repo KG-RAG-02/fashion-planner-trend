@@ -310,7 +310,8 @@ def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run:
               "virtual": st.virtual or None, "requests": sorted(tr["requests"]), "tags": ["trend"]}
         body = [f"# {st.name}", ""] + ([f"> [!warning] {tr['notice']}", ""] if tr["notice"] else []) + [st.definition, ""]
         for d in st.description:
-            body += [d.text, ""] + [ev_line(e) for e in d.evidence_ids if ev_line(e)] + [""]
+            text = [] if d.text.strip() == st.definition.strip() else [d.text, ""]  # 정의와 같은 문장은 한 번만
+            body += text + [ev_line(e) for e in d.evidence_ids if ev_line(e)] + [""]
         if st.focus_core or st.focus_supporting:
             body += [f"- 핵심 속성: {', '.join(st.focus_core) or '-'}", f"- 보조 속성: {', '.join(st.focus_supporting) or '-'}", ""]
         body += ["## Item", ""] + [f"- {link(paths[iid], data['items'][iid]['item'].name)}" for iid in tr["items"]]
