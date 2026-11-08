@@ -8,7 +8,8 @@ import pyarrow.parquet as pq
 import pytest
 
 from trend_agent.embeddings import batch, runtime
-from trend_agent.embeddings.text import collect_inputs, garment_text, style_text, text_sha
+from trend_agent.embeddings.text import (PreprocessAudit, clean, collect_inputs, garment_text,
+                                        input_plan, product_name, style_text, text_sha)
 
 
 def test_canonical_text_omits_null_and_marks_approx():
@@ -57,13 +58,17 @@ def write_products(shared, version, names):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps({"category_major": "상의", "node": {"id": str(i), "name": name}})
                               for i, name in enumerate(names)), encoding="utf-8")
+    if version == "v2":
+        handoffs = shared.parent / "_vault/00_Team/handoffs"
+        handoffs.mkdir(parents=True, exist_ok=True)
+        (handoffs / "T2-T3-products-v2.md").write_text("products-v2 ready")
 
 
 def test_incremental_job_and_manifest_search(environment, monkeypatch):
     shared = environment
     monkeypatch.setattr(batch, "Encoder", FakeEncoder)
     FakeEncoder.documents = []
-    args = argparse.Namespace(product_version=None, extraction_version=None, model=runtime.DEFAULT_MODEL,
+    args = argparse.Namespace(product_version="v1", extraction_version=None, model=runtime.DEFAULT_MODEL,
                               batch_size=2, inventory_only=False)
     write_products(shared, "v1", ["니트", "니트", "셔츠"])
     batch.run(args)
@@ -85,6 +90,7 @@ def test_incremental_job_and_manifest_search(environment, monkeypatch):
     second = runtime.read_manifest()
     assert (second["cache_reused"], second["newly_encoded"]) == (2, 0)
     write_products(shared, "v2", ["니트", "니트", "재킷"])
+    args.product_version = None
     batch.run(args)
     third = runtime.read_manifest()
     assert third["input"]["product_version"] == "v2"
@@ -120,21 +126,20 @@ def test_board_directive_change_stops_before_next_phase(environment):
         guard.check("encode")
 
 
-def test_failed_primary_model_switches_whole_job_to_e5(environment, monkeypatch):
+def test_v2_model_failure_does_not_change_phase1_model(environment, monkeypatch):
     shared = environment
-    write_products(shared, "v1", ["니트"])
+    write_products(shared, "v2", ["니트"])
+    attempted = []
     def load(model, revision=None):
-        if model == runtime.DEFAULT_MODEL:
-            raise RuntimeError("fixture primary model unavailable")
-        return FakeEncoder(model, revision)
+        attempted.append((model, revision))
+        raise RuntimeError("fixture primary model unavailable")
     monkeypatch.setattr(batch, "Encoder", load)
     args = argparse.Namespace(product_version=None, extraction_version=None, model=runtime.DEFAULT_MODEL,
                               batch_size=2, inventory_only=False)
-    batch.run(args)
-    manifest = runtime.read_manifest()
-    assert manifest["model"] == runtime.FALLBACK_MODEL
-    assert manifest["model_failures"][0]["model"] == runtime.DEFAULT_MODEL
-    assert manifest["outputs"]["product"]["rows"] == 1
+    with pytest.raises(RuntimeError, match="All local model attempts failed"):
+        batch.run(args)
+    assert attempted == [(runtime.DEFAULT_MODEL, batch.MODEL_REVISION)]
+    assert not (shared / "embeddings/manifest.json").exists()
 
 
 def test_e5_prefix_and_mps_cpu_retry():
@@ -178,16 +183,182 @@ def test_term_map_adapter_preserves_t3_graph_ids(environment):
     assert rows["term"][0]["text"] == "고프코어 룩"
     with termmap.open("a") as stream:
         stream.write("\n" + json.dumps({"term": "고프코어", "norm": "고프코어"}))
-    with pytest.raises(ValueError, match="Conflicting term id"):
+    rows, _ = collect_inputs(environment)
+    assert rows["term"][0]["text"] == "고프코어 룩 | 고프코어"
+    with termmap.open("a") as stream:
+        stream.write("\n" + json.dumps({"term": "다른 말", "norm": "고프코어"}))
+    with pytest.raises(ValueError, match="contract normalization"):
         collect_inputs(environment)
 
 
-def test_keyword_inventory_uses_explicit_norm_and_marks_synthetic_ids(environment):
+def test_keyword_inventory_is_protection_only(environment):
     write_products(environment, "v1", ["니트"])
     inventory = environment / "keywords/inventory.csv"
     inventory.parent.mkdir()
     inventory.write_text("keyword,norm\n고프코어 룩,고프코어\n시럽코어,\n시럽코어,\n", encoding="utf-8")
     rows, metadata = collect_inputs(environment)
     ids = {row["id"] for row in rows["term"]}
-    assert ids == {"term:고프코어", "keyword:" + text_sha("시럽코어")}
-    assert metadata["statistics"]["keyword_synthetic_ids"] == 1
+    assert ids == set()
+    assert metadata["preprocessing"]["protected_count"] >= 2
+    assert "term_map" in metadata["pending"]
+
+
+@pytest.mark.parametrize("raw,expected", [
+    (" ＦＲＥＥ  와이드\t팬츠 &#039;빈티지&#039; ✨🔥", "와이드 팬츠 '빈티지'"),
+    ("[무료배송][단독] 오버핏 크롭 니트 (당일발송)", "오버핏 크롭 니트"),
+    ("[단독 와이드] 팬츠", "와이드 팬츠"),
+    ("[30% 적립금] 빈티지 니트", "빈티지 니트"),
+    ("[SET] 셋업 투피스 (빈티지)", "[SET] 셋업 투피스 (빈티지)"),
+    ("니트 FREE S/M/L/XL 사이즈: 90/95/100", "니트"),
+    ("오버사이즈 빅사이즈 셔츠 S~4XL", "오버사이즈 빅사이즈 셔츠"),
+    ("오버 사이즈 헤비 셔츠 사이즈 M", "오버 사이즈 헤비 셔츠"),
+    ("오버 사이즈핏 빈티지 니트", "오버 사이즈핏 빈티지 니트"),
+    ("L/S Tee S/S Tee", "L/S Tee S/S Tee"),
+    ("P.A.M. Hoodie F.S.B (다크 M.그레이)", "P.A.M. Hoodie F.S.B (다크 M.그레이)"),
+    ("THINSULATE™ 니트<br>와이드 팬츠", "THINSULATE 니트 와이드 팬츠"),
+    ("KLTW0153 빈티지 티셔츠 Q321-3152-1MG", "빈티지 티셔츠"),
+    ("[5597] 크롭 니트", "크롭 니트"),
+    ("Polo_CWTAW24992BRX DF42ST11_WHITE", "Polo WHITE"),
+    ("BODYSUIT_T316BS300 A13HD571BLACK", "BODYSUIT BLACK"),
+    ("1980년대 빈티지 1000g 니트 MA-1", "1980년대 빈티지 1000g 니트 MA-1"),
+    ("니트 블랙 BK BK", "니트 블랙"),
+    ("BLACK BK 블루 BL", "BLACK 블루"),
+    ("니트 다크그레이 라이트블루", "니트 다크그레이 라이트블루"),
+    ("1️⃣★ 와이드 👩‍🎤 팬츠", "와이드 팬츠"),
+])
+def test_v2_product_name_rules(raw, expected):
+    assert product_name(raw) == expected
+
+
+def test_common_rules_and_audit_counters():
+    audit = PreprocessAudit()
+    assert clean(" Ａ&#039;\n니트✨", audit) == "A' 니트"
+    assert all(audit.counts[k] == 1 for k in ("unicode_nfkc", "html_unescape", "symbols_removed", "whitespace"))
+    product_name("[단독] 니트 FREE KLTW1234 블랙 BK", audit=audit)
+    assert all(audit.counts[k] == 1 for k in ("promotion", "size_option", "product_code", "duplicate_color"))
+
+
+def test_inventory_protects_digit_keyword_and_bracket_meaning():
+    assert product_name("[단독] 2026FW 크롭 ABC12345", protected=["2026FW"]) == "2026FW 크롭"
+
+
+def test_component_text_uses_category_without_source_mutation():
+    source = {"category_major": "하의", "colors": [{"value": "퍼플", "approx": True}],
+              "node": {"name": "[무료배송] 투피스 셋업", "category_minor": "팬츠", "fit": "타이트", "approx": ["fit"],
+                       "parent_id": "private-parent", "split_from": "name_rule", "image_ref": "secret-image", "image_status": "ok"}}
+    before = json.dumps(source)
+    assert garment_text(source) == "하의>팬츠 | 색 ~퍼플 | 핏 ~타이트 | 투피스 셋업 | 세트 구성품 팬츠"
+    assert json.dumps(source) == before
+    assert "private-parent" not in garment_text(source)
+    assert "secret-image" not in garment_text(source)
+
+
+@pytest.mark.parametrize("mask", range(8))
+def test_readiness_independent_inputs(environment, mask):
+    shared = environment
+    write_products(shared, "v2", ["니트"])
+    handoffs = shared.parent / "_vault/00_Team/handoffs"
+    if not mask & 1:
+        (handoffs / "T2-T3-products-v2.md").unlink()
+    ext = shared / "extractions/extract-v2/1.json"
+    ext.parent.mkdir(parents=True)
+    ext.write_text(json.dumps({"extraction": {"article_id": "1", "styles": [{"name": "스타일", "items": []}]},
+                               "label_meta": {"prompt_version": "extract-v2"}}))
+    if mask & 2:
+        (handoffs / "T1-T3,T4-extractions-ready.md").write_text("version: extract-v2")
+    if mask & 4:
+        termmap = shared / "terms/term_map.jsonl"
+        termmap.parent.mkdir()
+        termmap.write_text(json.dumps({"text": "드뮤어", "aliases": ["demure"]}))
+    rows, metadata = collect_inputs(shared)
+    assert (len(rows["product"]), len(rows["style"]), len(rows["term"])) == tuple(bool(mask & n) for n in (1, 2, 4))
+    assert len(metadata["pending"]) == 3 - mask.bit_count()
+    if mask & 4:
+        assert rows["term"][0]["text"] == "드뮤어 | demure"
+
+
+def test_product_sidecar_excluded_and_removed_ids_not_published(environment, monkeypatch):
+    monkeypatch.setattr(batch, "Encoder", FakeEncoder)
+    shared = environment
+    write_products(shared, "v2", ["[단독] 니트", "니트", "셔츠"])
+    sidecar = shared / "data/processed/v2/otpensource_split_parents.jsonl"
+    sidecar.write_text('not a ProductRecord')
+    args = argparse.Namespace(product_version=None, extraction_version=None, model=runtime.DEFAULT_MODEL,
+                              batch_size=2, inventory_only=False)
+    batch.run(args)
+    first = runtime.read_manifest()
+    write_products(shared, "v2", ["니트"])
+    args.baseline_run = first["run_id"]
+    batch.run(args)
+    current = runtime.read_manifest()
+    assert current["newly_encoded"] == 0
+    assert current["outputs"]["product"]["rows"] == 1
+    comparison = current["probe_comparison"]
+    assert comparison["status"] == "complete"
+    assert comparison["id_changes"]["product"]["removed"] == 2
+    assert pq.read_table(shared / "embeddings" / first["outputs"]["product"]["path"]).num_rows == 3
+
+
+def test_no_inputs_never_loads_model(environment, monkeypatch):
+    monkeypatch.setattr(batch, "Encoder", lambda *a, **k: pytest.fail("model loaded for pending input"))
+    args = argparse.Namespace(product_version=None, extraction_version=None, model=runtime.DEFAULT_MODEL,
+                              batch_size=2, inventory_only=False)
+    batch.run(args)
+    pending = json.loads((environment / "embeddings/pending_manifest.json").read_text())
+    assert pending["status"] == "pending"
+    assert len(pending["pending"]) == 3
+    assert pending["newly_encoded"] == 0
+
+
+def test_file_added_after_inventory_stops_export(environment):
+    write_products(environment, "v2", ["니트"])
+    _, metadata = collect_inputs(environment)
+    termmap = environment / "terms/term_map.jsonl"
+    termmap.parent.mkdir()
+    termmap.write_text(json.dumps({"term": "드뮤어"}))
+    args = argparse.Namespace(product_version=None, extraction_version=None)
+    with pytest.raises(RuntimeError, match="Input/readiness changed"):
+        batch.check_inputs(environment, args, metadata, "export")
+
+
+def test_term_only_batch_and_unrecognized_profile_exclusion(environment, monkeypatch):
+    monkeypatch.setattr(batch, "Encoder", FakeEncoder)
+    termmap = environment / "terms/term_map.jsonl"
+    termmap.parent.mkdir()
+    termmap.write_text("\n".join(json.dumps(row) for row in (
+        {"term": "드뮤어", "norm": "드뮤어", "aliases": ["demure"]},
+        {"row": "profile", "term": "없는말", "profile": {"recognized": False}},
+    )))
+    args = argparse.Namespace(product_version=None, extraction_version=None, model=runtime.DEFAULT_MODEL,
+                              batch_size=2, inventory_only=False)
+    batch.run(args)
+    manifest = runtime.read_manifest()
+    assert manifest["outputs"]["product"]["rows"] == 0
+    assert manifest["outputs"]["term"]["rows"] == 1
+    assert set(manifest["pending"]) == {"products_v2", "extractions"}
+
+
+def test_complete_run_is_verified_without_loading_model(environment, monkeypatch):
+    monkeypatch.setattr(batch, "Encoder", FakeEncoder)
+    write_products(environment, "v2", ["[무료배송] 와이드 니트"])
+    args = argparse.Namespace(product_version=None, extraction_version=None, model=runtime.DEFAULT_MODEL,
+                              batch_size=2, inventory_only=False)
+    batch.run(args)
+    out = environment / "embeddings"
+    manifest_bytes = (out / "manifest.json").read_bytes()
+    (out / "completion_state.json").write_text(json.dumps({"status": "complete", "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest()}))
+    monkeypatch.setattr(batch, "Encoder", lambda *a, **k: pytest.fail("completed run loaded model"))
+    batch.run(args)
+    assert (out / "manifest.json").read_bytes() == manifest_bytes
+
+
+def test_thirty_samples_source_preserved(environment):
+    write_products(environment, "v2", [f"[단독] 와이드 니트 FREE {n}" for n in range(35)])
+    path = environment / "data/processed/v2/products.jsonl"
+    original = path.read_bytes()
+    rows, metadata = collect_inputs(environment)
+    assert len(rows["product"]) == 35
+    assert len(metadata["preprocessing"]["samples"]) == 30
+    assert metadata["preprocessing"]["semantic_losses"] == []
+    assert metadata["preprocessing"]["affected_products"]["promotion"] == 35
+    assert path.read_bytes() == original
