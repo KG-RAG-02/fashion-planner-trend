@@ -149,8 +149,17 @@ def aggregate(per_item: dict[str, dict]) -> dict:
     return agg
 
 
-def compute_metrics(rankings: dict, judgments: dict, products: dict, items: dict, split_of: dict, baseline: str, k: int = 5) -> dict:
-    """→ {config: {group: aggregate, 'vs_baseline': {...}}}"""
+def drop_null(rankings: dict, judgments: dict) -> dict:
+    """민감도 분석: null 판정 카드(이미지 없음·비의류 사진·슬롯 특정 불가)를 순위에서 뺀다 — 뒤 순위가 올라온다."""
+    return {cfg: {i: [p for p in ids if not (p in judgments.get(i, {}) and judgments[i][p] is None)] for i, ids in by.items()}
+            for cfg, by in rankings.items()}
+
+
+def compute_metrics(rankings: dict, judgments: dict, products: dict, items: dict, split_of: dict, baseline: str, k: int = 5,
+                    null_policy: str = "zero") -> dict:
+    """→ {config: {group: aggregate, 'vs_baseline': {...}}}. null_policy: zero = gain 0으로 셈(기본) / skip = 순위에서 뺌."""
+    if null_policy == "skip":
+        rankings = drop_null(rankings, judgments)
     out = {}
     base_rank = rankings.get(baseline, {})
     for cfg, by_item in rankings.items():
@@ -477,10 +486,12 @@ def cmd_metrics(a) -> int:
     rows = read_jsonl(a.pool / "pool.jsonl")
     items = {r["item_id"]: r for r in read_jsonl(a.pool / "items.jsonl")}
     products = {r["product_id"]: r for r in read_jsonl(a.pool / "products.jsonl")}
-    res = compute_metrics(rankings_from_pool(rows), judgments_map(read_jsonl(a.judgments)), products, items, _split_of(), a.baseline)
+    res = compute_metrics(rankings_from_pool(rows), judgments_map(read_jsonl(a.judgments)), products, items, _split_of(), a.baseline,
+                          null_policy=a.null_policy)
     a.out.mkdir(parents=True, exist_ok=True)
     (a.out / "metrics.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
-    L = ["# 검색 지표 (설정별)", "", f"- 풀 `{a.pool}` · 판정 `{a.judgments}` · baseline `{a.baseline}` · k=5", "",
+    L = ["# 검색 지표 (설정별)", "", f"- 풀 `{a.pool}` · 판정 `{a.judgments}` · baseline `{a.baseline}` · k=5 · null 처리 `{a.null_policy}`"
+         + (" (null 카드를 순위에서 뺌 — 민감도 분석)" if a.null_policy == "skip" else " (null = gain 0, 관련 없음과 같게 셈)"), "",
          "| 설정 | 그룹 | Item | nDCG@5 평균(관련 있는 Item) | 관련 후보 없음 | P@5 (g=2 / g≥1, 분모 5n) | 미판정@5 | null@5 | 이미지@5 | snap/catalog@5 | 성별@5 일치·불일치·미상 | <5개 |",
          "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for cfg, groups in res.items():
@@ -542,6 +553,7 @@ def main(argv=None) -> int:
     p.add_argument("--pool", type=Path, required=True)
     p.add_argument("--judgments", type=Path, default=SHARED / "eval" / "judgments.jsonl")
     p.add_argument("--baseline", default="P0")
+    p.add_argument("--null-policy", choices=("zero", "skip"), default="zero")
     p.add_argument("--out", type=Path, required=True)
     p = sub.add_parser("review-sample")
     p.add_argument("--pool", type=Path, required=True)

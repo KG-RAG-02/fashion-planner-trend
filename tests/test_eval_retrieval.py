@@ -119,3 +119,13 @@ def test_filter_entries_keeps_only_labeled_split_items():
     out = er.filter_entries(ents, {"857922": "dev", "855421": "test"}, {"dev", "test"})
     assert [e["item"].node.id for e in out] == ["857922-s0-i0", "855421-s1-i2"]
     assert er.filter_entries(ents, {"857922": "dev", "855421": "test"}, {"dev"})[0]["item"].node.id == "857922-s0-i0"
+
+
+def test_null_policy_skip_drops_null_cards_from_rankings():
+    items = {"1-s0-i0": {"gender": None}}
+    judg = {"1-s0-i0": {"n": None, "g": 2, "b": 0}}
+    rankings = {"P0": {"1-s0-i0": ["n", "b", "g"]}}
+    zero = er.compute_metrics(rankings, judg, {}, items, {"1": "dev"}, "P0", k=2)
+    skip = er.compute_metrics(rankings, judg, {}, items, {"1": "dev"}, "P0", k=2, null_policy="skip")
+    assert zero["P0"]["전체"]["ndcg_mean"] == 0.0 and zero["P0"]["전체"]["null"] == 1
+    assert skip["P0"]["전체"]["null"] == 0 and skip["P0"]["전체"]["ndcg_mean"] > 0
