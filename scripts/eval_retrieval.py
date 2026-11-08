@@ -443,6 +443,8 @@ def cmd_pool_tier4(a) -> int:
         if got is None:
             continue
         row, pids = got
+        if any(i["item_id"] == row["item_id"] for i in items):  # 같은 프로필(같은 context_sha) — 한 번만 판정
+            continue
         row["result_file"] = str(f)
         items.append(row)
         for rank, pid in enumerate(pids, 1):
