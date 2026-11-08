@@ -49,6 +49,8 @@ class BatchConfig:
     max_consecutive_failures: int = 3
     max_text_gap: int = 1
     max_blocks: int = 2
+    reprocess: bool = False      # 출력이 있어도 다시(캐시 응답으로 후처리·검증만 — 캐시에 없으면 LLM 호출)
+    length_area: bool = False    # postprocess.LENGTH_AREA_FIX 적용
 
 
 @dataclass
@@ -108,7 +110,7 @@ def _select(articles: list[dict], cfg: BatchConfig) -> tuple[list[dict], int]:
         aid = str(a["article_id"])
         done = (out / f"{aid}.json").exists()
         in_review = (review / f"{aid}.json").exists()
-        if done or (in_review and not cfg.retry_review):
+        if not cfg.reprocess and (done or (in_review and not cfg.retry_review)):
             skipped += 1
             continue
         todo.append(a)
@@ -155,7 +157,8 @@ def run_batch(cfg: BatchConfig, *, articles: Optional[list[dict]] = None,
             out = extract_article_outcome(article, backend=cfg.backend, model=cfg.model,
                                           prompt_version=cfg.prompt_version, reasoning_effort=cfg.reasoning_effort,
                                           timeout_s=cfg.timeout_s, use_cache=cfg.use_cache,
-                                          max_blocks=cfg.max_blocks, max_text_gap=cfg.max_text_gap)
+                                          max_blocks=cfg.max_blocks, max_text_gap=cfg.max_text_gap,
+                                          length_area=cfg.length_area)
         except LLMError as e:
             with _lock:
                 consecutive[0] += 1
@@ -180,6 +183,9 @@ def run_batch(cfg: BatchConfig, *, articles: Optional[list[dict]] = None,
                 summ.passed += 1
         else:
             _atomic_json(cfg.out_dir / "_review" / f"{aid}.json", doc)
+            stale_ok = cfg.out_dir / f"{aid}.json"
+            if stale_ok.exists():  # --reprocess로 통과 → 검토로 바뀐 경우
+                stale_ok.unlink()
             _append(review_queue, {"ts": _now(), "article_id": aid, "prompt_version": cfg.prompt_version,
                                    "path": str(cfg.out_dir / "_review" / f"{aid}.json"),
                                    "n_errors": len(out.errors), "errors": out.errors[:10]})

@@ -106,3 +106,16 @@ def test_batch_ids_order_and_unknown(env):
     assert s.passed == 1 and (env / "extract-v1" / "c2.json").exists() and not (env / "extract-v1" / "c1.json").exists()
     with pytest.raises(SystemExit):
         run_batch(_cfg(env, ids=["zz"]), articles=arts)
+
+
+def test_reprocess_uses_cache_and_rewrites(env):
+    good = _llm_doc()
+    fb = _ByArticle({"r1": good})
+    client.register_backend("codex_cli", fb)
+    arts = [_article("r1")]
+    run_batch(_cfg(env), articles=arts)
+    first = json.loads((env / "extract-v1" / "r1.json").read_text(encoding="utf-8"))
+    s = run_batch(_cfg(env, reprocess=True), articles=arts)
+    assert fb.calls == ["r1"] and s.passed == 1 and s.skipped == 0  # 두 번째는 캐시 — LLM 호출 없음
+    again = json.loads((env / "extract-v1" / "r1.json").read_text(encoding="utf-8"))
+    assert again["extraction"] == first["extraction"] and again["label_meta"]["llm"]["cache_hit"] == [True]

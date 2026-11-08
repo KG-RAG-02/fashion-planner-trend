@@ -17,9 +17,15 @@ import copy
 from functools import lru_cache
 from typing import Any, Optional
 
+from ...schemas.vocabulary import MINOR_TO_MAJOR, CategoryMinor
 from ..normalization.alias_map import AliasMap
 
-__all__ = ["convert_image_links", "apply_alias_map", "postprocess", "get_alias_map"]
+__all__ = ["convert_image_links", "apply_alias_map", "apply_length_area", "postprocess", "get_alias_map",
+           "LENGTH_AREA_FIX"]
+
+# 영역별 기장 통일(선택, 기본 꺼짐): vocabulary §6 하의·원피스 허용값에 '롱'이 없고 사용자 결정 L-맥시(2026-11-08)가
+# 하의·원피스의 긴/롱을 맥시로 통일했다. 켜면 `length_area:length_body:롱->맥시` 표시를 남긴다.
+LENGTH_AREA_FIX = {"하의": {"롱": "맥시"}, "원피스": {"롱": "맥시"}}
 
 # Item 스칼라 (raw 필드, 값 필드, 사전 속성)
 SCALAR_FIELDS = (
@@ -148,10 +154,32 @@ def apply_alias_map(doc: dict, am: Optional[AliasMap] = None) -> None:
                        lambda v, e=entry: e.__setitem__("value", v))
 
 
-def postprocess(raw_doc: dict, article: dict, *, am: Optional[AliasMap] = None) -> tuple[dict, list[str]]:
+def _major_of(item: dict) -> Optional[str]:
+    minor = item.get("category_minor")
+    if minor:
+        try:
+            return MINOR_TO_MAJOR[CategoryMinor(minor)].value
+        except ValueError:
+            return None
+    return item.get("category_major")
+
+
+def apply_length_area(doc: dict) -> None:
+    for _si, _ii, _style, item in _items(doc):
+        fix = LENGTH_AREA_FIX.get(_major_of(item) or "", {})
+        old = item.get("length_body")
+        if old in fix:
+            item["length_body"] = fix[old]
+            _flag(item, f"length_area:length_body:{old}->{fix[old]}")
+
+
+def postprocess(raw_doc: dict, article: dict, *, am: Optional[AliasMap] = None,
+                length_area: bool = False) -> tuple[dict, list[str]]:
     """(pydantic 입력 dict, V6 오류). 원본 dict는 바꾸지 않는다."""
     doc = copy.deepcopy(raw_doc)
     doc["article_id"] = str(article["article_id"])
     errors = convert_image_links(doc, article)
     apply_alias_map(doc, am)
+    if length_area:
+        apply_length_area(doc)
     return doc, errors

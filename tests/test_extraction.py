@@ -277,3 +277,17 @@ def test_negative_article_empty_styles(fake_llm):
     fake_llm([{"styles": []}])
     ext = extractor.extract_article(ARTICLE, backend="codex_cli", model="m-1", prompt_version="extract-v1")
     assert ext.styles == [] and ext.article_id == "t-001"
+
+
+def test_length_area_rule_optional():
+    skirt = _item(name="긴 스커트", raw_text="긴 스커트", category_raw="스커트", category_minor="스커트", colors=[],
+                  fit_raw=None, fit=None, length_body_raw="긴", length_body="맥시", image_links=[],
+                  evidence=[{"block_idx": 7, "quote": "미디 스커트"}])
+    off, _ = postprocess(_llm_doc(items=[skirt]), ARTICLE)
+    assert off["styles"][0]["items"][0]["length_body"] == "롱"  # 별칭 사전 '긴'→롱 (영역 무시)
+    on, _ = postprocess(_llm_doc(items=[skirt]), ARTICLE, length_area=True)
+    it = on["styles"][0]["items"][0]
+    assert it["length_body"] == "맥시" and "length_area:length_body:롱->맥시" in it["review_flags"]
+    coat = _item(category_minor="코트", length_body_raw=None, length_body="롱")
+    on2, _ = postprocess(_llm_doc(items=[coat]), ARTICLE, length_area=True)
+    assert on2["styles"][0]["items"][0]["length_body"] == "롱"  # 아우터는 롱 허용

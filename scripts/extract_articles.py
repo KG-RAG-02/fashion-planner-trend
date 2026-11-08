@@ -58,6 +58,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--timeout", type=float, default=None, help="호출당 초 (기본 env LLM_TIMEOUT_S 또는 600)")
     ap.add_argument("--review-queue", type=Path, default=None, help="기본 <out>/../review_queue.jsonl")
     ap.add_argument("--max-text-gap", type=int, default=1)
+    ap.add_argument("--reprocess", action="store_true",
+                    help="이미 있는 출력도 다시 만든다(캐시된 LLM 응답으로 후처리·검증만, 캐시에 없을 때만 호출)")
+    ap.add_argument("--length-area", action="store_true", help="하의·원피스 length_body 롱→맥시 (결정 L-맥시)")
     ap.add_argument("--report-only", action="store_true")
     ap.add_argument("--term-mentions", type=Path, default=None,
                     help="추출 대신 트렌드 언급 집계: --in 기사 + --out 폴더의 검증 통과 추출 → 이 경로(JSONL)")
@@ -86,7 +89,8 @@ def main(argv: list[str] | None = None) -> int:
         reasoning_effort=args.effort, prompt_version=args.prompt_version, concurrency=args.concurrency,
         ids=[x.strip() for x in args.ids.split(",") if x.strip()] if args.ids else None, limit=args.limit,
         retry_review=args.retry_review, use_cache=not args.no_cache, timeout_s=args.timeout,
-        review_queue=args.review_queue, max_text_gap=args.max_text_gap,
+        review_queue=args.review_queue, max_text_gap=args.max_text_gap, reprocess=args.reprocess,
+        length_area=args.length_area,
     )
     label = f"T1 추출 {args.prompt_version} → {args.out}"
     if args.emit:

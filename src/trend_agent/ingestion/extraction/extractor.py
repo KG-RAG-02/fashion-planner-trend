@@ -55,10 +55,11 @@ class ExtractionFailed(RuntimeError):
 
 def _attempt(article: dict, prompt: str, schema: dict, *, prompt_version: str, backend: Optional[str],
              model: Optional[str], reasoning_effort: Optional[str], timeout_s: Optional[float], use_cache: bool,
-             max_blocks: int, max_text_gap: int) -> tuple[Optional[ArticleExtraction], Optional[dict], ValidationReport, dict]:
+             max_blocks: int, max_text_gap: int, length_area: bool = False
+             ) -> tuple[Optional[ArticleExtraction], Optional[dict], ValidationReport, dict]:
     res = llm.call(prompt, schema, purpose=PURPOSE, prompt_version=prompt_version, backend=backend, model=model,
                    reasoning_effort=reasoning_effort, timeout_s=timeout_s, use_cache=use_cache)
-    doc, v6 = postprocess(res.data, article)
+    doc, v6 = postprocess(res.data, article, length_area=length_area)
     try:
         ext = ArticleExtraction.model_validate(doc)
     except ValidationError as e:
@@ -77,7 +78,7 @@ def _attempt(article: dict, prompt: str, schema: dict, *, prompt_version: str, b
 def extract_article_outcome(article: dict, *, backend: Optional[str] = None, model: Optional[str] = None,
                             prompt_version: str = "extract-v1", reasoning_effort: Optional[str] = None,
                             timeout_s: Optional[float] = None, use_cache: bool = True, max_retries: int = 1,
-                            max_blocks: int = 2, max_text_gap: int = 1) -> ExtractionOutcome:
+                            max_blocks: int = 2, max_text_gap: int = 1, length_area: bool = False) -> ExtractionOutcome:
     schema, _dropped, sha = extraction_schema()
     _tmpl, front = load_template(prompt_version)
     base_prompt = render_prompt(article, prompt_version)
@@ -90,7 +91,8 @@ def extract_article_outcome(article: dict, *, backend: Optional[str] = None, mod
         attempts = attempt + 1
         ext, doc, rep, meta = _attempt(article, prompt, schema, prompt_version=prompt_version, backend=backend,
                                        model=model, reasoning_effort=reasoning_effort, timeout_s=timeout_s,
-                                       use_cache=use_cache, max_blocks=max_blocks, max_text_gap=max_text_gap)
+                                       use_cache=use_cache, max_blocks=max_blocks, max_text_gap=max_text_gap,
+                                       length_area=length_area)
         calls.append(meta)
         if rep.passed:
             break
