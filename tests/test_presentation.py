@@ -192,3 +192,23 @@ def test_pick_evidence_prefers_literal_blocks():
         {"article_id": "3", "block_idx": 5, "role": "style", "literal": True, "published": "2026-09-01"},
         {"article_id": "4", "block_idx": 1, "role": "mention", "published": "2026-08-01"}]}  # literal 없음 = 참
     assert [e["article_id"] for e in rts.pick_evidence(row, 3)] == ["3", "2", "4"]
+
+
+def test_prune_moves_only_stale_generated_files(env):
+    tmp, shared, res = env
+    vault, backup = tmp / "vault", tmp / "backup"
+    exo.export([(res, "a" * 64)], vault)
+    # 사람이 쓴 노트·요약표 노트·예전 실행의 생성물을 미리 둔다
+    (vault / "10_Trends" / "사람 노트.md").write_text("---\ntype: trend\n---\n사람\n", encoding="utf-8")
+    (vault / "10_Trends" / "_트렌드 요약.md").write_text("---\ngenerated: true\n---\n요약\n", encoding="utf-8")
+    (vault / "40_Products" / "옛 상품.md").write_text("---\ngenerated: true\n---\n옛\n", encoding="utf-8")
+    (vault / "assets" / "snap" / "999.jpg").write_bytes(b"old")
+    res2 = TrendAnalysisResult.model_validate(result_dict())
+    res2.trends[0].items[0].similar_products = res2.trends[0].items[0].similar_products[:1]  # 03 상품 빠짐
+    res2.resolutions[0].top_products = res2.resolutions[0].top_products[:1]
+    rep = exo.export([(res2, "b" * 64)], vault, prune_backup=backup)["report"]
+    moved = {p.relative_to(backup).as_posix() for p in backup.rglob("*") if p.is_file()}
+    assert "40_Products/옛 상품.md" in moved and "assets/snap/999.jpg" in moved
+    assert "assets/snap/7.jpg" in moved and any(m.startswith("40_Products/snap-000007") for m in moved)
+    assert (vault / "10_Trends" / "사람 노트.md").exists() and (vault / "10_Trends" / "_트렌드 요약.md").exists()
+    assert not (vault / "40_Products" / "옛 상품.md").exists() and rep["pruned"] == len(moved)
