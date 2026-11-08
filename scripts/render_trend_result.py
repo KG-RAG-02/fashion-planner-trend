@@ -186,6 +186,21 @@ def product_card(p: ProductMatch, out_dir: Path, note_paths: dict[str, str], ext
             f'</figcaption></figure>')
 
 
+def trend_notice(t: Any, res: TrendAnalysisResult) -> str:
+    """판정 자격 안내(T3 표시 규칙): Tier4 LLM 제안은 사람 확인 필요, 기사 근거가 없으면 그렇게 적는다."""
+    parts = []
+    if t.qualification == "agent_proposal":
+        parts.append("LLM 제안(Tier4) — 사람 확인 필요")
+    elif t.qualification == "vocabulary_rule":
+        parts.append("별칭 사전 규칙(Tier2) — 기사 인용 없음")
+    llm = next((r.llm for r in res.resolutions if t.style.id in r.style_ids and r.llm), None)
+    if llm is not None and llm.evidence == "none":
+        parts.append("기사 근거 없음 — LLM 일반 지식")
+    if t.style.season_status in ("mismatch", "unknown"):
+        parts.append(f"시즌 {t.style.season_status}(season_policy=report라 결과에 남김)")
+    return " · ".join(parts)
+
+
 def render(res: TrendAnalysisResult, src_sha: str, out_dir: Path, enriched: int = 0,
            note_paths: Optional[dict[str, str]] = None) -> str:
     note_paths = note_paths or {}
@@ -232,6 +247,9 @@ def render(res: TrendAnalysisResult, src_sha: str, out_dir: Path, enriched: int 
         h.append(f'<p class="meta">시즌 {esc(", ".join(st.seasons) or "미상")} · 별칭 {esc(", ".join(st.aliases) or "-")}'
                  f' · id <code>{esc(st.id)}</code>' + (f' · <a href="{obsidian_href(note_paths[st.id])}">Obsidian</a>'
                                                      if st.id in note_paths else "") + "</p>")
+        notice = trend_notice(t, res)
+        if notice:
+            h.append(f'<p class="warn">{esc(notice)}</p>')
         h.append(f"<p>{esc(st.definition)}</p>")
         for d in st.description:
             h.append(f"<p>{esc(d.text)}</p>{quote_block(d.evidence_ids)}")

@@ -34,7 +34,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from render_trend_result import all_products, enrich_from_products, load_result, shared_dir, snap_parts  # noqa: E402
+from render_trend_result import (  # noqa: E402
+    all_products,
+    enrich_from_products,
+    load_result,
+    shared_dir,
+    snap_parts,
+    trend_notice,
+)
 
 from trend_agent.schemas.trend_analysis_result import ProductMatch, TrendAnalysisResult  # noqa: E402
 
@@ -158,7 +165,7 @@ def collect(results: list[tuple[TrendAnalysisResult, str]]) -> dict[str, Any]:
         for t in res.trends:
             st = t.style
             tr = trends.setdefault(st.id, {"style": st, "trend": t, "items": [], "requests": set(), "hashes": set(),
-                                          "mode": mode_by_style.get(st.id)})
+                                          "mode": mode_by_style.get(st.id), "notice": trend_notice(t, res)})
             tr["requests"].add(res.request_id)
             tr["hashes"].add(sha)
             for it in t.items:
@@ -282,7 +289,7 @@ def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run:
               "aliases": st.aliases, "seasons": st.seasons, "match_mode": mode[0], "tier": mode[1],
               "term": mode[2] or t.term, "qualification": t.qualification, "article_id": st.article_id,
               "virtual": st.virtual or None, "requests": sorted(tr["requests"]), "tags": ["trend"]}
-        body = [f"# {st.name}", "", st.definition, ""]
+        body = [f"# {st.name}", ""] + ([f"> [!warning] {tr['notice']}", ""] if tr["notice"] else []) + [st.definition, ""]
         for d in st.description:
             body += [d.text, ""] + [ev_line(e) for e in d.evidence_ids if ev_line(e)] + [""]
         if st.focus_core or st.focus_supporting:
