@@ -101,3 +101,22 @@ def test_term_map_rows_validate_and_append_idempotent(tmp_path):
     p.write_text(p.read_text() + "{broken\n")
     with pytest.raises(ValueError, match=":5:"):
         read_term_map(p)
+
+
+def test_term_map_build_from_mentions(tmp_path):
+    from trend_agent.resolver.term_map import build
+    m = tmp_path / "term_mentions.jsonl"
+    m.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in [
+        {"term": "콰이어트 럭셔리", "norm": "콰이어트럭셔리", "article_count": 2,
+         "evidence": [{"article_id": "1", "block_idx": 3, "role": "style", "style_name": "조용한 럭셔리"},
+                      {"article_id": "2", "block_idx": 0, "role": "mention", "style_name": None}]},
+        {"term": "조용한 럭셔리", "article_count": 13, "evidence": [{"article_id": "1", "block_idx": 3, "role": "style", "style_name": "조용한 럭셔리"}]},
+        {"term": "  ", "evidence": []},
+    ]))
+    out = tmp_path / "term_map.jsonl"
+    s = build(m, out)
+    assert s == {"mentions_in": 3, "rows_built": 3, "rows_written": 3, "alias_rows": 1}
+    rows = read_term_map(out)
+    alias = [r for r in rows if r.row == "alias"][0]
+    assert (alias.norm, alias.article_id, alias.style_norm) == ("콰이어트럭셔리", "1", "조용한럭셔리")
+    assert build(m, out)["rows_written"] == 0  # 멱등

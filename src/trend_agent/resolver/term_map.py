@@ -147,3 +147,62 @@ def find_profile(rows: Iterable[TermMapRow], norm: str, backend: str, model: Opt
         if r.key == key:
             hit = r
     return hit
+
+
+# ---------- 생성: T1 term_mentions.jsonl → mention·alias 행 ----------
+def rows_from_mentions(mentions: Iterable[dict[str, Any]], added_at: Optional[str] = None) -> list[TermMapRow]:
+    """T1 `term_mentions.jsonl`(설계 노트 §4.7) → mention 행(용어마다 1) + alias 행.
+
+    alias 행: 근거 `role=style`이고 그 Style 이름의 정규화가 용어와 다를 때(기사 안 다른 이름) → (article_id, style_norm).
+    용어 정규화는 계약 normalize_term()으로 다시 계산한다(T1 `norm`과 다르면 계약 쪽을 쓴다).
+    """
+    at = added_at or now_kst()
+    out: list[TermMapRow] = []
+    for m in mentions:
+        term = (m.get("term") or "").strip()
+        if not normalize_term(term):
+            continue
+        norm = normalize_term(term)
+        out.append(TermMapRow(row="mention", term=term, kind="trend_word", origin="term_mentions",
+                              article_count=m.get("article_count"), added_at=at, added_by="T3"))
+        seen: set[tuple[str, str]] = set()
+        for ev in m.get("evidence") or []:
+            sname = ev.get("style_name")
+            if ev.get("role") != "style" or not sname:
+                continue
+            snorm = normalize_term(sname)
+            k = (str(ev.get("article_id")), snorm)
+            if not snorm or snorm == norm or k in seen:
+                continue
+            seen.add(k)
+            out.append(TermMapRow(row="alias", term=term, kind="alias", origin="term_mentions", article_id=k[0], style_norm=snorm,
+                                  evidence=[TermEvidence(article_id=k[0], block_idx=ev.get("block_idx"), role="style")],
+                                  added_at=at, added_by="T3"))
+    return out
+
+
+def build(mentions_path: Path | str, path: Optional[Path | str] = None) -> dict[str, int]:
+    """term_map.jsonl에 mention·alias 행을 더한다(멱등 — 같은 키는 다시 쓰지 않는다, 기존 profile 캐시는 보존)."""
+    with Path(mentions_path).open(encoding="utf-8") as f:
+        mentions = [json.loads(line) for line in f if line.strip()]
+    rows = rows_from_mentions(mentions)
+    written = append_rows(rows, path)
+    return {"mentions_in": len(mentions), "rows_built": len(rows), "rows_written": written,
+            "alias_rows": sum(1 for r in rows if r.row == "alias")}
+
+
+def _main(argv: Optional[list[str]] = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(prog="python -m trend_agent.resolver.term_map")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    b = sub.add_parser("build", help="T1 term_mentions.jsonl → term_map.jsonl (mention·alias 행 추가)")
+    b.add_argument("--mentions", required=True)
+    b.add_argument("--out", default=None, help="기본 $SHARED/terms/term_map.jsonl")
+    a = ap.parse_args(argv)
+    print(json.dumps(build(a.mentions, a.out), ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
