@@ -99,6 +99,10 @@ def build_term_rows(rows: Iterable[TermMapRow], style_aliases: Iterable[dict[str
         profiles = [(o, x) for o, x in cs if isinstance(x, TermMapRow) and x.row == "profile"]
         # 가장 최근(created_at) 프로필, 같은 시각이면 파일에서 나중 줄
         prof = max(profiles, key=lambda c: (c[1].created_at or "", c[0]))[1] if profiles else None
+        if prof is not None and not (prof.profile or {}).get("recognized", True):
+            if len(profiles) == len(cs):
+                continue  # LLM도 모르는 질의어(프로필만 있음)는 캐시에만 두고 Term 노드로 만들지 않는다
+            prof = None
         node = TermNode(
             id=term_id(norm), text=text, norm=normalize_term(text), kind=kind, origin=origin,
             article_count=max(mentions) if mentions else None,

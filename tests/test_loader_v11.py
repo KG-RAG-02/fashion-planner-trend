@@ -81,7 +81,7 @@ def test_build_term_rows():
 def test_maps_to_skips_unrecognized():
     b = build_term_rows([TermMapRow(row="profile", term="모름", kind="trend_word", origin="llm", backend="b", prompt_version="v",
                                     context_sha="s", profile={"recognized": False, "items": []})])
-    assert b["maps"] == {} and b["terms"][0]["id"] == "term:모름"
+    assert b["maps"] == {} and b["terms"] == []  # LLM도 모르는 질의어는 Term 노드가 아니다(캐시에만)
     assert maps_to_edges({"items": [{"category_major": "하의", "level": "supporting"}]}, None, None)[0].attribute == "category"
 
 
