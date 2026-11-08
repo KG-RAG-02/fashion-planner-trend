@@ -47,12 +47,17 @@ from trend_agent.ingestion.normalization.output import (  # noqa: E402
     write_lines_atomic,
     write_text_atomic,
 )
-from trend_agent.ingestion.normalization.set_split import SetSplitter, apply_split, review_row  # noqa: E402
+from trend_agent.ingestion.normalization.set_split import (  # noqa: E402
+    SetOverrides,
+    SetSplitter,
+    apply_split,
+    review_row,
+)
 
-CANDIDATE_FIELDS = ["product_id", "name", "rule_result", "reason", "sub_category", "components", "accessories",
+CANDIDATE_FIELDS = ["product_id", "name", "rule_result", "reason", "decision_source", "sub_category", "components", "accessories",
                     "pack_size", "image_url", "image_status", "component_ids"]
 RULE_RESULT = {"split": "split", "candidate": "candidate", "multipack": "multipack", "accessory_set": "accessory"}
-REVIEW_FIELDS = ["id", "name", "sub_category", "decision", "reason", "components", "accessories", "pack_size",
+REVIEW_FIELDS = ["id", "name", "sub_category", "decision", "reason", "decision_source", "components", "accessories", "pack_size",
                  "markers", "parent_major", "parent_major_mismatch"]
 
 
@@ -62,13 +67,17 @@ def build(snapshot_dir: Path, out: Path, image_index: Path | None, review_candid
     records = mark_exact_duplicates([norm.normalize_row(r) for r in rows], rows)
 
     splitter = SetSplitter()
+    overrides = SetOverrides()
     body, parents, review = [], [], []
     decisions: Counter = Counter()
     for rec, row in zip(records, rows):
         name = _clean(row.get("product_name"))
-        d = splitter.decide(name)
+        rule = splitter.decide(name)
+        d = overrides.apply(rec.node.id, rule)
         decisions[d.decision] += 1
-        if d.decision != "none":
+        if d is not rule:
+            decisions[f"review:{rule.decision}->{d.decision}"] += 1
+        if d.decision != "none" or d is not rule:  # 검수로 none이 된 행(표시 해제)도 리뷰 목록에 남긴다
             major = rec.category_major.value if rec.category_major else None
             review.append(review_row(rec.node.id, name, _clean(row.get("sub_category")), major, d))
         out_recs = apply_split(rec, d, norm, row)
@@ -104,8 +113,8 @@ def build(snapshot_dir: Path, out: Path, image_index: Path | None, review_candid
         for rv in review:
             rec = by_id.get(rv["id"])
             rows_out.append({
-                "product_id": rv["id"], "name": rv["name"], "rule_result": RULE_RESULT[rv["decision"]],
-                "reason": rv["reason"], "sub_category": rv["sub_category"], "components": rv["components"],
+                "product_id": rv["id"], "name": rv["name"], "rule_result": RULE_RESULT.get(rv["decision"], rv["decision"]),
+                "reason": rv["reason"], "decision_source": rv["decision_source"], "sub_category": rv["sub_category"], "components": rv["components"],
                 "accessories": rv["accessories"], "pack_size": rv["pack_size"],
                 "image_url": rec.node.image_url if rec else "", "image_status": (rec.node.image_status or "") if rec else "",
                 "component_ids": " | ".join(comp_ids.get(rv["id"], [])),

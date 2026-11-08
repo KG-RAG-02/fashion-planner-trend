@@ -11,6 +11,9 @@
 - `candidate`: 세트 표지는 있으나 종류 ≤1, 택1(`선택`·`OR`), 표지가 구성품 사이 → 나누지 않고 `split_candidate=true`.
 - `accessory_set`: 의류 1종 + 액세서리(넥타이·머플러·벨트 …) → 나누지 않는다(리뷰 CSV에만).
 - `none`: 그 밖(세트 표지·`+`·팩 표지가 없으면 검사하지 않는다).
+
+검수 덮어쓰기(`configs/alias_map/set_overrides.yaml`, 사람이 채택한 것만): 규칙 판정 뒤 product_id로 적용한다.
+`split`은 적힌 구성품으로 나누고 `split_from="review"`(계약 v1.3), `clear_candidate`는 candidate 판정을 none으로 바꾼다.
 """
 from __future__ import annotations
 
@@ -265,6 +268,41 @@ class SetSplitter:
         return d
 
 
+# ---------- 검수 덮어쓰기 ----------
+class SetOverrides:
+    """사람이 채택한 검수 결과(product_id 기준). 파일이 없으면 비어 있다."""
+
+    def __init__(self, path: Path | str = DEFAULT_DIR / "set_overrides.yaml"):
+        path = Path(path)
+        cfg = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}
+        self.split: dict[str, list[Component]] = {}
+        for pid, spec in (cfg.get("split") or {}).items():
+            comps = []
+            for c in spec["components"]:
+                major = V.CategoryMajor(c["category_major"]).value
+                minor = V.CategoryMinor(c["category_minor"]).value if c.get("category_minor") else None
+                if minor and V.MINOR_TO_MAJOR[V.CategoryMinor(minor)].value != major:
+                    raise ValueError(f"set_overrides: {pid} 구성품 {minor}의 상분류가 {major}가 아니다")
+                comps.append(Component(minor, major, c.get("raw") or "", segment=0, tok_start=-1, tok_end=-1))
+            if len({c.category_minor or c.category_major for c in comps}) < 2:
+                raise ValueError(f"set_overrides: {pid} 구성품 종류가 2개 미만")
+            self.split[str(pid)] = comps
+        self.clear: set[str] = {str(k) for k in (cfg.get("clear_candidate") or {})}
+
+    def apply(self, product_id: str, d: Decision) -> Decision:
+        if product_id in self.split:
+            comps = [Component(c.category_minor, c.category_major, c.raw, c.segment, c.tok_start, c.tok_end)
+                     for c in self.split[product_id]]
+            return Decision("split", "review", comps, d.accessories, None, d.markers)
+        if product_id in self.clear and d.decision == "candidate":
+            return Decision("none", "review_single", d.components, d.accessories, d.pack_size, d.markers)
+        return d
+
+
+def decision_source(d: Decision) -> str:
+    return "review" if d.reason in ("review", "review_single") else "rule"
+
+
 # ---------- Product 생성 ----------
 def apply_split(parent: ProductRecord, d: Decision, normalizer: Any, row: dict[str, Any]) -> list[ProductRecord]:
     """판정 결과를 Product로. split → 구성품 Product들(부모는 본문에서 빠진다), multipack·candidate → 부모에 표시만,
@@ -279,10 +317,14 @@ def apply_split(parent: ProductRecord, d: Decision, normalizer: Any, row: dict[s
         return [parent]
     p = parent.node
     n = len(d.components)
+    reviewed = d.reason == "review"
     out: list[ProductRecord] = []
     for k, c in enumerate(d.components, start=1):
         same_major = parent.category_major is not None and parent.category_major.value == c.category_major
-        patterns, details, shape_raw, shape, shape_approx = normalizer.text_attributes([c.text], c.category_minor)
+        if reviewed:  # 구성품별 이름 구간이 없다: 패턴만 부모(셋업은 같은 원단), 디테일·세이프는 귀속 불명이라 붙이지 않는다
+            patterns, details, shape_raw, shape, shape_approx = [x.model_copy() for x in parent.patterns], [], None, None, False
+        else:
+            patterns, details, shape_raw, shape, shape_approx = normalizer.text_attributes([c.text], c.category_minor)
         # 소재 필드에서 온 디테일(퀼팅 등)은 부모와 공유
         for det in normalizer.material_details(row):
             if not any(x.value == det.value and x.type == det.type for x in details):
@@ -310,7 +352,7 @@ def apply_split(parent: ProductRecord, d: Decision, normalizer: Any, row: dict[s
             approx=approx,
             image_scope="full_set",
             parent_id=p.id,
-            split_from="name_rule",
+            split_from="review" if reviewed else "name_rule",
             dup_of=f"{p.dup_of}#{k}" if p.dup_of else None,
         )
         out.append(ProductRecord(
@@ -330,6 +372,7 @@ def review_row(rec_id: str, name: str, sub_category: str, parent_major: Optional
     mismatch = d.decision == "split" and parent_major is not None and parent_major not in {c.category_major for c in d.components}
     return {
         "id": rec_id, "name": name, "sub_category": sub_category, "decision": d.decision, "reason": d.reason,
+        "decision_source": decision_source(d),
         "components": comps, "accessories": " | ".join(d.accessories), "pack_size": d.pack_size or "",
         "markers": " | ".join(d.markers), "parent_major": parent_major or "", "parent_major_mismatch": mismatch,
     }

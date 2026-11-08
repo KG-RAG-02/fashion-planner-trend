@@ -118,3 +118,56 @@ def test_apply_split_flags_on_candidate_and_multipack():
         parent = norm.normalize_row(row)
         out = apply_split(parent, SetSplitter().decide(name), norm, row)
         assert len(out) == 1 and getattr(out[0].node, flag) is True and out[0].node.id == parent.node.id
+
+
+# ---------- 검수 덮어쓰기 (set_overrides.yaml, 사용자 채택) ----------
+def test_overrides_split_and_clear(tmp_path):
+    from trend_agent.ingestion.normalization.set_split import SetOverrides, decision_source
+
+    cfg = tmp_path / "ov.yaml"
+    cfg.write_text(
+        'attribute: set_overrides\n'
+        'split:\n'
+        '  "otpensource:f.json:1":\n'
+        '    name: "x"\n'
+        '    components:\n'
+        '      - {category_minor: "재킷", category_major: "아우터", raw: "블레이저"}\n'
+        '      - {category_minor: "팬츠", category_major: "하의", raw: "셋업"}\n'
+        'clear_candidate:\n'
+        '  "otpensource:f.json:2": "오버 셋업 자켓"\n', encoding="utf-8")
+    ov = SetOverrides(cfg)
+    sp = SetSplitter()
+    rule = sp.decide("[SET]샘플 크롭드 블레이저 자켓 셋업[브라운]")
+    assert rule.decision == "candidate"
+    d = ov.apply("otpensource:f.json:1", rule)
+    assert (d.decision, d.reason, decision_source(d)) == ("split", "review", "review")
+    assert [(c.category_minor, c.category_major) for c in d.components] == [("재킷", "아우터"), ("팬츠", "하의")]
+    cleared = ov.apply("otpensource:f.json:2", sp.decide("샘플 셋업 자켓 (베이지)"))
+    assert (cleared.decision, decision_source(cleared)) == ("none", "review")
+    other = sp.decide("샘플 셋업 자켓 (그린)")
+    assert ov.apply("otpensource:f.json:3", other) is other  # 목록에 없으면 규칙 그대로
+
+
+def test_override_split_products_use_review_basis(tmp_path):
+    from trend_agent.ingestion.normalization.set_split import SetOverrides
+
+    cfg = tmp_path / "ov.yaml"
+    cfg.write_text('split:\n  "otpensource:sorted_아우터/sorted_슈트_블레이저_재킷.json:7":\n    components:\n'
+                   '      - {category_minor: "재킷", category_major: "아우터", raw: "블레이저"}\n'
+                   '      - {category_minor: "팬츠", category_major: "하의", raw: "셋업"}\n', encoding="utf-8")
+    norm = OtpenNormalizer()
+    row = _row("샘플 울 헤링본 체크 블레이저 셋업", material="울")
+    parent = norm.normalize_row(row)
+    d = SetOverrides(cfg).apply(parent.node.id, SetSplitter().decide(row["product_name"]))
+    comps = apply_split(parent, d, norm, row)
+    assert [c.node.split_from for c in comps] == ["review", "review"]
+    assert [c.node.parent_id for c in comps] == [parent.node.id] * 2 and comps[1].node.image_scope == "full_set"
+    assert all("체크" in [p.value for p in c.patterns] for c in comps)  # 셋업은 같은 원단: 패턴은 부모에서
+    assert all(c.details == [] or all(dd.raw == "울" for dd in c.details) for c in comps)
+
+
+def test_repo_overrides_file_is_valid():
+    from trend_agent.ingestion.normalization.set_split import SetOverrides
+
+    ov = SetOverrides()  # configs/alias_map/set_overrides.yaml
+    assert len(ov.split) == 14 and len(ov.clear) == 13 and not (set(ov.split) & ov.clear)
