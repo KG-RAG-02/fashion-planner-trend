@@ -168,7 +168,7 @@ class ProductNode(BaseModel):
     image_status: Optional[ImageStatus] = None         # 이미지 참조가 없으면 None
     multi_wearer_suspected: Optional[bool] = None
     parent_id: Optional[str] = None                    # 02 세트 분해 구성품의 원 상품 id (구성품 id = "<원 id>#<k>")
-    split_from: Optional[Literal["name_rule"]] = None   # 분해 근거
+    split_from: Optional[Literal["name_rule", "review"]] = None   # 분해 근거: name_rule = 상품명 규칙, review = 사용자가 채택한 검수 분해 (v1.3)
     dup_of: Optional[str] = None                       # 같은 내용으로 의심되는 먼저 나온 Product id (표시만, 지우지 않는다)
     multipack: Optional[bool] = None                   # 같은 종류 N개 묶음 (분해하지 않음)
     split_candidate: Optional[bool] = None             # 세트 표지는 있으나 근거 부족으로 분해하지 않은 행 (사람 검토)

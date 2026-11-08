@@ -88,6 +88,15 @@ def test_v11_product_fields_and_has_image():
     assert flatten(part)["parent_id"] == "otpensource:a:1"
 
 
+def test_v13_split_from_review():
+    """계약 v1.3: 사용자가 채택한 검수 분해는 split_from="review". 정의 밖 값은 거부한다."""
+    part = ProductNode(id="otpensource:a:2#1", parent_id="otpensource:a:2", split_from="review",
+                       image_scope="full_set", **BASE)
+    assert flatten(part)["split_from"] == "review"
+    with pytest.raises(ValidationError):
+        ProductNode(id="otpensource:a:3#1", parent_id="otpensource:a:3", split_from="vision", **BASE)
+
+
 def test_style_node_v11_norm_aliases_article_id():
     s = ExtractedStyle(name="뉴 로", name_origin="article", definition="d", aliases=["New Raw", "뉴 로", "New Raw"])
     n = style_node_from_extraction(s, "881396-s0")
