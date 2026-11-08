@@ -250,8 +250,15 @@ def assign_paths(data: dict[str, Any]) -> dict[str, str]:
         used.add(cand)
         paths[key] = cand
 
+    name_count: dict[str, int] = defaultdict(int)
+    for sid in data["trends"]:
+        name_count[slugify(data["trends"][sid]["style"].name)] += 1
     for sid in sorted(data["trends"]):
-        put(sid, "10_Trends", slugify(data["trends"][sid]["style"].name))
+        st = data["trends"][sid]["style"]
+        base = slugify(st.name)
+        if name_count[base] > 1:  # 같은 이름 Style이 여러 기사에서 나오면 모두 기사 id를 붙인다(해시보다 읽기 쉽다)
+            base = f"{base} ({slugify(st.article_id or sid.rsplit('-s', 1)[0], 20)})"
+        put(sid, "10_Trends", base)
     for iid in sorted(data["items"]):
         put(iid, "20_Items", f"{slugify(data['items'][iid]['item'].name, 50)} ({slugify(iid, 40)})")
     for pid in sorted(data["products"]):

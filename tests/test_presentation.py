@@ -212,3 +212,16 @@ def test_prune_moves_only_stale_generated_files(env):
     assert "assets/snap/7.jpg" in moved and any(m.startswith("40_Products/snap-000007") for m in moved)
     assert (vault / "10_Trends" / "사람 노트.md").exists() and (vault / "10_Trends" / "_트렌드 요약.md").exists()
     assert not (vault / "40_Products" / "옛 상품.md").exists() and rep["pruned"] == len(moved)
+
+
+def test_same_name_trends_get_article_ids(env):
+    tmp, shared, res = env
+    d = result_dict()
+    t2 = json.loads(json.dumps(d["trends"][0]))
+    t2["style"]["id"] = "200-s0"
+    t2["items"][0]["id"] = "200-s0-i0"
+    d["trends"].append(t2)
+    res2 = TrendAnalysisResult.model_validate(d)
+    vault = tmp / "vault2"
+    exo.export([(res2, "c" * 64)], vault)
+    assert sorted(p.name for p in (vault / "10_Trends").glob("*.md")) == ["테스트 코어 1 (100).md", "테스트 코어 1 (200).md"]
