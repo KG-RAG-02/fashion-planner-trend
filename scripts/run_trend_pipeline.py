@@ -105,6 +105,8 @@ def main() -> int:
     ap.add_argument("--force-tier", type=int, choices=[1, 2, 3, 4], help="평가 실행: 그 Tier만 시도")
     ap.add_argument("--hide-style", nargs="*", default=[], help="평가 실행: Style id(또는 이름)의 name_norm 그룹 숨김")
     ap.add_argument("--tier4-context", choices=["none", "mentions"], default="mentions")
+    ap.add_argument("--exclude-context-article", nargs="*", default=[],
+                    help="평가 실행: Tier4 맥락에서 뺄 기사 id (--hide-style의 출처 기사는 자동으로 뺀다)")
     ap.add_argument("--no-llm", action="store_true", help="Tier4 LLM 호출 안 함(캐시는 읽음)")
     ap.add_argument("--terms", help="term_map.jsonl (기본 $SHARED/terms/term_map.jsonl)")
     ap.add_argument("--mentions", help="term_mentions.jsonl (기본 $SHARED/extractions/term_mentions.jsonl)")
@@ -120,7 +122,8 @@ def main() -> int:
                         categories=CategoryFilter(include=[category_ref(x) for x in a.include or []],
                                                   exclude=[category_ref(x) for x in a.exclude or []]),
                         top_k=a.top_k, force_tier=a.force_tier, hide_styles=a.hide_style,
-                        tier4_context=a.tier4_context, use_llm=not a.no_llm)
+                        tier4_context=a.tier4_context, use_llm=not a.no_llm,
+                        exclude_context_articles=a.exclude_context_article)
     terms_path = Path(a.terms) if a.terms else tm.default_path()
     mentions_path = Path(a.mentions) if a.mentions else t4.default_mentions_path()
     s = neo4j_settings()

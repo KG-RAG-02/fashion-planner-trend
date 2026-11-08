@@ -19,10 +19,10 @@ from typing import Any, Callable, Iterable, Literal, Optional
 
 from trend_agent.config import load_env
 from trend_agent.graph.search import TrendSearcher, scoring_limitations
-from trend_agent.retrieval.scoring import ScoredProduct, ScoringOptions
+from trend_agent.retrieval.scoring import ScoredProduct, ScoringOptions, attribute_values
 from trend_agent.retrieval.trend_topk import ItemRanking, trend_topk
 from trend_agent.schemas import vocabulary as V
-from trend_agent.schemas.graph_schema import ItemRecord, normalize_term
+from trend_agent.schemas.graph_schema import SCORED_ATTRIBUTES, ItemRecord, normalize_term
 from trend_agent.schemas.trend_analysis_result import (
     QUALIFICATION_BY_MODE,
     AppliedFilters,
@@ -57,6 +57,8 @@ class ResolveConfig:
     hide_styles: list[str] = field(default_factory=list)   # Style id 또는 이름 → name_norm 그룹 숨김
     tier4_context: Literal["none", "mentions"] = "mentions"
     use_llm: bool = True
+    # Tier4 맥락에서 뺄 기사. hide_styles가 있으면 숨긴 그룹 Style의 출처 기사도 자동으로 뺀다(누출 방지, T4 요청)
+    exclude_context_articles: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -106,6 +108,9 @@ class TrendResolver:
         self._term_links: Optional[dict[str, list[str]]] = None
         self._term_ids: Optional[dict[str, list[str]]] = None
         self.hidden = self._hidden_groups(self.cfg.hide_styles)
+        self.context_exclude = frozenset(self.cfg.exclude_context_articles) | frozenset(
+            s["article_id"] for s in (self.styles() if self.hidden else []) if s["name_norm"] in self.hidden)
+        self._weak_items: list[str] = []
 
     # ---------- 그래프 읽기 ----------
     def styles(self) -> list[dict[str, Any]]:
@@ -334,9 +339,15 @@ class TrendResolver:
             self._llm = importlib.import_module("trend_agent.llm")
         return self._llm
 
+    def context(self, n: str) -> list[t4.ContextBlock]:
+        """Tier4 맥락 블록 (tier4_context=none이면 없음, 숨긴 그룹·지정 기사 제외)."""
+        if self.cfg.tier4_context == "none":
+            return []
+        return t4.context_blocks(n, self.mentions, self.crawl, exclude_articles=self.context_exclude)
+
     def run_tier4(self, term: str, n: str) -> t4.Tier4Outcome:
         """캐시 조회 → (없으면) LLM 호출·검증·1회 재시도 → 성공하면 term_map.jsonl에 profile 행(캐시) 추가."""
-        blocks = [] if self.cfg.tier4_context == "none" else t4.context_blocks(n, self.mentions, self.crawl)
+        blocks = self.context(n)
         csha = t4.context_sha(blocks)
         backend, model = self.llm_settings()
         out = t4.Tier4Outcome(code="llm_unavailable", backend=backend, model=model, context_sha=csha)
@@ -391,7 +402,12 @@ class TrendResolver:
         tm.append_rows([row], self.term_map_path)
 
     def tier4(self, term: str, n: str, steps: list[ResolutionStep]) -> Any:
-        blocks = [] if self.cfg.tier4_context == "none" else t4.context_blocks(n, self.mentions, self.crawl)
+        blocks = self.context(n)
+        if self.context_exclude and self.cfg.tier4_context != "none":
+            ka, kr = t4.excluded_evidence(n, self.mentions, self.context_exclude)
+            if kr:
+                steps.append(ResolutionStep(tier=4, outcome="skipped", code="hidden_by_eval",
+                                            detail=f"Tier4 맥락에서 평가 숨김·지정 기사 {ka}개의 근거 {kr}행을 뺐다"))
         o = self.run_tier4(term, n)
         trace = LLMTrace(backend=o.backend or "unknown", model=o.model, prompt_version=t4.PROMPT_VERSION,
                          cache="hit" if o.code == "llm_cache_hit" else "miss", context_sha=o.context_sha,
@@ -468,6 +484,7 @@ class TrendResolver:
                 if not self._cat_ok(item.category_major.value, minor):
                     continue
                 ranked = self.s.rank_item(item, core, sup, top_k=self._pool(), stats=stats)
+                self._note_weak(term, item)
                 its.append((item, ranked))
                 rankings.append(ItemRanking(item.node.id, item.node.name, 1.0, ranked))
             rows.append((s, its))
@@ -502,6 +519,7 @@ class TrendResolver:
             vw = spec.value_weights(self.w) if vp.value_weighted else None
             opts = ScoringOptions.from_weights(self.w, tier4=vp.tier == 4, value_weights=vw)
             ranked = self.s.rank_item(rec, vp.focus_core, vp.focus_supporting, top_k=self._pool(), options=opts, stats=stats)
+            self._note_weak(term, rec)
             focus = vp.item_focus(spec, self.w)
             items.append(self.s.trend_item(rec, ranked[: self.cfg.top_k], [], virtual=True, item_focus=focus,
                                            value_weights=vw or {}))
@@ -512,6 +530,10 @@ class TrendResolver:
                            season_status="not_checked", virtual=True)
         return [Trend(style=style, items=items, term=term, match_mode=hit.mode,
                       qualification=QUALIFICATION_BY_MODE[hit.mode], similarity=hit.similarity)], rankings
+
+    def _note_weak(self, term: str, item: ItemRecord) -> None:
+        if not any(attribute_values(item, a) for a in SCORED_ATTRIBUTES):
+            self._weak_items.append(f"{term}: {item.node.name}")
 
     def _limit_notes(self, res: TermResolution, hit: _Hit) -> list[str]:
         out = list(hit.notes)
@@ -535,6 +557,7 @@ class TrendResolver:
         evidence: dict[str, EvidenceRecord] = {}
         limitations = list(pre_limits)
         stats: dict[str, int] = {}
+        self._weak_items = []
         uses_snap = has_vogue_images = False
         for res, hit in entries:
             if hit is None:
@@ -560,6 +583,12 @@ class TrendResolver:
         if has_vogue_images:
             limitations.append("Vogue 기사 이미지(image_urls)는 링크로만 제공합니다(G0-⑤: 임베드·핫링크·다운로드 금지).")
         limitations += scoring_limitations(stats)
+        if self._weak_items:
+            limitations.append("속성 값(색·소재·패턴·디테일·핏)이 없는 Item은 하분류 일치만으로 골라 동점이 많고 동점 순서는 id 순입니다"
+                               "(순위 근거 약함): " + ", ".join(dict.fromkeys(self._weak_items)))
+        if self.context_exclude and self.cfg.tier4_context != "none":
+            limitations.append(f"평가 실행: Tier4 맥락에서 기사 {len(self.context_exclude)}개를 뺐습니다"
+                               f"(숨긴 그룹의 출처 기사·지정 기사): {', '.join(sorted(self.context_exclude))}")
         tc = self.w.resolver.tier3
         settings = AppliedSettings(
             weights_sha=self.w.sha, season_policy=self.policy, image_first_tiebreak=self.s.options.image_first_tiebreak,

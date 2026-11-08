@@ -29,7 +29,7 @@ from trend_agent.schemas.graph_schema import normalize_term
 
 from .profile import VirtualItemSpec, VirtualProfile
 
-PROMPT_VERSION = "tier4.v2"  # v2: focus로 고른 속성은 items에 값이 있어야 한다(v1 스모크에서 값 없는 프로필)
+PROMPT_VERSION = "tier4.v3"  # v2: focus로 고른 속성은 items 값 필수 · v3: 색·아이템 등 옷차림 일반어도 인식(T4 숨김 평가 r1: 보라색 미인식)
 PURPOSE = "tier4_profile"
 MAX_BLOCKS = 8
 MAX_ITEMS = 6
@@ -170,8 +170,11 @@ def read_mentions(path: Optional[Path | str]) -> dict[str, dict[str, Any]]:
 
 
 def context_blocks(norm: str, mentions: dict[str, dict[str, Any]], crawl: dict[str, dict[str, Any]],
-                   max_blocks: int = MAX_BLOCKS) -> list[ContextBlock]:
-    """그 용어가 나온 기사 블록(최대 max_blocks, 파일 순서). 제목(block_idx null)·크롤에 없는 블록은 넣지 않는다."""
+                   max_blocks: int = MAX_BLOCKS, exclude_articles: frozenset[str] | set[str] = frozenset()) -> list[ContextBlock]:
+    """그 용어가 나온 기사 블록(최대 max_blocks, 파일 순서). 제목(block_idx null)·크롤에 없는 블록은 넣지 않는다.
+
+    exclude_articles: 맥락에서 뺄 기사(평가 숨김 — 숨긴 Style의 출처 기사가 맥락으로 새지 않게).
+    """
     row = mentions.get(norm)
     if not row:
         return []
@@ -179,7 +182,7 @@ def context_blocks(norm: str, mentions: dict[str, dict[str, Any]], crawl: dict[s
     seen: set[str] = set()
     for ev in row.get("evidence") or []:
         aid, b = str(ev.get("article_id")), ev.get("block_idx")
-        if b is None:
+        if b is None or aid in exclude_articles:
             continue
         art = crawl.get(aid) or {}
         blocks = {blk.get("idx"): blk for blk in art.get("blocks") or []}
@@ -195,6 +198,12 @@ def context_blocks(norm: str, mentions: dict[str, dict[str, Any]], crawl: dict[s
     return out
 
 
+def excluded_evidence(norm: str, mentions: dict[str, dict[str, Any]], exclude_articles: frozenset[str] | set[str]) -> tuple[int, int]:
+    """exclude_articles 때문에 빠진 (기사 수, 근거 행 수)."""
+    evs = [ev for ev in (mentions.get(norm) or {}).get("evidence") or [] if str(ev.get("article_id")) in exclude_articles]
+    return len({str(ev.get("article_id")) for ev in evs}), len(evs)
+
+
 def context_sha(blocks: list[ContextBlock]) -> str:
     payload = json.dumps([{"ref": b.ref, "text": b.text, "role": b.role} for b in blocks], ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
@@ -207,7 +216,8 @@ def render_prompt(term: str, blocks: list[ContextBlock], errors: Optional[list[s
         "[규칙]",
         "1) 숫자·점수·비율을 쓰지 않는다. 등급만 고른다(focus·level: core/supporting, value_level: primary/secondary).",
         "2) 값은 출력 스키마의 enum 목록에서만 고른다. 목록에 없으면 비운다(지어내지 않는다).",
-        "3) 이 용어를 패션 트렌드·스타일로 모르면 recognized=false로 두고 summary=null, items·evidence는 빈 배열로 둔다.",
+        "3) 용어가 패션 트렌드·스타일이거나 옷차림을 가리키는 말(색·아이템·소재·패턴·실루엣 이름 포함)이면 recognized=true다. "
+        "옷차림과 관계없거나 전혀 모르는 말이면 recognized=false로 두고 summary=null, items·evidence는 빈 배열로 둔다.",
         f"4) focus의 core는 최대 {MAX_CORE}개. 그 옷차림을 알아보게 하는 속성 종류만 core로 둔다. "
         "focus에서 core·supporting으로 고른 속성(color·material·pattern·detail·fit)은 반드시 items의 값으로 구체적으로 채운다"
         "(예: color를 core로 두면 colors에 색을 넣는다). 값을 고를 수 없는 속성은 focus를 null로 둔다. "
