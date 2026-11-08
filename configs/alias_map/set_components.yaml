@@ -1,0 +1,43 @@
+# 02 다중 의류 분해(세트·셋업) 사전 — set_split.py. 근거: T2 설계 메모 §3.1, 02 원천 상품명 198행 검토(2026-11-08).
+# 키 비교: 소문자·공백/-/_ 제거(norm_key). 한글 키는 토큰 안 부분 일치(긴 키 우선), 영문 키는 토큰 = 키 또는 키+s/es.
+# 이 파일은 표준 어휘가 아니라 분해 규칙용이다(AliasMap 인터페이스는 바꾸지 않는다).
+attribute: set_components
+garments:            # 표준 하분류: [키]
+  티셔츠: [티셔츠, 반팔티, 긴팔티, 맨투맨, 스웻셔츠, 스웨트셔츠, 롱슬리브, t셔츠, tshirt, tee, sweatshirt, longsleeve]
+  후드티: [후드티, 후디, 후드, hoodie, hoody, hood]
+  셔츠: [셔츠, 남방, shirt]
+  블라우스: [블라우스, blouse]
+  니트웨어: [니트, 스웨터, 풀오버, knit, sweater, pullover]
+  탑: [탑, 나시, 슬리브리스, 뷔스티에, top, sleeveless, bustier]
+  브라탑: [브라탑, bratop]
+  팬츠: [팬츠, 바지, 슬랙스, 쇼츠, 반바지, pants, slacks, shorts, trousers]
+  조거팬츠: [조거, jogger, joggers]
+  청바지: [청바지, jeans]   # 데님은 소재로 더 많이 쓰여 구성품 키로 쓰지 않는다(트러커 데님 셋업 = 1벌)
+  스커트: [스커트, 치마, skirt]
+  레깅스: [레깅스, 타이즈, leggings]
+  코트: [코트, coat]
+  재킷: [자켓, 재킷, 블레이저, 블루종, 아노락, 바람막이, 윈드브레이커, 초어자켓, 트러커, 트랙탑, 수트, 슈트, 정장, 브레이커,
+       jacket, blazer, anorak, windbreaker, trucker, suit]
+  점퍼: [점퍼, 파카, jumper, parka]
+  패딩: [패딩, 푸퍼, padding, puffer]
+  베스트: [베스트, 조끼, vest]
+  가디건: [가디건, 카디건, cardigan]
+  짚업: [집업, 짚업, 후드집업, zipup]
+  드레스: [원피스, 드레스, dress, onepiece]
+  점프수트: [점프수트, 점프슈트, 오버올, jumpsuit, overall, overalls]
+major_only:          # 하분류를 모르는 의류: 상분류만
+  아우터: [볼레로, 망토, 케이프, bolero, cape]
+accessories: [넥타이, 타이, 머플러, 워머, 벨트, 미니가방, 가방, 장갑, 글로브, 보조배터리, 스카프, 모자, 양말,
+              necktie, tie, muffler, warmer, belt, bag, gloves, glove, scarf]
+# 뒤에 상분류가 다른 의류·액세서리 키가 같은 구간에서 오면 수식어로 본다(후드 집업→짚업, KNIT ONEPIECE→드레스, 리본 타이 셔츠→셔츠).
+modifiers: [니트, knit, 스웨터, 후드, hood, 드레스, dress, 수트, 슈트, suit, 정장, 패딩, padding, 조거, jogger, 브레이커, 타이, tie]
+generic_minors: [팬츠]   # 같은 상분류 키가 이어질 때 덜 구체적인 값(조거 트레이닝바지 → 조거팬츠)
+markers: [셋업, 세트, 투피스, 쓰리피스, 상하의, 상하세트, set, setup, twopiece, threepiece, 2piece]
+upper_lower_markers: [상하의, 상하세트]
+choice_markers: [선택, 택1]
+choice_tokens: [or]
+guards:              # 키: [이 단어가 토큰에 있으면 그 키를 버린다]
+  타이: [타이트, 타이다이, 타이포]
+  세트: [코르세트]
+  탑: [스탑, 탑텐]
+  코트: [트리코트, 코트니]
