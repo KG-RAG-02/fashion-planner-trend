@@ -246,6 +246,7 @@ def test_retry_once_then_pass(fake_llm):
     meta = doc["label_meta"]
     assert meta["status"] == "auto" and meta["labeler"] == "llm:codex_cli/m-1" and meta["published"] == "2026-10-21"
     assert meta["prompt_version"] == "extract-v1" and meta["guideline_version"] == "0.3-draft"
+    assert meta["postprocess"] == {"alias_map": True, "length_area": False}
     assert meta["validation"]["passed"] is True and meta["validation"]["attempts"] == 2
     assert meta["llm"]["thread_ids"] == ["th-1", "th-2"] and meta["llm"]["latency_s"] == 2.5
     ArticleExtraction.model_validate(doc["extraction"])

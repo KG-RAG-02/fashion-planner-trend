@@ -45,6 +45,7 @@ class ExtractionOutcome:
     guideline_version: Optional[str] = None
     schema_sha256: str = ""
     extracted_at: str = ""
+    postprocess: dict = field(default_factory=dict)  # 켠 후처리 선택 규칙 (예: {"length_area": true})
 
 
 class ExtractionFailed(RuntimeError):
@@ -104,6 +105,7 @@ def extract_article_outcome(article: dict, *, backend: Optional[str] = None, mod
         backend=last.get("backend", ""), model=last.get("model", ""), reasoning_effort=last.get("reasoning_effort"),
         prompt_version=prompt_version, guideline_version=front.get("guideline_version"), schema_sha256=sha,
         extracted_at=datetime.now(KST).isoformat(timespec="seconds"),
+        postprocess={"alias_map": True, "length_area": length_area},
     )
 
 
@@ -133,6 +135,7 @@ def build_output_doc(out: ExtractionOutcome, article: dict) -> dict:
             "prompt_version": out.prompt_version,
             "extracted_at": out.extracted_at,
             "guideline_version": out.guideline_version,
+            "postprocess": out.postprocess,
             "validation": {"passed": out.passed, "attempts": out.attempts, "errors": out.errors,
                            "warnings": out.warnings, "counts": out.counts},
             "llm": {
