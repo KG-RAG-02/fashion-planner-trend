@@ -12,6 +12,10 @@
 - `--products-dir`: 결과에 v1.1 이미지 필드가 없을 때(develop v1.0 검색 출력 등) products v2에서 product_id로 보강하고
   보강 건수를 쪽 아래에 적는다. 결과에 값이 있으면 덮어쓰지 않는다.
 - 같은 입력이면 같은 출력(시각을 넣지 않고 입력 sha256을 적는다). Obsidian 노트 링크는 `obsidian://open?vault=…&file=…`.
+- 이미지 내용 판정(C2 `$SHARED/images/content.parquet`, L0 결정 #203 — **표시층 전용**): product_id로 조인만 한다(구성품은
+  parent_id). 표시 순서 = ① 이미지 정상·garment → ② 정상·uncertain/판정 없음 → ③ 정상·non_garment(자리표시 + 원본 링크)
+  → ④ 깨짐·없음. 같은 묶음 안에서는 원래 순서(점수·rank)를 지키고, 점수·rank·필터는 바꾸지 않는다. codex_label·scores·
+  local_path는 쓰지 않는다.
 """
 from __future__ import annotations
 
@@ -100,8 +104,44 @@ def enrich_from_products(res: TrendAnalysisResult, products_dir: Optional[Path])
     return n
 
 
-def image_for(p: ProductMatch, out_dir: Path) -> dict[str, Any]:
-    """표시용 이미지: {kind: url|file|none, src, caption, warn}."""
+CONTENT_COLUMNS = ["product_id", "image_content"]
+NON_GARMENT_NOTE = "옷이 아닌 이미지일 수 있음(라벨·직물 등, vision 판정 근사)"
+
+
+def load_content(path: Optional[Path]) -> dict[str, str]:
+    """C2 이미지 내용 sidecar → {product_id: garment|non_garment|uncertain}. 파일이 없으면 빈 dict."""
+    if not path or not Path(path).exists():
+        return {}
+    import pandas as pd
+
+    df = pd.read_parquet(path, columns=CONTENT_COLUMNS)
+    return {r.product_id: r.image_content for r in df.itertuples(index=False) if isinstance(r.image_content, str)}
+
+
+def image_content(p: ProductMatch, content: Optional[dict[str, str]]) -> Optional[str]:
+    """구성품은 부모 판정을 쓴다(L0 #203). 03 스냅·판정 없음은 None."""
+    if not content:
+        return None
+    return content.get(p.parent_id or p.product_id)
+
+
+def display_class(p: ProductMatch, content: Optional[dict[str, str]]) -> int:
+    """0 정상·garment · 1 정상·uncertain/None · 2 정상·non_garment · 3 깨짐/이미지 없음."""
+    if not p.has_image:
+        return 3
+    c = image_content(p, content)
+    return 0 if c == "garment" else (2 if c == "non_garment" else 1)
+
+
+def order_for_display(products: list[ProductMatch], content: Optional[dict[str, str]],
+                      key: Optional[Any] = None) -> list[tuple[int, ProductMatch]]:
+    """[(원래 순번 1부터, 상품)] — 표시 묶음 순으로, 같은 묶음 안에서는 원래 순서(또는 key)."""
+    idx = list(enumerate(products, start=1))
+    return sorted(idx, key=lambda t: (display_class(t[1], content), key(t[1]) if key else t[0]))
+
+
+def image_for(p: ProductMatch, out_dir: Path, content: Optional[dict[str, str]] = None) -> dict[str, Any]:
+    """표시용 이미지: {kind: url|file|none, src, caption, warn, link}."""
     scope = p.image_scope or ("full_snap" if p.source == "musinsa_snap" else "catalog")
     warn = []
     if p.multi_wearer_suspected:
@@ -121,6 +161,8 @@ def image_for(p: ProductMatch, out_dir: Path) -> dict[str, Any]:
     if not url:
         return {"kind": "none", "src": "", "caption": "이미지 URL 없음", "warn": warn, "scope": scope}
     cap = "세트 이미지(구성품이 부모 사진을 함께 씀)" if scope == "full_set" else "상품 컷"
+    if image_content(p, content) == "non_garment":  # 상품은 그대로 두고 이미지만 자리표시 + 원본 링크
+        return {"kind": "none", "src": "", "caption": NON_GARMENT_NOTE, "warn": warn, "scope": scope, "link": url}
     return {"kind": "url", "src": url, "caption": cap, "warn": warn, "scope": scope}
 
 
@@ -162,10 +204,15 @@ def score_table(p: ProductMatch) -> str:
             f'<p>base_score {sb.base_score:.3f} · bonus {bonus}{extra}{vw}</p></details>')
 
 
-def product_card(p: ProductMatch, out_dir: Path, note_paths: dict[str, str], extra_head: str = "") -> str:
-    im = image_for(p, out_dir)
+def product_card(p: ProductMatch, out_dir: Path, note_paths: dict[str, str], extra_head: str = "",
+                 content: Optional[dict[str, str]] = None, order_no: Optional[int] = None) -> str:
+    im = image_for(p, out_dir, content)
+    if order_no is not None and not extra_head:
+        extra_head = f'<div class="rank">점수 순위 {order_no}</div>'
     if im["kind"] == "none":
-        media = f'<div class="noimg">{esc(im["caption"])}</div>'
+        orig = (f'<br><a href="{esc(im["link"])}" target="_blank" rel="noopener noreferrer">원본 이미지 보기</a>'
+                if im.get("link") else "")
+        media = f'<div class="noimg">{esc(im["caption"])}{orig}</div>'
     else:
         media = f'<img loading="lazy" referrerpolicy="no-referrer" src="{esc(im["src"])}" alt="{esc(p.name or p.product_id)}">'
     warn = "".join(f'<p class="warn">⚠ {esc(w)}</p>' for w in im["warn"])
@@ -202,8 +249,9 @@ def trend_notice(t: Any, res: TrendAnalysisResult) -> str:
 
 
 def render(res: TrendAnalysisResult, src_sha: str, out_dir: Path, enriched: int = 0,
-           note_paths: Optional[dict[str, str]] = None) -> str:
+           note_paths: Optional[dict[str, str]] = None, content: Optional[dict[str, str]] = None) -> str:
     note_paths = note_paths or {}
+    content = content or {}
     ev = {e.evidence_id: e for e in res.evidence}
 
     def ev_link(eid: str) -> str:
@@ -263,15 +311,18 @@ def render(res: TrendAnalysisResult, src_sha: str, out_dir: Path, enriched: int 
                      + (f"<p>스타일링: {esc(it.styling_raw)}</p>" if it.styling_raw else "")
                      + quote_block(it.evidence_ids))
             if it.similar_products:
-                h.append('<div class="grid">' + "".join(product_card(p, out_dir, note_paths) for p in it.similar_products) + "</div>")
+                cards = "".join(product_card(p, out_dir, note_paths, content=content, order_no=i)
+                                for i, p in order_for_display(it.similar_products, content))
+                h.append(f'<div class="grid">{cards}</div>')
             else:
                 h.append('<p class="meta">비슷한 상품 없음</p>')
             h.append("</div>")
         picks = [p for r in res.resolutions if st.id in r.style_ids for p in r.top_products]
         if picks:
-            ordered = sorted(picks, key=lambda p: (not p.has_image, p.rank))  # 순위는 그대로, 표시만 이미지 우선
+            ordered = order_for_display(picks, content, key=lambda p: p.rank)  # rank는 그대로, 표시 묶음만 앞뒤
             cards = "".join(product_card(p, out_dir, note_paths, f'<div class="rank">#{p.rank} · {esc(p.item_name)} · '
-                                                                 f'trend_score {p.trend_score:.3f}</div>') for p in ordered)
+                                                                 f'trend_score {p.trend_score:.3f}</div>', content)
+                            for _, p in ordered)
             h.append(f'<h3>트렌드 Top-K ({len(picks)})</h3><div class="grid">{cards}</div>')
         h.append("</section>")
     if res.evidence:
@@ -284,7 +335,9 @@ def render(res: TrendAnalysisResult, src_sha: str, out_dir: Path, enriched: int 
             lim.append(f"표시용 보강: 결과에 v1.1 이미지 필드가 없던 상품 {enriched}개를 products v2에서 product_id로 채웠다(T2 렌더러).")
         h.append("<h2>한계·알림</h2><ul>" + "".join(f"<li>{esc(x)}</li>" for x in lim) + "</ul>")
     h.append('<p class="meta">이미지: 02 = 무신사 CDN URL(점검 시점 관측) · 03 = C2 원본 사진(크롭·재인코딩 없음) · '
-             'Vogue 기사 이미지는 링크만 둔다.</p>')
+             'Vogue 기사 이미지는 링크만 둔다. 카드 표시 순서 = 이미지 정상·옷 → 정상·판정 보류 → 정상·옷 아닐 수 있음 → '
+             '이미지 없음(같은 묶음 안은 점수 순). 점수·순위는 바꾸지 않는다'
+             + (f' · 이미지 내용 판정 {len(content):,}개(C2 vision 근사)' if content else '') + '.</p>')
     return PAGE.format(title=esc(f"트렌드 결과 {res.request_id}"), body="\n".join(h))
 
 
@@ -321,6 +374,8 @@ def main() -> None:
     ap.add_argument("--out", help="출력 폴더(기본 $SHARED/results)")
     ap.add_argument("--products-dir", help="v1.1 이미지 필드 보강용 products v2 폴더")
     ap.add_argument("--notes-map", help="export_obsidian.py가 쓴 {id: 볼트 경로} JSON(노트 링크용)")
+    ap.add_argument("--content", default=str(shared_dir() / "images" / "content.parquet"),
+                    help="C2 이미지 내용 sidecar(표시 순서용, 없으면 무시). 끄려면 --content ''")
     a = ap.parse_args()
     sys.path.insert(0, str(ROOT / "src"))
     from trend_agent.ingestion.normalization.output import resolve_out, write_text_atomic
@@ -330,7 +385,8 @@ def main() -> None:
     n = enrich_from_products(res, Path(a.products_dir) if a.products_dir else None)
     notes = json.loads(Path(a.notes_map).read_text(encoding="utf-8")) if a.notes_map else {}
     path = out / f"{res.request_id}.html"
-    write_text_atomic(path, render(res, sha, out, n, notes))
+    content = load_content(Path(a.content)) if a.content else {}
+    write_text_atomic(path, render(res, sha, out, n, notes, content))
     print(json.dumps({"html": str(path), "trends": len(res.trends), "enriched": n,
                       "products": sum(1 for _ in all_products(res))}, ensure_ascii=False))
 

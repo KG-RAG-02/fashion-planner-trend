@@ -143,3 +143,27 @@ def test_trend_summary_from_term_mentions(tmp_path):
     md = rts.render_md(rows, "term_mentions", "f" * 64)
     assert "| 테스트 코어 | 1 | 2 | 2026-10 ×1 | 2027SS ×1 | graph (Tier 1) |" in md and "코퍼스에 없음" in md
     assert "generated: true" in md
+
+
+def test_image_content_sidecar_orders_display_only(env):
+    """L0 #203: content.parquet는 표시층에서만 — 묶음 순서 garment → uncertain/None → non_garment → 깨짐, 점수·rank 불변."""
+    tmp, shared, res = env
+    it = res.trends[0].items[0]
+    a, b, snap = it.similar_products  # a: 02 ok · b: 02 구성품 broken · snap: 03 ok(판정 없음)
+    content = {"otpensource:f.json:1": "non_garment", "otpensource:f.json:2": "garment"}
+    assert rtr.image_content(b, content) == "garment"  # 구성품은 부모 판정
+    assert [rtr.display_class(p, content) for p in (a, b, snap)] == [2, 3, 1]
+    order = rtr.order_for_display(it.similar_products, content)
+    assert [i for i, _ in order] == [3, 1, 2] and a.score == 0.9  # 표시만 바뀌고 원래 순번·점수는 그대로
+    out = tmp / "results"
+    out.mkdir()
+    page = rtr.render(res, "0" * 64, out, content=content)
+    assert 'src="http://cdn/a.jpg"' not in page and 'href="http://cdn/a.jpg"' in page  # non_garment = 자리표시 + 원본 링크
+    assert "옷이 아닌 이미지일 수 있음" in page and "점수 순위 1" in page
+    vault = tmp / "vault"
+    exo.export([(res, "a" * 64)], vault, content=content)
+    note = next(p for p in (vault / "40_Products").glob("A B*.md")).read_text(encoding="utf-8")
+    assert "\nimage:" not in note and 'image_content: "non_garment"' in note and "image_order: 2" in note
+    assert "[원본 이미지 보기](http://cdn/a.jpg)" in note
+    item = next((vault / "20_Items").glob("*.md")).read_text(encoding="utf-8").split("## 비슷한 상품")[1]
+    assert item.index("snap-000007") < item.index("A B")  # 정상·판정 없음(03)이 non_garment보다 먼저

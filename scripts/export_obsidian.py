@@ -16,6 +16,9 @@
   다시 쓴다 — 사용자가 UI로 고친 뒤에는 덮어쓰지 않는다.
 - Vogue 기사 이미지는 링크만(G0-⑤). 인용은 로컬 볼트에만 둔다(Sync 연결 금지, Q5).
 - 그래프 선은 본문 위키링크로 만든다(frontmatter 링크가 그래프 선이 되는지는 미확인 — 레퍼런스 §6).
+- 이미지 내용 판정(C2 content.parquet, L0 #203 — 표시층 전용): 02 상품 노트에 `image_content`(구성품은 부모 판정)와
+  `image_order`(0 정상·옷 · 1 정상·판정 보류/없음 · 2 정상·옷 아닐 수 있음 · 3 이미지 없음)를 넣는다. non_garment는 카드
+  `image`를 비우고 본문에 원본 링크만 둔다. Item의 상품 목록·Canvas도 이 순서(같은 묶음 안은 점수 순). 점수는 그대로.
 """
 from __future__ import annotations
 
@@ -36,7 +39,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from render_trend_result import (  # noqa: E402
     all_products,
+    display_class,
     enrich_from_products,
+    image_content,
+    load_content,
     load_result,
     shared_dir,
     snap_parts,
@@ -246,20 +252,33 @@ def attr_links(x: Any) -> str:
     return "\n".join(f"- {names.get(k, k)}: {', '.join(v)}" for k, v in by_kind.items()) or "- (속성 없음 — 미확인)"
 
 
-def image_value(p: ProductMatch) -> tuple[Optional[str], Optional[int]]:
-    """노트 `image` 속성 값과 03 row. 02 = URL, 03 = "[[assets/snap/<row>.jpg]]"(레퍼런스 §3·S4)."""
+def original_url(p: ProductMatch) -> Optional[str]:
+    return p.image_url or (p.image_ref if (p.image_ref or "").startswith("http") else None)
+
+
+def image_value(p: ProductMatch, content: Optional[dict[str, str]] = None) -> tuple[Optional[str], Optional[int]]:
+    """노트 `image` 속성 값과 03 row. 02 = URL, 03 = "[[assets/snap/<row>.jpg]]"(레퍼런스 §3·S4).
+    02 non_garment(이미지 내용 판정)는 카드 이미지를 비운다(본문에 원본 링크)."""
     if p.image_status == "broken":
         return None, None
     if p.source == "musinsa_snap":
         sp = snap_parts(p.product_id)
         row = p.snap_id if p.snap_id is not None else (sp[0] if sp else None)
         return (f"[[assets/snap/{row}.jpg]]", row) if row is not None else (None, None)
-    url = p.image_url or (p.image_ref if (p.image_ref or "").startswith("http") else None)
-    return url, None
+    if image_content(p, content) == "non_garment":
+        return None, None
+    return original_url(p), None
+
+
+def display_sorted(pids: list[str], data: dict[str, Any], content: Optional[dict[str, str]]) -> list[str]:
+    """표시 순서: 이미지 묶음(display_class) → 원래 순서(점수 순)."""
+    return [pid for _, pid in sorted(enumerate(pids), key=lambda t: (display_class(data["products"][t[1]]["p"], content), t[0]))]
 
 
 # ---------- 쓰기 ----------
-def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run: bool = False) -> dict[str, Any]:
+def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run: bool = False,
+           content: Optional[dict[str, str]] = None) -> dict[str, Any]:
+    content = content or {}
     data = collect(results)
     paths = assign_paths(data)
     w = Writer(vault, dry_run)
@@ -316,7 +335,7 @@ def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run:
         if quotes:
             body += ["## 근거", ""] + quotes + [""]
         body += ["## 비슷한 상품", ""] + [f"- {link(paths[pid], data['products'][pid]['p'].name or pid)}"
-                                        for pid in rec["products"]]
+                                        for pid in display_sorted(rec["products"], data, content)]
         w.note(paths[iid], frontmatter(fm) + "\n".join(body) + "\n")
 
     snaps_used: set[int] = set()
@@ -328,15 +347,17 @@ def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run:
         best = hits[0] if hits else (p.score, None, None)
         trends = list(dict.fromkeys(link(paths[h[1]]) for h in hits if h[1] in paths))
         items = list(dict.fromkeys(link(paths[h[2]]) for h in hits if h[2] in paths))
-        image, row = image_value(p)
+        image, row = image_value(p, content)
         if row is not None:
             snaps_used.add(row)
+        verdict = image_content(p, content)
         co = [link(paths[o]) for o in by_row.get(row, []) if o != pid] if row is not None else []
         fm = {"type": "product", "generated": True, "source_hash": src_hash, "product_id": pid, "name": p.name,
               "trend": link(paths[best[1]]) if best[1] in paths else None, "trends": trends,
               "item": link(paths[best[2]]) if best[2] in paths else None, "items": items,
               "score": round(float(best[0]), 4), "image": image, "image_scope": p.image_scope, "image_status": p.image_status,
-              "has_image": bool(p.has_image), "source": p.source, "kind": p.kind, "snap_row": row, "co_items": co,
+              "has_image": bool(p.has_image), "image_content": verdict, "image_order": display_class(p, content),
+              "source": p.source, "kind": p.kind, "snap_row": row, "co_items": co,
               "parent_id": p.parent_id, "multi_wearer_suspected": True if p.multi_wearer_suspected else None,
               "tags": ["product"]}
         body = [f"# {p.name or pid}", ""]
@@ -344,6 +365,8 @@ def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run:
             body += [f"![[assets/snap/{row}.jpg|320]]", "", f"착장 원본 사진 1장(크롭 없음) — 이 의류: {snap_parts(pid)[1]}", ""]
         elif image:
             body += [f"![320]({image})", "", "세트 이미지(구성품이 부모 사진을 함께 씀)" if p.image_scope == "full_set" else "상품 컷", ""]
+        elif verdict == "non_garment" and original_url(p):
+            body += [f"(옷이 아닌 이미지일 수 있음 — 라벨·직물 등, vision 판정 근사) [원본 이미지 보기]({original_url(p)})", ""]
         else:
             body += ["(이미지 없음 또는 깨짐)", ""]
         if p.multi_wearer_suspected:
@@ -377,7 +400,7 @@ def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run:
 
     w.managed(BASE_PATH, base_yaml())
     for sid in sorted(data["trends"]):
-        w.managed(f"91_Canvas/{Path(paths[sid]).stem}.canvas", canvas_json(sid, data, paths))
+        w.managed(f"91_Canvas/{Path(paths[sid]).stem}.canvas", canvas_json(sid, data, paths, content=content))
     w.save_manifest()
     rep = {k: len(v) for k, v in w.report.items()}
     rep["skipped_paths"] = w.report.get("skipped_human", []) + w.report.get("skipped_user_edited", [])
@@ -407,6 +430,7 @@ views:
       - note.item
       - note.score
       - note.image_scope
+      - note.image_order
   - type: table
     name: 상품 표
     order:
@@ -421,7 +445,8 @@ views:
 """
 
 
-def canvas_json(sid: str, data: dict[str, Any], paths: dict[str, str], per_item: int = 4) -> str:
+def canvas_json(sid: str, data: dict[str, Any], paths: dict[str, str], per_item: int = 4,
+                content: Optional[dict[str, str]] = None) -> str:
     """JSON Canvas 1.0: 트렌드(text) → Item(file 노트) → 상품(03 file 이미지 · 02 text 외부 이미지). 좌표는 격자."""
     tr = data["trends"][sid]
     nodes: list[dict[str, Any]] = []
@@ -438,9 +463,9 @@ def canvas_json(sid: str, data: dict[str, Any], paths: dict[str, str], per_item:
                       "color": "4"})
         edges.append({"id": f"e-{short_hash(sid + iid, 10)}", "fromNode": nodes[0]["id"], "fromSide": "bottom",
                       "toNode": inode, "toSide": "top"})
-        for j, pid in enumerate(data["items"][iid]["products"][:per_item]):
+        for j, pid in enumerate(display_sorted(data["items"][iid]["products"], data, content)[:per_item]):
             p = data["products"][pid]["p"]
-            image, row = image_value(p)
+            image, row = image_value(p, content)
             pnode = f"prod-{short_hash(iid + pid, 10)}"
             y = 500 + j * (img_h + 120)
             if row is not None:
@@ -448,7 +473,13 @@ def canvas_json(sid: str, data: dict[str, Any], paths: dict[str, str], per_item:
                               "width": img_w, "height": img_h})
             else:
                 label = (p.name or pid).replace("[", "(").replace("]", ")")
-                text = (f"![{img_w}]({image})\n\n" if image else "(이미지 없음)\n\n") + link(paths[pid], label)
+                if image:
+                    head = f"![{img_w}]({image})\n\n"
+                elif image_content(p, content) == "non_garment" and original_url(p):
+                    head = f"(옷이 아닌 이미지일 수 있음) [원본 이미지]({original_url(p)})\n\n"
+                else:
+                    head = "(이미지 없음)\n\n"
+                text = head + link(paths[pid], label)
                 nodes.append({"id": pnode, "type": "text", "text": text, "x": x, "y": y, "width": img_w, "height": img_h + 80})
             edges.append({"id": f"e-{short_hash(iid + pid, 12)}", "fromNode": inode, "fromSide": "bottom", "toNode": pnode,
                           "toSide": "top"})
@@ -461,6 +492,8 @@ def main() -> None:
     ap.add_argument("--vault", default=os.environ.get("VAULT"), required=os.environ.get("VAULT") is None)
     ap.add_argument("--products-dir", help="v1.1 이미지 필드 보강용 products v2 폴더(결과에 값이 없을 때만)")
     ap.add_argument("--notes-map", help="id → 볼트 경로 JSON을 쓸 곳(HTML 갤러리의 Obsidian 링크용)")
+    ap.add_argument("--content", default=str(shared_dir() / "images" / "content.parquet"),
+                    help="C2 이미지 내용 sidecar(표시층 전용, 없으면 무시). 끄려면 --content ''")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     loaded = []
@@ -468,7 +501,7 @@ def main() -> None:
         res, sha = load_result(Path(r))
         enrich_from_products(res, Path(a.products_dir) if a.products_dir else None)
         loaded.append((res, sha))
-    out = export(loaded, Path(a.vault), a.dry_run)
+    out = export(loaded, Path(a.vault), a.dry_run, load_content(Path(a.content)) if a.content else {})
     if a.notes_map:
         Path(a.notes_map).write_text(json.dumps(out["paths"], ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(out["report"], ensure_ascii=False, indent=1))
