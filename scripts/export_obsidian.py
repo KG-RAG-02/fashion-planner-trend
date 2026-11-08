@@ -16,6 +16,9 @@
   다시 쓴다 — 사용자가 UI로 고친 뒤에는 덮어쓰지 않는다.
 - Vogue 기사 이미지는 링크만(G0-⑤). 인용은 로컬 볼트에만 둔다(Sync 연결 금지, Q5).
 - 그래프 선은 본문 위키링크로 만든다(frontmatter 링크가 그래프 선이 되는지는 미확인 — 레퍼런스 §6).
+- `--prune BACKUP_DIR`: 이번 내보내기에 없는 **생성물만** 볼트에서 BACKUP_DIR로 옮긴다(지우지 않는다) — `generated: true`
+  노트, 내보내기 기록 sha와 같은(사용자가 고치지 않은) Canvas, 결과에 안 쓰인 `assets/snap/<row>.jpg`.
+  사람이 쓴 노트·UI로 고친 파일·`_트렌드 요약.md`(요약표 스크립트 소유)는 그대로 둔다.
 - 이미지 내용 판정(C2 content.parquet, L0 #203 — 표시층 전용): 02 상품 노트에 `image_content`(구성품은 부모 판정)와
   `image_order`(0 정상·옷 · 1 정상·판정 보류/없음 · 2 정상·옷 아닐 수 있음 · 3 이미지 없음)를 넣는다. non_garment는 카드
   `image`를 비우고 본문에 원본 링크만 둔다. Item의 상품 목록·Canvas도 이 순서(같은 묶음 안은 점수 순). 점수는 그대로.
@@ -54,6 +57,8 @@ from trend_agent.schemas.trend_analysis_result import ProductMatch, TrendAnalysi
 BASE_PATH = "90_Bases/트렌드 의류.base"
 MANIFEST = "90_Bases/.export_manifest.json"
 _FORBIDDEN = re.compile(r"[#|^:%\[\]/\\\"*?<>\n\r\t]+")
+GENERATED_DIRS = ("10_Trends", "20_Items", "30_Attributes", "40_Products")
+PRUNE_PROTECTED = {"10_Trends/_트렌드 요약.md"}  # render_trend_summary.py가 쓴다
 ATTR_KINDS = ("category", "color", "material", "pattern", "detail", "neckline", "collar", "fit")
 
 
@@ -104,8 +109,10 @@ class Writer:
         self.report: dict[str, list[str]] = defaultdict(list)
         mp = vault / MANIFEST
         self.manifest: dict[str, str] = json.loads(mp.read_text(encoding="utf-8")) if mp.exists() else {}
+        self.touched: set[str] = set()  # 이번 실행이 다룬 경로(쓰기·변경 없음·건너뜀 모두) — prune에서 남긴다
 
     def _write(self, rel: str, data: bytes) -> None:
+        self.touched.add(rel)
         path = self.vault / rel
         if path.exists() and path.read_bytes() == data:
             self.report["unchanged"].append(rel)
@@ -118,6 +125,7 @@ class Writer:
         self.report["written"].append(rel)
 
     def note(self, rel: str, text: str) -> None:
+        self.touched.add(rel)
         path = self.vault / rel
         if path.exists():
             head = path.read_text(encoding="utf-8").split("\n---", 1)[0]
@@ -128,6 +136,7 @@ class Writer:
 
     def managed(self, rel: str, text: str) -> None:
         """.base·.canvas: 처음 쓰거나, 마지막으로 내가 쓴 내용 그대로일 때만 다시 쓴다."""
+        self.touched.add(rel)
         path = self.vault / rel
         data = text.encode("utf-8")
         if path.exists():
@@ -139,6 +148,7 @@ class Writer:
         self.manifest[rel] = hashlib.sha256(data).hexdigest()
 
     def copy_asset(self, src: Path, rel: str) -> None:
+        self.touched.add(rel)
         dst = self.vault / rel
         sha = hashlib.sha256(src.read_bytes()).hexdigest()
         if dst.exists() and hashlib.sha256(dst.read_bytes()).hexdigest() == sha:
@@ -150,6 +160,40 @@ class Writer:
             if hashlib.sha256(dst.read_bytes()).hexdigest() != sha:
                 raise RuntimeError(f"복사 후 sha256 불일치: {rel}")
         self.report["copied"].append(rel)
+
+    def prune(self, backup: Path) -> list[str]:
+        """이번 실행이 다루지 않은 생성물을 backup으로 옮긴다(삭제 아님). 옮긴 볼트 경로 목록."""
+        moved: list[str] = []
+
+        def move(rel: str) -> None:
+            moved.append(rel)
+            if not self.dry:
+                dst = backup / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(self.vault / rel, dst)
+
+        for folder in GENERATED_DIRS:
+            root = self.vault / folder
+            for f in sorted(root.rglob("*.md")) if root.exists() else []:
+                rel = f.relative_to(self.vault).as_posix()
+                if rel in self.touched or rel in PRUNE_PROTECTED:
+                    continue
+                head = f.read_text(encoding="utf-8").split("\n---", 1)[0]
+                if re.search(r"^generated:\s*true\s*$", head, re.MULTILINE):
+                    move(rel)
+        canvas_root = self.vault / "91_Canvas"
+        for f in sorted(canvas_root.glob("*.canvas")) if canvas_root.exists() else []:
+            rel = f.relative_to(self.vault).as_posix()
+            if rel not in self.touched and self.manifest.get(rel) == hashlib.sha256(f.read_bytes()).hexdigest():
+                move(rel)
+                self.manifest.pop(rel, None)
+        snap_root = self.vault / "assets" / "snap"
+        for f in sorted(snap_root.glob("*.jpg")) if snap_root.exists() else []:
+            rel = f.relative_to(self.vault).as_posix()
+            if rel not in self.touched and re.fullmatch(r"\d+\.jpg", f.name):
+                move(rel)
+        self.report["pruned"] = moved
+        return moved
 
     def save_manifest(self) -> None:
         if not self.dry:
@@ -206,8 +250,15 @@ def assign_paths(data: dict[str, Any]) -> dict[str, str]:
         used.add(cand)
         paths[key] = cand
 
+    name_count: dict[str, int] = defaultdict(int)
+    for sid in data["trends"]:
+        name_count[slugify(data["trends"][sid]["style"].name)] += 1
     for sid in sorted(data["trends"]):
-        put(sid, "10_Trends", slugify(data["trends"][sid]["style"].name))
+        st = data["trends"][sid]["style"]
+        base = slugify(st.name)
+        if name_count[base] > 1:  # 같은 이름 Style이 여러 기사에서 나오면 모두 기사 id를 붙인다(해시보다 읽기 쉽다)
+            base = f"{base} ({slugify(st.article_id or sid.rsplit('-s', 1)[0], 20)})"
+        put(sid, "10_Trends", base)
     for iid in sorted(data["items"]):
         put(iid, "20_Items", f"{slugify(data['items'][iid]['item'].name, 50)} ({slugify(iid, 40)})")
     for pid in sorted(data["products"]):
@@ -277,7 +328,7 @@ def display_sorted(pids: list[str], data: dict[str, Any], content: Optional[dict
 
 # ---------- 쓰기 ----------
 def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run: bool = False,
-           content: Optional[dict[str, str]] = None) -> dict[str, Any]:
+           content: Optional[dict[str, str]] = None, prune_backup: Optional[Path] = None) -> dict[str, Any]:
     content = content or {}
     data = collect(results)
     paths = assign_paths(data)
@@ -402,9 +453,13 @@ def export(results: list[tuple[TrendAnalysisResult, str]], vault: Path, dry_run:
     w.managed(BASE_PATH, base_yaml())
     for sid in sorted(data["trends"]):
         w.managed(f"91_Canvas/{Path(paths[sid]).stem}.canvas", canvas_json(sid, data, paths, content=content))
+    if prune_backup is not None:
+        w.prune(prune_backup)
     w.save_manifest()
     rep = {k: len(v) for k, v in w.report.items()}
     rep["skipped_paths"] = w.report.get("skipped_human", []) + w.report.get("skipped_user_edited", [])
+    if "pruned" in w.report:
+        rep["pruned_to"] = str(prune_backup)
     rep["notes"] = {"trends": len(data["trends"]), "items": len(data["items"]), "products": len(data["products"]),
                     "attributes": len(attrs_needed), "snaps": len(snaps_used)}
     return {"report": rep, "paths": {k: v for k, v in paths.items()}}
@@ -496,13 +551,16 @@ def main() -> None:
     ap.add_argument("--content", default=str(shared_dir() / "images" / "content.parquet"),
                     help="C2 이미지 내용 sidecar(표시층 전용, 없으면 무시). 끄려면 --content ''")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--prune", metavar="BACKUP_DIR",
+                    help="이번 결과에 없는 생성물(노트·Canvas·사진)을 BACKUP_DIR로 옮긴다(삭제 아님)")
     a = ap.parse_args()
     loaded = []
     for r in a.results:
         res, sha = load_result(Path(r))
         enrich_from_products(res, Path(a.products_dir) if a.products_dir else None)
         loaded.append((res, sha))
-    out = export(loaded, Path(a.vault), a.dry_run, load_content(Path(a.content)) if a.content else {})
+    out = export(loaded, Path(a.vault), a.dry_run, load_content(Path(a.content)) if a.content else {},
+                 Path(a.prune) if a.prune else None)
     if a.notes_map:
         Path(a.notes_map).write_text(json.dumps(out["paths"], ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(out["report"], ensure_ascii=False, indent=1))
