@@ -47,6 +47,7 @@ def test_style_mention_title_roles_and_counts():
     assert ev[("a1", None)]["role"] == "title"
     assert ev[("a1", 1)]["role"] == "style" and ev[("a1", 1)]["style_id"] == "a1-s0"
     assert ev[("a1", 3)]["role"] == "style"  # 용어가 글자로 없어도 Style 근거 블록은 넣는다
+    assert ev[("a1", 3)]["literal"] is False and ev[("a1", 1)]["literal"] is True and ev[("a1", None)]["literal"] is True
     assert ev[("a1", 1)]["seasons"] == ["2027SS"] and ev[("a1", 1)]["season_source"] == "style"
     assert ev[("a2", 1)]["role"] == "mention" and ev[("a2", 1)]["style_id"] is None  # "끝났다" 언급도 mention
     assert r["months"] == {"2026-09": 1, "2026-10": 1} and r["first_seen"] == "2026-09-02"

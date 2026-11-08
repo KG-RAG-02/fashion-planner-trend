@@ -4,7 +4,7 @@
     {"term", "norm", "term_id", "surfaces"[], "sources"[], "generic",
      "article_count", "mention_count", "style_article_count", "title_article_count",
      "months"{YYYY-MM: 기사 수}, "seasons"{2027SS: 기사 수}, "first_seen", "last_seen",
-     "evidence"[{article_id, block_idx, role, style_name, style_id, published, seasons, season_source}]}
+     "evidence"[{article_id, block_idx, role, literal, style_name, style_id, published, seasons, season_source}]}
 - 용어 원천(`sources`): `extracted_style`(추출 Style명·aliases, 검증 통과 파일만) · `title_quote`(제목의 ‘…’·'…'·"…"·“…”) ·
   `core_suffix`("-코어", 불용어 제외) · `kfashion_substyle`(K-Fashion 하위 스타일 23, 가이드라인 원문에서 파싱) ·
   `t2_keyword`(T2 `$SHARED/keywords/inventory.csv`가 있으면) · `seed`(E2E 시드 — 0건이어도 행을 남긴다)
@@ -12,7 +12,8 @@
   아니어야 한다 — "포스트모던"의 "모던" 제외), 뒤 조사·접미 허용(영문 용어는 뒤도 경계). 영문은 대소문자 무시.
 - `role`: 그 기사 추출 Style과 norm이 같으면 `style`(+`style_name`·`style_id` = `<aid>-s<n>`, 적재기 규칙), 제목이면
   `title`(`block_idx: null`), 그 밖은 `mention`("끝났다"는 언급도 mention — Style 수와 구분된다).
-  Style 근거 블록은 용어가 글자로 없어도 `style` 근거로 넣는다.
+  Style 근거 블록은 용어가 글자로 없어도 `style` 근거로 넣는다 — 그때 `literal: false`(용어가 블록·제목에 글자로
+  있으면 true). 대표 인용을 고를 때 literal=true를 먼저 쓰면 된다.
 - 시즌: role=style이면 그 Style `seasons`(`season_source: "style"`), 아니면 기사 태그·제목 시즌(`article_<source>`)만.
   추정하지 않는다. 월 = `published_at[:7]`(라벨 `published`와 같은 기준). 인용 문장은 넣지 않는다(블록 번호만).
 """
@@ -188,17 +189,17 @@ def build_term_mentions(articles: list[dict], extractions: dict[str, dict], *, i
             hits: list[tuple[Optional[int], str]] = []
             title_n = len(pat.findall(a.get("title") or ""))
             if title_n:
-                hits.append((None, "title"))
+                hits.append((None, "title", True))
                 mention_count += title_n
             for b in _text_blocks(a):
                 k = len(pat.findall(b.get("text") or ""))
                 if k:
-                    hits.append((b["idx"], "mention"))
+                    hits.append((b["idx"], "mention", True))
                     mention_count += k
             if style_hit:
                 ev_blocks = {e["block_idx"] for e in style_hit[1].get("evidence") or []}
-                have = {bi for bi, _ in hits}
-                hits += [(bi, "mention") for bi in sorted(ev_blocks - have)]
+                have = {h[0] for h in hits}
+                hits += [(bi, "mention", False) for bi in sorted(ev_blocks - have)]
             if not hits:
                 continue
             art_ids.add(aid)
@@ -217,13 +218,13 @@ def build_term_mentions(articles: list[dict], extractions: dict[str, dict], *, i
                 a_seasons, src = _article_season(a)
             for se in a_seasons:
                 seasons[se] += 1
-            for bi, role in sorted(hits, key=lambda x: (-1 if x[0] is None else x[0])):
+            for bi, role, literal in sorted(hits, key=lambda x: (-1 if x[0] is None else x[0])):
                 if role == "title":
                     title_arts.add(aid)
                 elif style_hit:
                     role = "style"
                 evidence.append({
-                    "article_id": aid, "block_idx": bi, "role": role,
+                    "article_id": aid, "block_idx": bi, "role": role, "literal": literal,
                     "style_name": style_hit[1].get("name") if style_hit and role == "style" else None,
                     "style_id": f"{aid}-s{style_hit[0]}" if style_hit and role == "style" else None,
                     "published": published, "seasons": a_seasons, "season_source": src,
