@@ -141,7 +141,7 @@ def test_trend_summary_from_term_mentions(tmp_path):
     assert [r["term"] for r in rows] == ["테스트 코어", "드뮤어"]
     assert rows[0]["top_evidence"][0]["role"] == "title" and len(rows[0]["top_evidence"]) == 1  # 기사당 1개, title 우선
     md = rts.render_md(rows, "term_mentions", "f" * 64)
-    assert "| 테스트 코어 | 1 | 2 | 2026-10 ×1 | 2027SS ×1 | graph (Tier 1) |" in md and "코퍼스에 없음" in md
+    assert "| 테스트 코어 | 1 | 1 | 2 | 2026-10 ×1 | 2027SS ×1 | graph (Tier 1) |" in md and "코퍼스에 없음" in md
     assert "generated: true" in md
 
 
@@ -167,3 +167,19 @@ def test_image_content_sidecar_orders_display_only(env):
     assert "[원본 이미지 보기](http://cdn/a.jpg)" in note
     item = next((vault / "20_Items").glob("*.md")).read_text(encoding="utf-8").split("## 비슷한 상품")[1]
     assert item.index("snap-000007") < item.index("A B")  # 정상·판정 없음(03)이 non_garment보다 먼저
+
+
+def test_trend_summary_source_filter(tmp_path):
+    tm = tmp_path / "tm.jsonl"
+    tm.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in [
+        {"term": "소재", "norm": "소재", "sources": ["t2_keyword"], "generic": False, "article_count": 86, "evidence": []},
+        {"term": "이 컬러", "norm": "이컬러", "sources": ["title_quote"], "generic": True, "article_count": 10, "evidence": []},
+        {"term": "시럽코어", "norm": "시럽코어", "sources": ["extracted_style", "core_suffix"], "generic": False,
+         "article_count": 1, "style_article_count": 1, "evidence": []},
+        {"term": "드레스", "norm": "드레스", "sources": ["extracted_style"], "generic": False, "article_count": 73,
+         "style_article_count": 0, "evidence": []}]) + "\n", encoding="utf-8")
+    rows = rts.rows_from_term_mentions(tm, set(rts.TREND_SOURCES))
+    assert [r["term"] for r in rows] == ["시럽코어", "드레스"]  # 일반어(T2 키워드만)·generic 제외
+    built = rts.build_rows(rows, {}, {})
+    assert [r["term"] for r in built] == ["시럽코어", "드레스"]  # Style 기사 수 우선 정렬
+    assert len(rts.rows_from_term_mentions(tm, None)) == 4

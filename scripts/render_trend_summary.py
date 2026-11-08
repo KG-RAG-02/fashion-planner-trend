@@ -38,6 +38,8 @@ from trend_agent.schemas.graph_schema import normalize_term  # noqa: E402
 SUMMARY_NOTE = "10_Trends/_트렌드 요약.md"
 INVENTORY_ORIGINS = {"label_style", "manifest", "vogue_title_quote", "vogue_core", "e2e_seed"}  # K-Fashion 분류어만인 행은 트렌드어가 아니라 뺀다
 ROLE_ORDER = {"style": 0, "title": 1, "mention": 2}
+# term_mentions 출처 중 트렌드어로 볼 것(T1 §5). t2_keyword·kfashion_substyle만 있는 행(소재·컬러·스트리트 같은 일반어)은 뺀다.
+TREND_SOURCES = ("extracted_style", "title_quote", "core_suffix", "seed")
 
 
 def squash(text: str) -> str:
@@ -97,12 +99,15 @@ def resolution_modes(results: list[Path]) -> dict[str, dict[str, Any]]:
     return out
 
 
-def rows_from_term_mentions(path: Path) -> list[dict[str, Any]]:
+def rows_from_term_mentions(path: Path, sources: Optional[set[str]] = None) -> list[dict[str, Any]]:
+    """sources가 주어지면 그중 하나라도 출처에 있는 행만, generic=true는 뺀다(None이면 전부)."""
     rows = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         r = json.loads(line)
+        if sources is not None and (r.get("generic") or not set(r.get("sources") or []) & sources):
+            continue
         rows.append({"term": r["term"], "norm": r.get("norm") or normalize_term(r["term"]),
                      "article_count": int(r.get("article_count") or 0), "mention_count": r.get("mention_count"),
                      "style_article_count": r.get("style_article_count"), "months": dict(r.get("months") or {}),
@@ -173,7 +178,8 @@ def build_rows(rows: list[dict[str, Any]], articles: dict[str, dict[str, Any]], 
                         "style_name": e.get("style_name")})
         out.append({**r, "tier": m.get("tier"), "match_mode": m.get("match_mode"), "qualification": m.get("qualification"),
                     "resolution_status": m.get("status"), "top_evidence": evs})
-    out.sort(key=lambda x: (-x["article_count"], x["norm"]))
+    # Style로 다룬 기사가 많은 트렌드 → 언급 기사 수 → 이름 (style_article_count가 없으면 0)
+    out.sort(key=lambda x: (-(x.get("style_article_count") or 0), -x["article_count"], x["norm"]))
     return out
 
 
@@ -219,12 +225,13 @@ def render_md(rows: list[dict[str, Any]], mode: str, src_sha: str) -> str:
              "tags:", "  - \"trend\"", "---", "# 트렌드 요약", ""]
     if mode != "term_mentions":
         lines += ["> [!warning] 임시 표(degraded) — T1 `term_mentions.jsonl` 이전. 기사 수는 T2 키워드 행렬 기준, Style 기사 수 없음.", ""]
-    lines += ["| 트렌드 | 기사 수 | 언급 | 월 | 시즌 | 판정 방식 | 대표 근거 |", "|---|---:|---:|---|---|---|---|"]
+    lines += ["| 트렌드 | Style 기사 | 기사 수 | 언급 | 월 | 시즌 | 판정 방식 | 대표 근거 |", "|---|---:|---:|---:|---|---|---|---|"]
     for r in rows:
         evs = "<br>".join(f"“{cell(x['quote'])}” — [{cell(x['title']).replace('[', '(').replace(']', ')')}]({x['url']})"
                           if x["url"] else f"“{cell(x['quote'])}” — {cell(x['title'])}" for x in r["top_evidence"])
         mm = f"{r['match_mode']}" + (f" (Tier {r['tier']})" if r["tier"] else "") if r["match_mode"] else "—"
-        lines.append(f"| {cell(r['term'])} | {r['article_count']} | {cell(r['mention_count'])} | {cell(fmt_counter(r['months']))} | "
+        lines.append(f"| {cell(r['term'])} | {cell(r['style_article_count'] if r['style_article_count'] is not None else '—')} | "
+                     f"{r['article_count']} | {cell(r['mention_count'])} | {cell(fmt_counter(r['months']))} | "
                      f"{cell(fmt_counter(r['seasons']))} | {cell(mm)} | {evs or ('코퍼스에 없음' if r['article_count'] == 0 else '—')} |")
     return "\n".join(lines) + "\n"
 
@@ -239,11 +246,14 @@ def main() -> None:
     ap.add_argument("--results", nargs="*", default=[], help="결과 JSON(v1.1) — 용어별 Tier·match_mode")
     ap.add_argument("--out", default=str(shared / "results"))
     ap.add_argument("--vault", default=os.environ.get("VAULT"))
+    ap.add_argument("--sources", default=",".join(TREND_SOURCES),
+                    help="term_mentions 출처 필터(쉼표, 기본 트렌드어 출처). 'all'이면 전부(generic 포함)")
     a = ap.parse_args()
     articles = load_articles(Path(a.articles))
     mode = "term_mentions" if a.term_mentions else "inventory"
     src_path = Path(a.term_mentions or a.inventory)
-    rows = rows_from_term_mentions(src_path) if a.term_mentions else rows_from_inventory(src_path, articles)
+    src_filter = None if a.sources == "all" else set(a.sources.split(","))
+    rows = rows_from_term_mentions(src_path, src_filter) if a.term_mentions else rows_from_inventory(src_path, articles)
     modes = resolution_modes([Path(p) for p in a.results])
     built = build_rows(rows, articles, modes)
     h = hashlib.sha256(src_path.read_bytes())
