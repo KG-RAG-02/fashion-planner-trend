@@ -140,7 +140,7 @@ def test_weights_v11_structure_and_v10_loader():
     flags = d["flags"]
     assert flags["season_policy"] in ("strict", "report")
     assert (flags["image_first_tiebreak"], flags["core_unknown_decay"], flags["snap_id_limit"],
-            flags["item_gender_filter"]) == (False, 0.0, 0, False)          # 점수 플래그 기본값 = v1.0 동작
+            flags["item_gender_filter"]) == (True, 0.5, 1, True)            # v1.4: T4 평가 권장값(키가 없을 때 코드 기본값은 v1.0 동작 — test_scoring_v11)
     assert d["tier4"]["value_weights"] == {"primary": 1.0, "secondary": 0.5}
     assert d["resolver"]["tier3"] == {"tau": None, "delta": None}
     assert load_weights().base_weights["color"] == 3                         # v1.0 로더는 새 키를 무시한다

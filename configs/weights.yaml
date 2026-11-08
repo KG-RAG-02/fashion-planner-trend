@@ -36,10 +36,10 @@ flags:
   #   report: 시즌 미확인·불일치 Style도 내보내고 season_status와 한계(limitations)로 알린다 (PLAN §5 Tier1).
   #   시즌만 주는 기존 검색(search())은 이 값과 상관없이 strict(v1.0 동작: 시즌 미확인 Style 보류)다.
   season_policy: report
-  image_first_tiebreak: false  # 동점이면 has_image 우선 — fast path·sort_key·verify_graph_search에 함께 적용
-  core_unknown_decay: 0.0      # γ: 미확인 core 속성 가중치를 분모에 더하는 비율 (0 = 끔 = v1.0 식)
-  snap_id_limit: 0             # Item별 상품 목록에서 같은 snap_id 최대 개수 (0 = 제한 없음)
-  item_gender_filter: false    # 결정 G0-③: Item 성별(남/여)과 반대 성별 상품 제외. 공용·미상은 통과. 기본 꺼짐
+  image_first_tiebreak: true   # 동점이면 has_image 우선 — fast path·sort_key·verify_graph_search에 함께 적용 (v1.4: T4 평가로 켬, +0.008 [0.002, 0.019])
+  core_unknown_decay: 0.5      # γ: 미확인 core 속성 가중치를 분모에 더하는 비율 (0 = 끔 = v1.0 식) (v1.4: T4 평가 0.5, +0.050 [0.021, 0.087])
+  snap_id_limit: 1             # Item별 상품 목록에서 같은 snap_id 최대 개수 (0 = 제한 없음) (v1.4: T4 평가 1, 같은 사진 중복 제거)
+  item_gender_filter: true     # 결정 G0-③: Item 성별(남/여)과 반대 성별 상품 제외. 공용·미상은 통과. (v1.4: G0-③대로 T4 평가로 켬 — 남성 Item 성별@5 불일치 14→0)
 
 tier4:                         # LLM 등급 → 코드 수치화 (LLM은 숫자를 내지 않는다)
   value_weights: {primary: 1.0, secondary: 0.5}
