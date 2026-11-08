@@ -70,8 +70,10 @@ def test_seed_zero_row_and_generic_title_quote():
 def test_inventory_merge(tmp_path):
     inv = tmp_path / "inventory.csv"
     with open(inv, "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["keyword", "norm"])
+        w = csv.DictWriter(f, fieldnames=["keyword", "norm", "generic"])
         w.writeheader()
-        w.writerow({"keyword": "관계없는", "norm": "x"})
+        w.writerow({"keyword": "관계없는", "norm": "x", "generic": "False"})
+        w.writerow({"keyword": "문단", "norm": "문단", "generic": "True"})
     rows = _rows(inventory=inv)
     assert rows["관계없는"]["sources"] == ["t2_keyword"] and rows["관계없는"]["article_count"] == 1
+    assert "문단" not in rows  # generic=true 행은 쓰지 않는다

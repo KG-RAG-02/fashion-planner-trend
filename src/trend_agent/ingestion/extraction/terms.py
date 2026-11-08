@@ -100,7 +100,9 @@ def _read_inventory(path: Optional[Path]) -> list[str]:
     if not path or not path.exists():
         return []
     with open(path, encoding="utf-8-sig", newline="") as f:
-        return [r["keyword"].strip() for r in csv.DictReader(f) if (r.get("keyword") or "").strip()]
+        # T2 권고(keywords-v1 §5): generic=true(지시어 인용어·묶음 제목)는 용어로 쓰지 않는다
+        return [r["keyword"].strip() for r in csv.DictReader(f)
+                if (r.get("keyword") or "").strip() and str(r.get("generic", "")).strip().lower() not in ("true", "1")]
 
 
 def _style_norms(style: dict) -> set[str]:
