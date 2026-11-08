@@ -5,6 +5,8 @@
         --in "$VOGUE/worktrees/t1/data/raw/vogue_kr/articles_pool_150.jsonl" \
         --out "$SHARED/extractions/extract-v1/" [--ids 857922,876706] [--limit N] [--concurrency 2]
     python scripts/extract_articles.py --out "$SHARED/extractions/extract-v1/" --report-only
+    python scripts/extract_articles.py --out "$SHARED/extractions/extract-v1/" \
+        --term-mentions "$SHARED/extractions/term_mentions.jsonl" [--inventory "$SHARED/keywords/inventory.csv"]
 
 - 재개: 출력·`_review/`에 이미 있는 article_id는 건너뛴다(`--retry-review`면 `_review/`만 다시).
 - `--emit`이면 시작·완료·실패 때 팀 버스 이벤트(job_started|job_done|job_failed)를 보낸다($TEAM_ROOT/bus/emit.py).
@@ -57,12 +59,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--review-queue", type=Path, default=None, help="기본 <out>/../review_queue.jsonl")
     ap.add_argument("--max-text-gap", type=int, default=1)
     ap.add_argument("--report-only", action="store_true")
+    ap.add_argument("--term-mentions", type=Path, default=None,
+                    help="추출 대신 트렌드 언급 집계: --in 기사 + --out 폴더의 검증 통과 추출 → 이 경로(JSONL)")
+    ap.add_argument("--inventory", type=Path, default=None, help="T2 키워드 행렬 CSV (--term-mentions와 함께, 선택)")
     ap.add_argument("--emit", action="store_true", help="job_* 이벤트 보내기")
     ap.add_argument("--emit-to", default="T3,T4,L0")
     args = ap.parse_args(argv)
 
-    if args.out.name != args.prompt_version and not args.report_only:
+    if args.out.name != args.prompt_version and not (args.report_only or args.term_mentions):
         print(f"경고: --out 폴더 이름({args.out.name})이 prompt_version({args.prompt_version})과 다르다", file=sys.stderr)
+    if args.term_mentions:
+        from trend_agent.ingestion.extraction.terms import main as terms_main
+
+        targs = ["--pool", str(args.input), "--extractions", str(args.out), "--out", str(args.term_mentions)]
+        if args.inventory:
+            targs += ["--inventory", str(args.inventory)]
+        return terms_main(targs)
     if args.report_only:
         path = write_report(args.out, prompt_version=args.prompt_version,
                             review_queue=args.review_queue or args.out.parent / "review_queue.jsonl")
