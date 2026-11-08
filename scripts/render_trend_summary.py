@@ -152,8 +152,10 @@ def rows_from_inventory(path: Path, articles: dict[str, dict[str, Any]]) -> list
 
 
 def pick_evidence(row: dict[str, Any], n: int = 2) -> list[dict[str, Any]]:
-    """대표 근거: role(style > title > mention) → 최근 기사 우선, 기사당 1개."""
-    ev = sorted(row["evidence"], key=lambda e: (ROLE_ORDER.get(e.get("role"), 9), -(int(re.sub(r"\D", "", e.get("published") or "0") or 0)),
+    """대표 근거: 용어가 글자로 있는 블록(literal, 없으면 참으로 본다) → role(style > title > mention) → 최근 기사, 기사당 1개.
+    T1 term_mentions의 role=style 근거는 용어가 블록에 없을 수 있다(literal=false)."""
+    ev = sorted(row["evidence"], key=lambda e: (e.get("literal") is False, ROLE_ORDER.get(e.get("role"), 9),
+                                                 -(int(re.sub(r"\D", "", e.get("published") or "0") or 0)),
                                                  str(e.get("article_id")), e.get("block_idx") if e.get("block_idx") is not None else -1))
     out, seen = [], set()
     for e in ev:
