@@ -31,6 +31,7 @@ from trend_agent.graph.search import TrendSearcher  # noqa: E402
 from trend_agent.resolver import ResolveConfig, TrendResolver  # noqa: E402
 from trend_agent.resolver import term_map as tm  # noqa: E402
 from trend_agent.resolver import tier4 as t4  # noqa: E402
+from trend_agent.retrieval.weights import ResolverConfig, Tier3Config, load_weights  # noqa: E402
 from trend_agent.schemas import vocabulary as V  # noqa: E402
 from trend_agent.schemas.trend_analysis_result import TrendAnalysisResult  # noqa: E402
 from trend_agent.schemas.trend_query import CategoryFilter, CategoryRef, SeasonRequest  # noqa: E402
@@ -111,6 +112,9 @@ def main() -> int:
     ap.add_argument("--terms", help="term_map.jsonl (기본 $SHARED/terms/term_map.jsonl)")
     ap.add_argument("--mentions", help="term_mentions.jsonl (기본 $SHARED/extractions/term_mentions.jsonl)")
     ap.add_argument("--crawl", default=str(CRAWL))
+    ap.add_argument("--tier3-tau", type=float, help="평가 비교용: Tier3 τ를 이 값으로(weights.yaml은 바꾸지 않음, 결과 applied_settings.tier3에 기록)")
+    ap.add_argument("--tier3-delta", type=float, help="평가 비교용: Tier3 δ")
+    ap.add_argument("--tier3-model", default=None, help="applied_settings.tier3.model에 남길 임베딩 모델명")
     ap.add_argument("--llm-impl", help="trend_agent.llm 구현 폴더 (develop 병합 전 스모크용, 읽기 전용)")
     ap.add_argument("--emb-impl", help="trend_agent.embeddings 구현 폴더 (develop 병합 전 스모크용, 읽기 전용)")
     a = ap.parse_args()
@@ -126,17 +130,27 @@ def main() -> int:
                         exclude_context_articles=a.exclude_context_article)
     terms_path = Path(a.terms) if a.terms else tm.default_path()
     mentions_path = Path(a.mentions) if a.mentions else t4.default_mentions_path()
+    weights = load_weights()
+    override = a.tier3_tau is not None or a.tier3_delta is not None
+    if override:
+        if a.tier3_tau is None or a.tier3_delta is None:
+            ap.error("--tier3-tau와 --tier3-delta는 함께 준다")
+        weights = weights.model_copy(update={"resolver": ResolverConfig(tier3=Tier3Config(
+            tau=a.tier3_tau, delta=a.tier3_delta, model=a.tier3_model or weights.resolver.tier3.model))})
     s = neo4j_settings()
     try:
         with GraphDatabase.driver(s.uri, auth=(s.user, s.password), notifications_min_severity="OFF") as driver:
             driver.verify_connectivity()
-            resolver = TrendResolver(TrendSearcher(driver, top_k=a.top_k), cfg, mentions=t4.read_mentions(mentions_path),
+            resolver = TrendResolver(TrendSearcher(driver, weights=weights, top_k=a.top_k), cfg, mentions=t4.read_mentions(mentions_path),
                                      crawl=read_crawl(a.crawl), term_map_path=terms_path)
             if a.trend:
                 res = resolver.run(a.trend, request_id)
             else:
                 ids = a.article_id or sorted(p.stem for p in Path(a.from_extractions).glob("*.json"))
                 res = resolver.run_articles(ids, request_id)
+        if override:
+            res.limitations.append(f"평가 비교 실행: Tier3 τ={a.tier3_tau}·δ={a.tier3_delta}를 CLI로 지정했습니다"
+                                   "(configs/weights.yaml 값이 아님 — 운영 결과와 구분).")
     except Exception as e:  # noqa: BLE001 — 시스템 오류는 status=error로 남긴다 (계약 §1.1)
         res = TrendAnalysisResult(request_id=request_id, status="error",
                                   limitations=[f"시스템 오류로 판정하지 못했습니다: {type(e).__name__}: {str(e)[:300]}"])
