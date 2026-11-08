@@ -127,17 +127,21 @@ def test_f_tokenize_keeps_hyphen_and_splits_symbols():
 
 @pytest.mark.parametrize("name", ["비즈니스 셔츠", "무지개 니트", "빈티지 브라운 코트", "오렌지 브라운 팬츠",
                                   "PUFFER JACKET", "STUDIO TEE", "Dot-com hoodie", "내셔널지오그래픽 맨투맨",
-                                  "커스터드 니트", "애슬릿 팬츠", "믹스드 니트", "쿨믹스 팬츠"])
+                                  "커스터드 니트", "애슬릿 팬츠", "믹스드 니트", "쿨믹스 팬츠",
+                                  "트래블러 플리스 셔츠", "라이프 릴랙스 팬츠", "화이트라벨 트렌치코트",
+                                  "Alpaca Blended Coat"])
 def test_f_false_positives_removed(otp, name):
     r = otp.normalize_row(orow(sub_category="기타 상의", product_name=name))
     found = {p.value for p in r.patterns} | {d.value for d in r.details}
-    assert not found & {"비즈", "무지", "지브라", "퍼프", "스터드", "도트", "그래픽", "슬릿"}, found
+    assert not found & {"비즈", "무지", "지브라", "퍼프", "스터드", "도트", "그래픽", "슬릿", "러플", "프릴", "띠",
+                        "니트꽈배기"}, found
 
 
 @pytest.mark.parametrize("name,kind,value", [
     ("무지 티셔츠", "pattern", "무지"), ("반집업 니트", "detail", "집업"), ("빅로고 맨투맨", "pattern", "그래픽"),
     ("STUDDED DENIM", "detail", "스터드"), ("STRIPED SHIRT", "pattern", "스트라이프"), ("지브라 패턴 셔츠", "pattern", "지브라"),
     ("체크셔츠", "pattern", "체크"), ("DOT BLOUSE", "pattern", "도트"), ("드롭 숄더 티", "detail", "드롭숄더"),
+    ("Suede ribbed one pocket skirt", "detail", "포켓"), ("라쿤퍼 트리밍 야상", "detail", "퍼트리밍"),
 ])
 def test_f_true_positives_kept(otp, name, kind, value):
     r = otp.normalize_row(orow(sub_category="기타 상의", product_name=name))

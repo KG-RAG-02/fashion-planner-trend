@@ -5,8 +5,11 @@ v1은 상품명과 feature를 이어 붙인 뒤 공백을 지우고 부분 문�
 - 텍스트를 토큰으로 나눈다: 공백·괄호·`/ , + & | · : ; _` 등. 하이픈은 토큰 안에 둔다(`A-LINE`).
 - 한국어 키(한글이 들어간 키): 토큰 안 부분 일치를 허용한다(`반집업`·`체크셔츠`·`빅로고`는 정탐).
   단 가드 단어(`configs/alias_map/text_guard.yaml`, 예: 비즈→비즈니스)가 토큰에 있으면 버린다.
-- 영문 키: 토큰이 키와 같거나 키 + 굴절 접미사(s, es, d, ed, ded, ered, y, ie, ies, ing)일 때만 맞다.
+- 영문 키: 토큰이 키(복수형 키는 단수 어간도)와 같거나 + 굴절 접미사(s, es, d, ed, ded, ered, y, ie, ies, ing)일 때만
+  맞다(`pockets` 키 → `POCKET`·`POCKETS`, `stud` → `STUDDED`, `STUDIO`·`PUFFER`는 아님).
 - 이웃한 두 토큰은 이어 붙인 값이 키와 **완전히 같을 때만** 맞다(`BOOTS CUT`=bootscut, `드롭 숄더`=드롭숄더).
+  한국어 키는 두 번째 토큰 **전체**를 덮을 때도 맞다(`라쿤퍼 트리밍`=…퍼+트리밍). 두 번째 토큰의 앞부분만
+  걸치는 경우(`빈티지 브라운`→지+브라, `트래블러 플리스`→러+플)는 오탐이라 버린다.
 """
 from __future__ import annotations
 
@@ -31,8 +34,18 @@ def is_hangul_key(key: str) -> bool:
     return bool(_HANGUL.search(key))
 
 
+def english_stems(key: str) -> tuple[str, ...]:
+    """영문 키의 어간: 키 자체 + 복수형이면 단수(pockets→pocket, pleats→pleat)."""
+    stems = [key]
+    if key.endswith("es") and len(key) > 4:
+        stems.append(key[:-2])
+    if key.endswith("s") and len(key) > 3:
+        stems.append(key[:-1])
+    return tuple(stems)
+
+
 def english_match(token_norm: str, key: str, suffixes: Iterable[str] = EN_SUFFIXES) -> bool:
-    return token_norm.startswith(key) and token_norm[len(key):] in suffixes
+    return any(token_norm.startswith(stem) and token_norm[len(stem):] in suffixes for stem in english_stems(key))
 
 
 class TextMatcher:
@@ -56,7 +69,12 @@ class TextMatcher:
             elif english_match(n, key):
                 return tok
         for i in range(len(toks) - 1):
-            if norms[i] + norms[i + 1] == key:
+            pair = norms[i] + norms[i + 1]
+            if pair == key:
+                return f"{toks[i]} {toks[i + 1]}"
+            # 한국어 키가 앞 토큰의 끝 + 뒤 토큰 전체와 같을 때 (라쿤퍼 트리밍 → 퍼트리밍)
+            if hangul and norms[i + 1] and key.endswith(norms[i + 1]) and len(key) > len(norms[i + 1]) \
+                    and norms[i].endswith(key[: len(key) - len(norms[i + 1])]) and not self._guarded(key, pair):
                 return f"{toks[i]} {toks[i + 1]}"
         return None
 

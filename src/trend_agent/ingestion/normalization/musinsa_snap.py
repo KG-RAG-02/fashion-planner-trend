@@ -30,10 +30,10 @@ _EMPTY = {"", "0", "nan", "none"}
 _PAD_OK_MAJORS = (None, V.CategoryMajor.OUTER)
 
 
-def find_snapshot_dir() -> Path:
+def find_snapshot_dir(revision: str = REVISION) -> Path:
     from huggingface_hub import snapshot_download
 
-    return Path(snapshot_download(repo_id=REPO_ID, repo_type="dataset"))
+    return Path(snapshot_download(repo_id=REPO_ID, repo_type="dataset", revision=revision))
 
 
 def _clean(v: Any) -> str:
@@ -87,7 +87,8 @@ def iter_slots(snapshot_dir: Path | str) -> Iterable[dict[str, Any]]:
     """
     import pandas as pd
 
-    parquet = sorted(Path(snapshot_dir).rglob("*.parquet"))[0]
+    src = Path(snapshot_dir)
+    parquet = src if src.is_file() else sorted(src.rglob("*.parquet"))[0]
     df = pd.read_parquet(parquet, columns=["label"])  # image 바이트는 읽지 않는다
     for row_no, raw in enumerate(df["label"]):
         parsed = parse_label(raw)
