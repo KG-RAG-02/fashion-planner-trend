@@ -300,7 +300,8 @@ def render(res: TrendAnalysisResult, src_sha: str, out_dir: Path, enriched: int 
             h.append(f'<p class="warn">{esc(notice)}</p>')
         h.append(f"<p>{esc(st.definition)}</p>")
         for d in st.description:
-            h.append(f"<p>{esc(d.text)}</p>{quote_block(d.evidence_ids)}")
+            text = "" if d.text.strip() == st.definition.strip() else f"<p>{esc(d.text)}</p>"  # 정의와 같은 문장은 한 번만
+            h.append(f"{text}{quote_block(d.evidence_ids)}")
         if st.focus_core or st.focus_supporting:
             h.append(f'<p>핵심 속성 {chips(st.focus_core, "core")} 보조 {chips(st.focus_supporting, "sup")}</p>')
         for it in t.items:
