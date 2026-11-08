@@ -244,8 +244,11 @@ def write_report(out_dir: Path, *, prompt_version: str, last_run: Optional[Batch
     review_docs = _read_docs(out_dir / "_review")
     log = _read_log(out_dir / "run.log")
     latest: dict[str, dict] = {}
+    live: dict[str, dict] = {}  # 기사별 마지막 "실제 LLM 호출이 있었던" 기록 — --reprocess(캐시) 뒤에도 지연·토큰 보존
     for r in log:
         latest[r["article_id"]] = r
+        if r.get("status") != "failed" and not all(r.get("cache_hit") or [True]):
+            live[r["article_id"]] = r
     docs = passed_docs + review_docs
     n = len(docs)
 
@@ -280,10 +283,10 @@ def write_report(out_dir: Path, *, prompt_version: str, last_run: Optional[Batch
                 scope["그래프 범위" if it.get("category_major") else "지원 밖"] += 1
                 for fl in it.get("review_flags") or []:
                     flags[fl.split(":", 1)[0]] += 1
-    lat = [x for r in latest.values() for x in (r.get("latency_s") or []) if x]
-    walls = [r["wall_s"] for r in latest.values() if r.get("wall_s") and r.get("status") != "failed"]
-    tok_in = sum((u or {}).get("input_tokens", 0) for r in latest.values() for u in (r.get("usage") or []))
-    tok_out = sum((u or {}).get("output_tokens", 0) for r in latest.values() for u in (r.get("usage") or []))
+    lat = [x for r in live.values() for x in (r.get("latency_s") or []) if x]
+    walls = [r["wall_s"] for r in live.values() if r.get("wall_s")]
+    tok_in = sum((u or {}).get("input_tokens", 0) for r in live.values() for u in (r.get("usage") or []))
+    tok_out = sum((u or {}).get("output_tokens", 0) for r in live.values() for u in (r.get("usage") or []))
     cache_hits = sum(1 for r in latest.values() for c in (r.get("cache_hit") or []) if c)
     calls = sum(len(r.get("cache_hit") or []) for r in latest.values())
     tools = sum(int(r.get("tool_events") or 0) for r in latest.values())
@@ -316,11 +319,12 @@ def write_report(out_dir: Path, *, prompt_version: str, last_run: Optional[Batch
               f"- focus (속성, 등급): {dict((f'{a}/{l}', c) for (a, l), c in focus.most_common())}",
               f"- review_flags 종류: {dict(flags.most_common())}",
               "", "## 호출", "",
-              f"- 호출 {calls}회 · 캐시 적중 {cache_hits} · 도구 이벤트 {tools}",
+              f"- 최근 실행: 호출 {calls}회 · 캐시 적중 {cache_hits} · 도구 이벤트 {tools}"
+              f" · 실제 LLM 호출 기록이 있는 기사 {len(live)}",
               f"- LLM 지연(호출당): 평균 {statistics.mean(lat):.1f}s · 중앙 {statistics.median(lat):.1f}s · 최대 {max(lat):.1f}s"
               if lat else "- LLM 지연: (기록 없음)",
               f"- 기사당 벽시계: 평균 {statistics.mean(walls):.1f}s · 합계 {sum(walls):.0f}s" if walls else "",
-              f"- 토큰(최신 실행 기록 합): 입력 {tok_in:,} · 출력 {tok_out:,}", ""]
+              f"- 토큰(기사별 마지막 실제 호출 기록 합): 입력 {tok_in:,} · 출력 {tok_out:,}", ""]
     path = out_dir / "run_report.md"
     path.write_text("\n".join(x for x in parts if x is not None) + "\n", encoding="utf-8")
     return path
