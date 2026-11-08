@@ -222,8 +222,8 @@ def weighted_kappa(pairs: list[tuple[int, int]], cats=GRADES) -> float | None:
     return 1 - num / den if den else None
 
 
-def review_sample(rows: list[dict], per_grade: int = 10, seed: int = SEED) -> list[dict]:
-    """등급별 per_grade쌍 + null 전부. 등급 순서가 드러나지 않게 섞는다."""
+def review_sample(rows: list[dict], per_grade: int = 10, seed: int = SEED, null_cap: int | None = None) -> list[dict]:
+    """등급별 per_grade쌍 + null(전부, null_cap이 있으면 그 수까지 무작위). 등급 순서가 드러나지 않게 섞는다."""
     rng = random.Random(seed)
     by = defaultdict(list)
     for r in rows:
@@ -233,7 +233,8 @@ def review_sample(rows: list[dict], per_grade: int = 10, seed: int = SEED) -> li
     for g in GRADES:
         lst = sorted(by[g], key=lambda r: (r["item_id"], r["product_id"]))
         pick += rng.sample(lst, min(per_grade, len(lst)))
-    pick += sorted(by[None], key=lambda r: (r["item_id"], r["product_id"]))
+    nulls = sorted(by[None], key=lambda r: (r["item_id"], r["product_id"]))
+    pick += rng.sample(nulls, min(null_cap, len(nulls))) if null_cap is not None else nulls
     rng.shuffle(pick)
     return pick
 
@@ -519,7 +520,7 @@ def cmd_review_sample(a) -> int:
         products.setdefault(k[1], {}).update({"card_text": c.get("card_text", ""), "local_path": c.get("local_path")})
     for i in items.values():
         i.setdefault("header", i.get("header_text", ""))
-    sample = review_sample(rows, a.per_grade, a.seed)
+    sample = review_sample(rows, a.per_grade, a.seed, None if a.null_cap < 0 else a.null_cap)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(review_html(sample, items, products), encoding="utf-8")
     print(f"wrote {a.out} ({len(sample)}쌍)")
@@ -560,6 +561,7 @@ def main(argv=None) -> int:
     p.add_argument("--judgments", type=Path, default=SHARED / "eval" / "judgments.jsonl")
     p.add_argument("--sheets", type=Path, help="build_contact_sheets의 sheets.jsonl (카드 문구·이미지)")
     p.add_argument("--per-grade", type=int, default=10)
+    p.add_argument("--null-cap", type=int, default=10, help="null 쌍 최대 수(기본 10, -1 = 전부)")
     p.add_argument("--seed", type=int, default=SEED)
     p.add_argument("--out", type=Path, default=SHARED / "eval" / "review" / "sample.html")
     p = sub.add_parser("review-score")

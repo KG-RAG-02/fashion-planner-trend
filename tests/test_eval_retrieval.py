@@ -129,3 +129,8 @@ def test_null_policy_skip_drops_null_cards_from_rankings():
     skip = er.compute_metrics(rankings, judg, {}, items, {"1": "dev"}, "P0", k=2, null_policy="skip")
     assert zero["P0"]["전체"]["ndcg_mean"] == 0.0 and zero["P0"]["전체"]["null"] == 1
     assert skip["P0"]["전체"]["null"] == 0 and skip["P0"]["전체"]["ndcg_mean"] > 0
+
+
+def test_review_sample_null_cap():
+    rows = [{"item_id": f"i{n}", "product_id": "p", "grade": None, "pass": 1} for n in range(30)]
+    assert len(er.review_sample(rows, 10, null_cap=5)) == 5 and len(er.review_sample(rows, 10)) == 30
