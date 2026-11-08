@@ -402,6 +402,58 @@ def cmd_pool(a) -> int:
     return 0
 
 
+def tier4_entries(result: dict) -> tuple[dict, list[str]] | None:
+    """run_trend_pipeline 결과 JSON(강제 Tier4) → (items.jsonl 행, 트렌드 Top-K product id 순서). 프로필이 없으면 None.
+    판정 키 = 가상 Style id + context_sha 앞 8자(T3: 프롬프트·맥락이 바뀌면 같은 id가 다른 프로필일 수 있다)."""
+    if not result.get("trends"):
+        return None
+    t, r = result["trends"][0], result["resolutions"][0]
+    llm = r.get("llm") or {}
+    iid = f"{t['style']['id']}#{(llm.get('context_sha') or '')[:8]}"
+    attrs: dict[str, set] = defaultdict(set)
+    for it in t["items"]:
+        for a, key in (("color", "colors"), ("material", "materials"), ("pattern", "patterns")):
+            attrs[a] |= {v if isinstance(v, str) else v.get("value") for v in it.get(key, [])}
+        attrs["detail"] |= {f"{d.get('type')}:{d.get('name') or d.get('value')}" for d in it.get("details", [])}
+        if it.get("fit"):
+            attrs["fit"].add(it["fit"])
+    cats = sorted({f"{it.get('category_major')}>{it.get('category_minor') or '-'}" for it in t["items"]})
+    row = {"item_id": iid, "name": f"Tier4 프로필 ({len(t['items'])} Item: {', '.join(cats)})", "style_id": t["style"]["id"],
+           "style_name": r.get("term") or t["style"]["name"], "category_major": "/".join(sorted({c.split('>')[0] for c in cats})),
+           "category_minor": "/".join(sorted({c.split('>')[1] for c in cats})), "gender": None, "raw_text": t["style"].get("definition"),
+           "attrs": {a: sorted(v for v in vs if v) for a, vs in attrs.items() if any(vs)},
+           "focus_core": t["style"].get("focus_core", []), "focus_supporting": t["style"].get("focus_supporting", []),
+           "tier4": {"prompt_version": llm.get("prompt_version"), "context_sha": llm.get("context_sha"), "evidence": llm.get("evidence"),
+                     "tier4_context": result.get("applied_settings", {}).get("tier4_context"),
+                     "hidden": result.get("applied_settings", {}).get("hidden_style_groups")}}
+    return row, [p["product_id"] for p in r.get("top_products", [])]
+
+
+def cmd_pool_tier4(a) -> int:
+    """C단계: Tier4 결과 JSON들의 트렌드 Top-K를 판정 풀로 (config 'T4', rank = 결과 순서)."""
+    by_id = {p.node.id: p for ps in read_products_by_major(a.proc).values() for p in ps}
+    items, rows, products = [], [], {}
+    for f in sorted(p for d in a.runs for p in d.glob("*.json")):
+        got = tier4_entries(json.loads(f.read_text(encoding="utf-8")))
+        if got is None:
+            continue
+        row, pids = got
+        row["result_file"] = str(f)
+        items.append(row)
+        for rank, pid in enumerate(pids, 1):
+            rows.append({"item_id": row["item_id"], "product_id": pid, "hits": [{"config": "T4", "rank": rank, "score": None}]})
+            if pid in by_id:
+                products.setdefault(pid, product_info(by_id[pid]))
+    missing = sorted({r["product_id"] for r in rows} - products.keys())
+    _write_jsonl(a.out / "pool.jsonl", rows)
+    _write_jsonl(a.out / "items.jsonl", items)
+    _write_jsonl(a.out / "products.jsonl", [{"product_id": k, **v} for k, v in sorted(products.items())])
+    (a.out / "run.json").write_text(json.dumps({"ts": dt.datetime.now().astimezone().isoformat(timespec="seconds"), "runs": [str(d) for d in a.runs],
+                                                "items": len(items), "pairs": len(rows), "missing_products": missing}, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(json.dumps({"items": len(items), "pairs": len(rows), "missing_products": len(missing)}, ensure_ascii=False), "→", a.out)
+    return 0 if not missing else 1
+
+
 def cmd_count(a) -> int:
     rows = read_jsonl(a.pool / "pool.jsonl")
     per_item = Counter(r["item_id"] for r in rows)
@@ -471,6 +523,10 @@ def main(argv=None) -> int:
     p.add_argument("--weights", type=Path, default=WEIGHTS)
     p.add_argument("--proc", type=Path, default=PROC)
     p.add_argument("--out", type=Path, required=True)
+    p = sub.add_parser("pool-tier4", help="C단계: Tier4 결과 JSON 폴더들 → 판정 풀")
+    p.add_argument("--runs", type=Path, nargs="+", required=True)
+    p.add_argument("--proc", type=Path, default=PROC)
+    p.add_argument("--out", type=Path, required=True)
     p = sub.add_parser("count")
     p.add_argument("--pool", type=Path, required=True)
     p.add_argument("--per-sheet", type=int, default=20)
@@ -491,7 +547,7 @@ def main(argv=None) -> int:
     p.add_argument("--judgments", type=Path, default=SHARED / "eval" / "judgments.jsonl")
     a = ap.parse_args(argv)
     _use_src(a.src)
-    return {"pool": cmd_pool, "count": cmd_count, "metrics": cmd_metrics, "review-sample": cmd_review_sample,
+    return {"pool": cmd_pool, "pool-tier4": cmd_pool_tier4, "count": cmd_count, "metrics": cmd_metrics, "review-sample": cmd_review_sample,
             "review-score": cmd_review_score}[a.cmd](a)
 
 

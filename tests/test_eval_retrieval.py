@@ -92,3 +92,19 @@ def test_count_command(tmp_path, capsys):
     (tmp_path / "pool.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
     assert er.main(["count", "--pool", str(tmp_path)]) == 0
     assert json.loads(capsys.readouterr().out) == {"items": 2, "pairs": 26, "sheets": 3, "max_per_item": 25}
+
+
+def test_tier4_entries_builds_item_with_context_key_and_ranked_products():
+    res = {"trends": [{"style": {"id": "virtual:4:드뮤어", "name": "드뮤어", "definition": "정의", "focus_core": ["color"], "focus_supporting": ["category"]},
+                       "items": [{"category_major": "상의", "category_minor": "블라우스", "colors": ["화이트", "베이지"], "materials": [], "patterns": [],
+                                  "details": [{"type": "detail", "name": "리본"}], "fit": None},
+                                 {"category_major": "하의", "category_minor": "스커트", "colors": ["블랙"], "materials": [], "patterns": [], "details": [], "fit": "루즈"}]}],
+           "resolutions": [{"term": "드뮤어", "llm": {"prompt_version": "tier4.v3", "context_sha": "abcdef1234", "evidence": "none"},
+                            "top_products": [{"product_id": "p2"}, {"product_id": "p1"}]}],
+           "applied_settings": {"tier4_context": "none", "hidden_style_groups": []}}
+    row, pids = er.tier4_entries(res)
+    assert row["item_id"] == "virtual:4:드뮤어#abcdef12" and pids == ["p2", "p1"]
+    assert row["attrs"] == {"color": ["베이지", "블랙", "화이트"], "detail": ["detail:리본"], "fit": ["루즈"]}
+    assert row["category_major"] == "상의/하의" and row["tier4"]["prompt_version"] == "tier4.v3"
+    assert er.item_group(row["item_id"], {}) == "Tier4 프로필"
+    assert er.tier4_entries({"trends": [], "resolutions": [{}]}) is None
