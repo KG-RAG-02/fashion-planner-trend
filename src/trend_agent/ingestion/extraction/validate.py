@@ -9,14 +9,20 @@
 | V5 | Pattern/Detail/Styling 혼동 키워드 · `raw_text` ⊄ 근거 블록 · Style 시즌 없음 | 경고 |
 | V6 | `image_idx` ∈ 크롤러 이미지 범위 (`basis`는 pydantic Literal) | 오류 |
 
-V2·V3 논리는 `scripts/validate_labels.py`(라벨 검증)와 같다(`squash` 동일 정의, 동등성은 테스트로 확인).
-T4가 `check_quotes`·`check_raws` 순수 함수를 커밋하면 그것을 import하도록 바꾼다.
+V2·V3는 `scripts/validate_labels.py`의 순수 함수 `check_quotes`·`check_raws`(T4, develop@fd92649)를 그대로 쓴다
+(라벨 검증과 같은 판정). 스크립트를 불러올 수 없는 설치 환경에서만 같은 논리의 내장 구현으로 대신한다.
+추가로 빈 인용(공백뿐)은 V2 오류로 본다(라벨 검증은 통과시킨다).
 """
 from __future__ import annotations
 
+import importlib.util
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
+from types import ModuleType
 from typing import Iterable, Optional
+
+from ...config import ROOT
 
 from ...schemas.article_extraction import ArticleExtraction, ExtractedItem
 
@@ -30,6 +36,25 @@ STYLING_WORDS = ("두른", "두르", "매치", "레이어드", "겹쳐")
 def squash(s: str) -> str:
     """공백을 모두 지운다 (validate_labels.squash와 같은 정의)."""
     return re.sub(r"\s+", "", s)
+
+
+@lru_cache(maxsize=1)
+def label_checks() -> Optional[ModuleType]:
+    """`scripts/validate_labels.py`를 모듈로 불러온다(check_quotes·check_raws). 없으면 None."""
+    path = ROOT / "scripts" / "validate_labels.py"
+    if not path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location("_trend_validate_labels", path)
+    if spec is None or spec.loader is None:
+        return None
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+    except Exception:  # noqa: BLE001 — 설치 환경 등에서 못 불러오면 내장 구현
+        return None
+    if not (hasattr(mod, "check_quotes") and hasattr(mod, "check_raws")):
+        return None
+    return mod
 
 
 @dataclass
@@ -70,7 +95,8 @@ def _short(s: str, n: int = 40) -> str:
 
 
 def validate_extraction(ext: ArticleExtraction, article: dict, *, max_blocks: int = 2, max_text_gap: int = 1,
-                        extra_errors: Optional[Iterable[str]] = None) -> ValidationReport:
+                        extra_errors: Optional[Iterable[str]] = None,
+                        use_label_checks: bool = True) -> ValidationReport:
     rep = ValidationReport()
     for e in extra_errors or []:
         stage = e.split(" ", 1)[0] if re.match(r"V\d ", e) else "V1"
@@ -81,8 +107,13 @@ def validate_extraction(ext: ArticleExtraction, article: dict, *, max_blocks: in
     pos = {idx: i for i, idx in enumerate(order)}
     title_and_text = squash((article.get("title") or "") + "".join(texts.values()))
     n_images = len(article.get("images") or [])
+    lib = label_checks() if use_label_checks else None
 
     def check_quote(where: str, block_idx: int, quote: str) -> None:
+        if lib is not None:  # 판정은 아래 lib.check_quotes — 여기서는 빈 인용만
+            if not squash(quote):
+                rep.err("V2", f"{where}: quote가 비어 있음 (block {block_idx})")
+            return
         text = texts.get(block_idx)
         if text is None:
             rep.err("V2", f"{where}: block {block_idx}은 텍스트 블록이 아님")
@@ -120,9 +151,10 @@ def validate_extraction(ext: ArticleExtraction, article: dict, *, max_blocks: in
                 if pos[b] - pos[a] > max_text_gap:
                     rep.err("V4", f"{iw}: 근거 블록 {a}·{b}가 인접하지 않음(사이 텍스트 블록 {pos[b] - pos[a] - 1}개)")
             ev_text = squash("".join(texts.get(b, "") for b in ev_blocks))
-            for fname, raw in item_raws(it):
-                if squash(raw) not in ev_text:
-                    rep.err("V3", f"{iw}.{fname} \"{_short(raw)}\"가 근거 블록 {ev_blocks}에 없음")
+            if lib is None:
+                for fname, raw in item_raws(it):
+                    if squash(raw) not in ev_text:
+                        rep.err("V3", f"{iw}.{fname} \"{_short(raw)}\"가 근거 블록 {ev_blocks}에 없음")
             if it.raw_text and squash(it.raw_text) not in ev_text:
                 rep.warn(f"{iw}: raw_text가 근거 블록의 부분 문자열이 아님")
             for p in it.patterns:
@@ -136,4 +168,9 @@ def validate_extraction(ext: ArticleExtraction, article: dict, *, max_blocks: in
             for link in it.image_links:
                 if not (0 <= link.image_idx < n_images):
                     rep.err("V6", f"{iw}: image_idx {link.image_idx}가 크롤러 이미지 범위 밖(0..{n_images - 1})")
+    if lib is not None:
+        for msg in lib.check_quotes(ext, texts):
+            rep.err("V2", msg)
+        for msg in lib.check_raws(ext, texts):
+            rep.err("V3", msg.replace(" (지시 표현이면 notes에 적을 것)", ""))
     return rep

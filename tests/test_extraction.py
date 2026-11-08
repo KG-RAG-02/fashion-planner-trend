@@ -292,3 +292,24 @@ def test_length_area_rule_optional():
     coat = _item(category_minor="코트", length_body_raw=None, length_body="롱")
     on2, _ = postprocess(_llm_doc(items=[coat]), ARTICLE, length_area=True)
     assert on2["styles"][0]["items"][0]["length_body"] == "롱"  # 아우터는 롱 허용
+
+
+def test_validator_uses_label_check_functions_and_fallback_agrees():
+    from trend_agent.ingestion.extraction.validate import label_checks
+
+    lib = label_checks()
+    assert lib is not None and callable(lib.check_quotes) and callable(lib.check_raws)
+    cases = [
+        _llm_doc(),
+        _llm_doc(items=[_item(fit_raw="오버핏", image_links=[])]),
+        _llm_doc(items=[_item(image_links=[], evidence=[{"block_idx": 3, "quote": "버건디 셔츠"},
+                                                       {"block_idx": 4, "quote": "없는 인용"}])]),
+        _llm_doc(evidence=[{"block_idx": 0, "quote": "Brand A"}], items=[]),
+    ]
+    for doc in cases:
+        pdoc, _ = postprocess(doc, ARTICLE)
+        ext = ArticleExtraction.model_validate(pdoc)
+        a = validate_extraction(ext, ARTICLE)
+        b = validate_extraction(ext, ARTICLE, use_label_checks=False)
+        for stage in ("V2", "V3"):
+            assert a.counts.get(stage, 0) == b.counts.get(stage, 0), (stage, a.errors, b.errors)
