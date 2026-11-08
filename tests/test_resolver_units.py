@@ -148,3 +148,13 @@ def test_focus_attribute_must_have_values():
     d["focus"]["pattern"] = "supporting"
     assert any("focus.pattern" in e for e in t4.check_profile(d, [])[1])
     assert t4.PROMPT_VERSION == "tier4.v2"
+
+
+def test_trend_topk_ties_rotate_items():
+    """완전 동점이면 Item을 번갈아 고른다(관련 의류를 Item 하나씩). 동점이 아니면 점수 순서 그대로."""
+    ps = [product(f"a{i}", "상의", colors=["블랙"]) for i in range(3)] + [product(f"b{i}", "상의", colors=["화이트"]) for i in range(3)]
+    a = ItemRanking("i-a", "A", 1.0, rank_products(_item("i-a", "블랙"), ps, W))
+    b = ItemRanking("i-b", "B", 1.0, rank_products(_item("i-b", "화이트"), ps, W))
+    assert [p.product_id for p in trend_topk([a, b], k=4)] == ["a0", "b0", "a1", "b1"]
+    low = ItemRanking("i-b", "B", 0.5, b.ranked)
+    assert [p.product_id for p in trend_topk([a, low], k=4)] == ["a0", "a1", "a2", "b0"]

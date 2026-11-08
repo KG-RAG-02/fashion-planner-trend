@@ -5,6 +5,8 @@ Item마다 상위 `pool_per_item`개 후보(점수 순위)를 받아:
 2. 중복 제거 키(앞에서부터) `snap_id`(같은 사진) → `parent_id`(같은 세트) → `dup_of`(원 id로 묶음) → `product_id`
    — 같은 키에서는 trend_score가 가장 높은 한 줄만 남긴다.
 3. 정렬 (-trend_score, -비교 속성 수, -일치 값 수, [-has_image], product_id) → 상위 K개에 rank.
+   **완전 동점**(id 앞까지 같은 키)에서는 지금까지 덜 뽑힌 Item의 상품을 먼저 고른다 — "관련 의류를 Item 하나씩"
+   (동점이 아니면 순서를 바꾸지 않는다. 점수·trend_score는 그대로).
 Neo4j 없이 호출하는 순수 함수다.
 """
 from __future__ import annotations
@@ -55,8 +57,19 @@ def trend_topk(rankings: Iterable[ItemRanking], k: int, image_first: bool = Fals
         others = list(dict.fromkeys(m[2].item_id for m in members[1:] if m[2].item_id != r.item_id))
         picks.append((_order(ts, sp, image_first), ts, sp, r, others))
     picks.sort(key=lambda p: p[0])
+    chosen = []
+    used: dict[str, int] = {}
+    while picks and len(chosen) < k:
+        head = picks[0][0][:-1]  # id를 뺀 정렬 키
+        n = 1
+        while n < len(picks) and picks[n][0][:-1] == head:
+            n += 1
+        j = min(range(n), key=lambda i: (used.get(picks[i][3].item_id, 0), picks[i][0]))
+        p = picks.pop(j)
+        used[p[3].item_id] = used.get(p[3].item_id, 0) + 1
+        chosen.append(p)
     out: list[TrendPick] = []
-    for rank, (_, ts, sp, r, others) in enumerate(picks[:k], 1):
+    for rank, (_, ts, sp, r, others) in enumerate(chosen, 1):
         pm: ProductMatch = to_match(sp)
         out.append(TrendPick(**pm.model_dump(), rank=rank, trend_score=round(ts, 4), item_id=r.item_id,
                              item_name=r.item_name, item_focus=r.item_focus, also_from_items=others))
