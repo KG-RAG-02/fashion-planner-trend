@@ -183,3 +183,12 @@ def test_trend_summary_source_filter(tmp_path):
     built = rts.build_rows(rows, {}, {})
     assert [r["term"] for r in built] == ["시럽코어", "드레스"]  # Style 기사 수 우선 정렬
     assert len(rts.rows_from_term_mentions(tm, None)) == 4
+
+
+def test_pick_evidence_prefers_literal_blocks():
+    row = {"evidence": [
+        {"article_id": "1", "block_idx": 0, "role": "style", "literal": False, "published": "2026-11-01"},
+        {"article_id": "2", "block_idx": 3, "role": "mention", "literal": True, "published": "2026-10-01"},
+        {"article_id": "3", "block_idx": 5, "role": "style", "literal": True, "published": "2026-09-01"},
+        {"article_id": "4", "block_idx": 1, "role": "mention", "published": "2026-08-01"}]}  # literal 없음 = 참
+    assert [e["article_id"] for e in rts.pick_evidence(row, 3)] == ["3", "2", "4"]
