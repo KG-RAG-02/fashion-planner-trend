@@ -1,0 +1,149 @@
+"""`$SHARED/terms/term_map.jsonl` — Term 계층의 원본(T3 소유 공유 형식, 계약 파일 아님). 문서: graph_schema.md §2.5·§3
+
+행 종류 (`row`):
+- `alias`   : 다른 이름·번역 → (article_id, style_norm)의 Style에 `ALIAS_OF`로 잇는다.
+              키 = (norm, article_id, style_norm)
+- `mention` : 트렌드어 언급 집계(T1 `term_mentions.jsonl` 파생). Style이 없을 수 있다. 키 = norm
+- `profile` : Tier4 LLM 프로필(등급만, 숫자 없음) = **Tier4 캐시**. 키 = (norm, backend, model, prompt_version, context_sha)
+
+그래프의 Term은 적재할 때마다 이 파일로 다시 만든다(`graph/terms.py`). 정규화는 계약 함수 `normalize_term()` 하나다.
+"""
+from __future__ import annotations
+
+import json
+import os
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Iterable, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from trend_agent.schemas.graph_schema import TermKind, TermOrigin, normalize_term, term_id
+
+ROOT = Path(__file__).resolve().parents[3]
+KST = timezone(timedelta(hours=9))
+
+
+def default_path() -> Path:
+    """env `TERM_MAP_PATH` → `$SHARED/terms/term_map.jsonl` → 저장소 `data/processed/terms/term_map.jsonl`(git 제외)."""
+    if os.environ.get("TERM_MAP_PATH"):
+        return Path(os.environ["TERM_MAP_PATH"])
+    if os.environ.get("SHARED"):
+        return Path(os.environ["SHARED"]) / "terms" / "term_map.jsonl"
+    return ROOT / "data" / "processed" / "terms" / "term_map.jsonl"
+
+
+def now_kst() -> str:
+    return datetime.now(KST).isoformat(timespec="seconds")
+
+
+class TermEvidence(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    article_id: str
+    block_idx: Optional[int] = None
+    role: Optional[str] = None
+
+
+class TermMapRow(BaseModel):
+    model_config = ConfigDict(extra="allow")  # 모르는 키는 보존한다(다른 세션이 덧붙인 정보)
+
+    row: Literal["alias", "mention", "profile"]
+    term: str
+    norm: str = ""
+    kind: TermKind
+    origin: TermOrigin
+    # alias
+    article_id: Optional[str] = None
+    style_norm: Optional[str] = None
+    evidence: list[TermEvidence] = Field(default_factory=list)
+    # mention
+    article_count: Optional[int] = None
+    # profile (Tier4 캐시)
+    backend: Optional[str] = None
+    model: Optional[str] = None
+    prompt_version: Optional[str] = None
+    context_sha: Optional[str] = None
+    profile: Optional[dict[str, Any]] = None
+    # 기록
+    added_at: Optional[str] = None
+    added_by: Optional[str] = None
+    created_at: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _check(self) -> "TermMapRow":
+        n = normalize_term(self.term)
+        if not self.norm:
+            self.norm = n
+        elif self.norm != n:
+            raise ValueError(f"norm {self.norm!r} != normalize_term({self.term!r}) {n!r}")
+        if not self.norm:
+            raise ValueError("빈 용어")
+        if self.row == "alias" and not self.style_norm:
+            raise ValueError("alias 행에는 style_norm이 필요하다")
+        if self.style_norm is not None and self.style_norm != normalize_term(self.style_norm):
+            raise ValueError(f"style_norm은 정규화된 값이어야 한다: {self.style_norm!r}")
+        if self.row == "profile":
+            if self.origin != "llm" or not (self.backend and self.prompt_version and self.context_sha) or self.profile is None:
+                raise ValueError("profile 행에는 origin=llm, backend, prompt_version, context_sha, profile이 필요하다")
+        return self
+
+    @property
+    def term_id(self) -> str:
+        return term_id(self.norm)
+
+    @property
+    def key(self) -> tuple:
+        if self.row == "alias":
+            return ("alias", self.norm, self.article_id, self.style_norm)
+        if self.row == "mention":
+            return ("mention", self.norm)
+        return ("profile", self.norm, self.backend, self.model, self.prompt_version, self.context_sha)
+
+
+def read_term_map(path: Optional[Path | str] = None) -> list[TermMapRow]:
+    """없으면 빈 목록. 잘못된 줄은 줄 번호와 함께 오류를 낸다(조용히 버리지 않는다)."""
+    p = Path(path) if path else default_path()
+    if not p.exists():
+        return []
+    rows = []
+    with p.open(encoding="utf-8") as f:
+        for n, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            try:
+                rows.append(TermMapRow.model_validate_json(line))
+            except Exception as e:  # noqa: BLE001
+                raise ValueError(f"{p}:{n}: {e}") from e
+    return rows
+
+
+def dump_row(row: TermMapRow) -> str:
+    return json.dumps(row.model_dump(mode="json", exclude_none=True, exclude_defaults=False), ensure_ascii=False, sort_keys=False)
+
+
+def append_rows(rows: Iterable[TermMapRow], path: Optional[Path | str] = None) -> int:
+    """키가 이미 있는 행은 다시 쓰지 않는다(멱등). 반환: 새로 쓴 줄 수."""
+    p = Path(path) if path else default_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    have = {r.key for r in read_term_map(p)}
+    new = []
+    for r in rows:
+        if r.key not in have:
+            have.add(r.key)
+            new.append(r)
+    if new:
+        with p.open("a", encoding="utf-8") as f:
+            for r in new:
+                f.write(dump_row(r) + "\n")
+    return len(new)
+
+
+def find_profile(rows: Iterable[TermMapRow], norm: str, backend: str, model: Optional[str], prompt_version: str,
+                 context_sha: str) -> Optional[TermMapRow]:
+    """Tier4 캐시 조회. 같은 키가 여러 줄이면 마지막 줄."""
+    key = ("profile", norm, backend, model, prompt_version, context_sha)
+    hit = None
+    for r in rows:
+        if r.key == key:
+            hit = r
+    return hit
