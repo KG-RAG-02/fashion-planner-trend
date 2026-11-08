@@ -10,6 +10,7 @@ from trend_agent.graph.search import TrendSearcher
 from trend_agent.graph.terms import rebuild_terms
 from trend_agent.resolver import ResolveConfig, TrendResolver
 from trend_agent.resolver import term_map as tm
+from trend_agent.resolver import tier4 as t4
 from trend_agent.retrieval.weights import ResolverConfig, Tier3Config, load_weights
 from trend_agent.schemas import vocabulary as V
 from trend_agent.schemas.trend_analysis_result import TrendAnalysisResult
@@ -151,7 +152,7 @@ class FakeLLM:
         self.outputs, self.prompts = list(outputs), []
 
     def call(self, prompt, schema, *, purpose, prompt_version):
-        assert purpose == "tier4_profile" and prompt_version == "tier4.v2" and schema["additionalProperties"] is False
+        assert purpose == "tier4_profile" and prompt_version == t4.PROMPT_VERSION and schema["additionalProperties"] is False
         self.prompts.append(prompt)
         out = self.outputs.pop(0)
         if isinstance(out, Exception):
@@ -240,3 +241,29 @@ def test_status_partial_and_articles_and_determinism(driver):
     b = R(driver, season=season()).run(["테스트 럭셔리", "베이지 셔츠"], "x").model_dump()
     assert a == b
     TrendAnalysisResult.model_validate_json(json.dumps(a, ensure_ascii=False))  # 계약 왕복
+
+
+def test_hidden_style_articles_are_excluded_from_tier4_context(driver, tmp_path):
+    """평가 숨김: 숨긴 그룹 Style의 출처 기사 블록은 Tier4 맥락에 들어가지 않는다(T4 r1-mentions 누출)."""
+    crawl = {a: synthetic_crawl(a) for a in ("900001", "900002", "900003")}
+    mentions = {"테스트럭셔리": {"term": "테스트 럭셔리", "evidence": [
+        {"article_id": "900001", "block_idx": 1, "role": "style"}, {"article_id": "900002", "block_idx": 2, "role": "style"},
+        {"article_id": "900003", "block_idx": 3, "role": "mention"}]}}
+    full = R(driver, mentions=mentions, crawl=crawl).context("테스트럭셔리")
+    assert [b.article_id for b in full] == ["900001", "900002", "900003"]
+    hid = R(driver, hide_styles=["900001-s0"], mentions=mentions, crawl=crawl)
+    assert hid.context_exclude == {"900001", "900002"}  # name_norm 그룹(테스트럭셔리)의 두 기사
+    assert [b.article_id for b in hid.context("테스트럭셔리")] == ["900003"]
+    extra = R(driver, hide_styles=["900001-s0"], exclude_context_articles=["900003"], mentions=mentions, crawl=crawl)
+    assert extra.context("테스트럭셔리") == []
+    out = R(driver, hide_styles=["900001-s0"], force_tier=4, llm=FakeLLM([profile(term="테스트 럭셔리")]), mentions=mentions,
+            crawl=crawl, term_map_path=tmp_path / "h.jsonl").run(["테스트 럭셔리"], "r")
+    r = out.resolutions[0]
+    assert "T4:skipped:hidden_by_eval" in codes(r) and r.llm.evidence == "provided"
+    assert r.llm.context_sha == t4.context_sha(hid.context("테스트럭셔리"))
+    assert any("Tier4 맥락에서 기사 2개" in x for x in out.limitations)
+
+
+def test_weak_item_limitation(driver):
+    out = R(driver, use_llm=False).run(["플리츠 스커트", "셔츠"], "r")  # Tier2 · 셔츠는 하분류만(속성 값 없음)
+    assert any("속성 값(색·소재·패턴·디테일·핏)이 없는 Item" in x and "셔츠" in x for x in out.limitations)

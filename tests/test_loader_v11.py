@@ -112,11 +112,13 @@ def test_term_map_build_from_mentions(tmp_path):
                       {"article_id": "2", "block_idx": 0, "role": "mention", "style_name": None}]},
         {"term": "조용한 럭셔리", "article_count": 13, "evidence": [{"article_id": "1", "block_idx": 3, "role": "style", "style_name": "조용한 럭셔리"}]},
         {"term": "  ", "evidence": []},
+        {"term": "소재", "generic": True, "article_count": 86, "evidence": []},
     ]))
     out = tmp_path / "term_map.jsonl"
-    s = build(m, out)
-    assert s == {"mentions_in": 3, "rows_built": 3, "rows_written": 3, "alias_rows": 1}
-    rows = read_term_map(out)
-    alias = [r for r in rows if r.row == "alias"][0]
+    s = build(m, out)  # 기본: mention만, generic 제외
+    assert s == {"mentions_in": 4, "rows_built": 2, "rows_written": 2, "alias_rows": 0}
+    s2 = build(m, out, include_alias=True)
+    assert s2["alias_rows"] == 1 and s2["rows_written"] == 1  # mention 2행은 이미 있음(멱등)
+    alias = [r for r in read_term_map(out) if r.row == "alias"][0]
     assert (alias.norm, alias.article_id, alias.style_norm) == ("콰이어트럭셔리", "1", "조용한럭셔리")
-    assert build(m, out)["rows_written"] == 0  # 멱등
+    assert build(m, out, include_alias=True)["rows_written"] == 0

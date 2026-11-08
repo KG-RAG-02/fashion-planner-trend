@@ -150,21 +150,26 @@ def find_profile(rows: Iterable[TermMapRow], norm: str, backend: str, model: Opt
 
 
 # ---------- 생성: T1 term_mentions.jsonl → mention·alias 행 ----------
-def rows_from_mentions(mentions: Iterable[dict[str, Any]], added_at: Optional[str] = None) -> list[TermMapRow]:
-    """T1 `term_mentions.jsonl`(설계 노트 §4.7) → mention 행(용어마다 1) + alias 행.
+def rows_from_mentions(mentions: Iterable[dict[str, Any]], added_at: Optional[str] = None,
+                       include_alias: bool = False) -> list[TermMapRow]:
+    """T1 `term_mentions.jsonl`(설계 노트 §4.7) → mention 행(용어마다 1, `generic=true` 제외) [+ alias 행].
 
-    alias 행: 근거 `role=style`이고 그 Style 이름의 정규화가 용어와 다를 때(기사 안 다른 이름) → (article_id, style_norm).
+    alias 행(include_alias=True일 때만): 근거 `role=style`이고 그 Style 이름의 정규화가 용어와 다를 때 → (article_id, style_norm).
+    기본은 끈다 — 실데이터(extract-v2)에서 `퍼플→자수정 퍼플`·`스커트→치마`처럼 넓은 말이 좁은 Style에 이어져 Tier1을
+    휴리스틱으로 넓히기 때문이다. 기사 안 다른 이름은 추출 `styles[].aliases`로 이미 ALIAS_OF가 된다(적재기).
     용어 정규화는 계약 normalize_term()으로 다시 계산한다(T1 `norm`과 다르면 계약 쪽을 쓴다).
     """
     at = added_at or now_kst()
     out: list[TermMapRow] = []
     for m in mentions:
         term = (m.get("term") or "").strip()
-        if not normalize_term(term):
+        if not normalize_term(term) or m.get("generic"):
             continue
         norm = normalize_term(term)
         out.append(TermMapRow(row="mention", term=term, kind="trend_word", origin="term_mentions",
                               article_count=m.get("article_count"), added_at=at, added_by="T3"))
+        if not include_alias:
+            continue
         seen: set[tuple[str, str]] = set()
         for ev in m.get("evidence") or []:
             sname = ev.get("style_name")
@@ -181,11 +186,11 @@ def rows_from_mentions(mentions: Iterable[dict[str, Any]], added_at: Optional[st
     return out
 
 
-def build(mentions_path: Path | str, path: Optional[Path | str] = None) -> dict[str, int]:
-    """term_map.jsonl에 mention·alias 행을 더한다(멱등 — 같은 키는 다시 쓰지 않는다, 기존 profile 캐시는 보존)."""
+def build(mentions_path: Path | str, path: Optional[Path | str] = None, include_alias: bool = False) -> dict[str, int]:
+    """term_map.jsonl에 mention(·alias) 행을 더한다(멱등 — 같은 키는 다시 쓰지 않는다, 기존 profile 캐시는 보존)."""
     with Path(mentions_path).open(encoding="utf-8") as f:
         mentions = [json.loads(line) for line in f if line.strip()]
-    rows = rows_from_mentions(mentions)
+    rows = rows_from_mentions(mentions, include_alias=include_alias)
     written = append_rows(rows, path)
     return {"mentions_in": len(mentions), "rows_built": len(rows), "rows_written": written,
             "alias_rows": sum(1 for r in rows if r.row == "alias")}
@@ -199,8 +204,9 @@ def _main(argv: Optional[list[str]] = None) -> int:
     b = sub.add_parser("build", help="T1 term_mentions.jsonl → term_map.jsonl (mention·alias 행 추가)")
     b.add_argument("--mentions", required=True)
     b.add_argument("--out", default=None, help="기본 $SHARED/terms/term_map.jsonl")
+    b.add_argument("--aliases", action="store_true", help="role=style 근거로 alias 행도 만든다(기본 끔 — 휴리스틱)")
     a = ap.parse_args(argv)
-    print(json.dumps(build(a.mentions, a.out), ensure_ascii=False))
+    print(json.dumps(build(a.mentions, a.out, include_alias=a.aliases), ensure_ascii=False))
     return 0
 
 

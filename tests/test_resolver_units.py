@@ -147,7 +147,7 @@ def test_focus_attribute_must_have_values():
         assert any("focus.detail" in e for e in errs)
     d["focus"]["pattern"] = "supporting"
     assert any("focus.pattern" in e for e in t4.check_profile(d, [])[1])
-    assert t4.PROMPT_VERSION == "tier4.v2"
+    assert t4.PROMPT_VERSION == "tier4.v3"
 
 
 def test_trend_topk_ties_rotate_items():
