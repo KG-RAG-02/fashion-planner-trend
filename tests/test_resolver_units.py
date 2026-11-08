@@ -136,3 +136,15 @@ def test_virtual_spec_record():
     rec = spec.record("virtual:4:x-i0", "x · 셔츠")
     assert rec.category_major.value == "상의" and rec.details[0].value == "플리츠" and rec.node.fit.value == "루즈"
     assert spec.value_weights(W) == {"color": {"베이지": 1.0}, "detail": {"detail:플리츠": 0.5}, "fit": {"루즈": 1.0}}
+
+
+def test_focus_attribute_must_have_values():
+    """tier4.v2: focus로 고른 속성은 items에 값이 있어야 한다 (v1 스모크: detail core인데 details 비어 있음)."""
+    d = good()
+    d["focus"]["detail"] = "core"
+    _, errs = t4.check_profile(d, [])
+    if not any(it["details"] for it in d["items"]):
+        assert any("focus.detail" in e for e in errs)
+    d["focus"]["pattern"] = "supporting"
+    assert any("focus.pattern" in e for e in t4.check_profile(d, [])[1])
+    assert t4.PROMPT_VERSION == "tier4.v2"

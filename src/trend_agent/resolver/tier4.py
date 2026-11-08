@@ -4,7 +4,8 @@
 - 출력 스키마: 폐쇄 어휘 enum만, 숫자 필드 없음(strict: 전부 required + nullable, additionalProperties false).
   속성 종류별 `focus` = core|supporting|null(core ≤ 3), Item별 `level` = core|supporting, 값별 `value_level` = primary|secondary,
   Item `category_major` 필수, `evidence` = 제공한 블록의 ref + 그 블록에 실제로 있는 문장, 근거가 없으면 `no_evidence = true`.
-- 코드 검증(`check_profile`): enum·core ≤ 3·items 1~6·하분류↔상분류·ref ∈ 제공 블록·quote ⊂ 블록(공백 제거 비교).
+- 코드 검증(`check_profile`): enum·core ≤ 3·items 1~6·하분류↔상분류·focus로 고른 속성은 items에 값 ≥1·
+  ref ∈ 제공 블록·quote ⊂ 블록(공백 제거 비교).
   실패하면 오류 목록을 붙여 1회 재시도 → 그래도 실패면 `llm_invalid_output`. `recognized=false`는 `llm_unrecognized`.
 - 수치화(`to_virtual`): 속성 배수 = weights.yaml `focus_multipliers`(Style focus와 같은 경로), 값 가중치 =
   `tier4.value_weights`, Item 비중 = `tier4.item_focus`. **LLM이 낸 숫자는 없다.**
@@ -28,7 +29,7 @@ from trend_agent.schemas.graph_schema import normalize_term
 
 from .profile import VirtualItemSpec, VirtualProfile
 
-PROMPT_VERSION = "tier4.v1"
+PROMPT_VERSION = "tier4.v2"  # v2: focus로 고른 속성은 items에 값이 있어야 한다(v1 스모크에서 값 없는 프로필)
 PURPOSE = "tier4_profile"
 MAX_BLOCKS = 8
 MAX_ITEMS = 6
@@ -207,7 +208,10 @@ def render_prompt(term: str, blocks: list[ContextBlock], errors: Optional[list[s
         "1) 숫자·점수·비율을 쓰지 않는다. 등급만 고른다(focus·level: core/supporting, value_level: primary/secondary).",
         "2) 값은 출력 스키마의 enum 목록에서만 고른다. 목록에 없으면 비운다(지어내지 않는다).",
         "3) 이 용어를 패션 트렌드·스타일로 모르면 recognized=false로 두고 summary=null, items·evidence는 빈 배열로 둔다.",
-        f"4) focus의 core는 최대 {MAX_CORE}개. 그 옷차림을 알아보게 하는 속성 종류만 core로 둔다.",
+        f"4) focus의 core는 최대 {MAX_CORE}개. 그 옷차림을 알아보게 하는 속성 종류만 core로 둔다. "
+        "focus에서 core·supporting으로 고른 속성(color·material·pattern·detail·fit)은 반드시 items의 값으로 구체적으로 채운다"
+        "(예: color를 core로 두면 colors에 색을 넣는다). 값을 고를 수 없는 속성은 focus를 null로 둔다. "
+        "fit은 그 차림의 특징일 때만 고른다.",
         "5) evidence는 아래 [근거 블록]의 ref와 그 블록에 실제로 있는 문장만 그대로 인용한다. 블록이 없거나 쓸 근거가 없으면 "
         "evidence=[]이고 no_evidence=true다(이때는 일반적인 패션 지식으로 판단한다).",
         f"6) items는 이 용어를 대표하는 옷 1~{MAX_ITEMS}개(상의·하의·아우터·원피스만). 신발·가방·액세서리는 넣지 않는다. "
@@ -255,6 +259,12 @@ def check_profile(data: dict[str, Any], blocks: list[ContextBlock]) -> tuple[Opt
             vals = [r.value.value if hasattr(r.value, "value") else r.value for r in getattr(it, key)]
             if len(vals) != len(set(vals)):
                 errs.append(f"items[{k}].{key}에 같은 값이 두 번 있다")
+    filled = {"color": any(it.colors for it in p.items), "material": any(it.materials for it in p.items),
+              "pattern": any(it.patterns for it in p.items), "detail": any(it.details for it in p.items),
+              "fit": any(it.fit for it in p.items)}
+    for attr, ok in filled.items():
+        if getattr(p.focus, attr) is not None and not ok:
+            errs.append(f"focus.{attr}={getattr(p.focus, attr)}인데 items 어디에도 {attr} 값이 없다(값을 넣거나 focus를 null로)")
     by_ref = {b.ref: b for b in blocks}
     for e in p.evidence:
         b = by_ref.get(e.ref)

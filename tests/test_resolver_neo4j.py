@@ -151,7 +151,7 @@ class FakeLLM:
         self.outputs, self.prompts = list(outputs), []
 
     def call(self, prompt, schema, *, purpose, prompt_version):
-        assert purpose == "tier4_profile" and prompt_version == "tier4.v1" and schema["additionalProperties"] is False
+        assert purpose == "tier4_profile" and prompt_version == "tier4.v2" and schema["additionalProperties"] is False
         self.prompts.append(prompt)
         out = self.outputs.pop(0)
         if isinstance(out, Exception):
