@@ -339,6 +339,11 @@ def read_graph_items():
     return out
 
 
+def filter_entries(entries: list[dict], split_of: dict, splits: set[str]) -> list[dict]:
+    """라벨 Item만(기사 id의 manifest split ∈ splits). 자동 추출 Item은 판정하지 않는다(비용 — 설계 메모 §5.1)."""
+    return [e for e in entries if split_of.get(e["item"].node.id.split("-s")[0]) in splits]
+
+
 def item_info(e: dict) -> dict:
     it = e["item"]
     n = it.node
@@ -386,7 +391,7 @@ def _write_jsonl(path: Path, rows) -> None:
 def cmd_pool(a) -> int:
     configs = load_configs(sorted(a.configs) if a.configs else sorted(CONFIG_DIR.glob("*.yaml")))
     base = weights_dict(a.weights)
-    entries = read_graph_items()
+    entries = filter_entries(read_graph_items(), _split_of(), set(a.splits.split(",")))
     by_major = read_products_by_major(a.proc)
     rows, products = build_pool(entries, by_major, configs, base)
     items = [item_info(e) for e in entries]
@@ -396,7 +401,7 @@ def cmd_pool(a) -> int:
     _write_jsonl(out / "products.jsonl", [{"product_id": k, **v} for k, v in sorted(products.items())])
     run = {"ts": dt.datetime.now().astimezone().isoformat(timespec="seconds"), "configs": configs, "weights": str(a.weights),
            "weights_sha": hashlib.sha256(json.dumps(base, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12],
-           "proc": str(a.proc), "src": a.src, "items": len(items), "pairs": len(rows), "products": len(products)}
+           "proc": str(a.proc), "src": a.src, "splits": a.splits, "items": len(items), "pairs": len(rows), "products": len(products)}
     (out / "run.json").write_text(json.dumps(run, ensure_ascii=False, indent=1), encoding="utf-8")
     print(json.dumps({k: run[k] for k in ("items", "pairs", "products")}, ensure_ascii=False), "→", out)
     return 0
@@ -520,6 +525,7 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("pool")
     p.add_argument("--configs", type=Path, nargs="*")
+    p.add_argument("--splits", default="dev,test", help="풀에 넣을 라벨 split (기본 dev,test — 자동 추출 Item 제외)")
     p.add_argument("--weights", type=Path, default=WEIGHTS)
     p.add_argument("--proc", type=Path, default=PROC)
     p.add_argument("--out", type=Path, required=True)

@@ -213,8 +213,8 @@ def loo(comps: list[Components], settings: list[Setting], judg: dict, products: 
 
 
 # ---------- CLI ----------
-def _load(proc: Path):
-    entries = ER.read_graph_items()
+def _load(proc: Path, splits: str = "dev,test"):
+    entries = ER.filter_entries(ER.read_graph_items(), ER._split_of(), set(splits.split(",")))
     by_major = ER.read_products_by_major(proc)
     return entries, by_major
 
@@ -225,7 +225,7 @@ def cmd_check(a) -> int:
     from trend_agent.retrieval.weights import WeightsConfig
 
     base = ER.weights_dict()
-    entries, by_major = _load(a.proc)
+    entries, by_major = _load(a.proc, a.splits)
     settings = [setting_from_weights(base)]
     grid = load_grid(a.grid)
     settings += random.Random(SEED).sample(grid, min(a.configs, len(grid)))
@@ -248,7 +248,7 @@ def cmd_check(a) -> int:
 def cmd_search(a) -> int:
     base_w = ER.weights_dict()
     base = setting_from_weights(base_w)
-    entries, by_major = _load(a.proc)
+    entries, by_major = _load(a.proc, a.splits)
     comps = [components(e, by_major.get(e["item"].category_major.value, [])) for e in entries]
     products = {r["product_id"]: r for r in ER.read_jsonl(a.pool / "products.jsonl")}
     # 지표용 product 정보(이미지·출처·성별): 풀 밖 상품이 상위에 오면 여기에 없다 → 그래프 레코드로 채운다
@@ -300,10 +300,12 @@ def main(argv=None) -> int:
     p.add_argument("--stride", type=int, default=1, help="Item을 몇 개 걸러 확인할지(1 = 전부)")
     p.add_argument("--grid", type=Path, default=GRID)
     p.add_argument("--proc", type=Path, default=ER.PROC)
+    p.add_argument("--splits", default="dev,test", help="라벨 split만 (자동 추출 Item 제외)")
     p = sub.add_parser("search")
     p.add_argument("--pool", type=Path, required=True)
     p.add_argument("--grid", type=Path, default=GRID)
     p.add_argument("--judgments", type=Path, default=ER.SHARED / "eval" / "judgments.jsonl")
+    p.add_argument("--splits", default="dev,test", help="라벨 split만 (자동 추출 Item 제외)")
     p.add_argument("--loo-top", type=int, default=50, help="LOO에서 다시 고를 후보 설정 수(상위)")
     p.add_argument("--proc", type=Path, default=ER.PROC)
     p.add_argument("--out", type=Path, required=True)

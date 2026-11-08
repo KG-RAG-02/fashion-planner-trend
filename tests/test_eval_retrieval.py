@@ -108,3 +108,14 @@ def test_tier4_entries_builds_item_with_context_key_and_ranked_products():
     assert row["category_major"] == "상의/하의" and row["tier4"]["prompt_version"] == "tier4.v3"
     assert er.item_group(row["item_id"], {}) == "Tier4 프로필"
     assert er.tier4_entries({"trends": [], "resolutions": [{}]}) is None
+
+
+def test_filter_entries_keeps_only_labeled_split_items():
+    class N:
+        def __init__(self, i): self.id = i
+    class I:
+        def __init__(self, i): self.node = N(i)
+    ents = [{"item": I(i)} for i in ("857922-s0-i0", "855421-s1-i2", "870855-s0-i0")]
+    out = er.filter_entries(ents, {"857922": "dev", "855421": "test"}, {"dev", "test"})
+    assert [e["item"].node.id for e in out] == ["857922-s0-i0", "855421-s1-i2"]
+    assert er.filter_entries(ents, {"857922": "dev", "855421": "test"}, {"dev"})[0]["item"].node.id == "857922-s0-i0"
