@@ -6,6 +6,8 @@
     [5] 이미지 (run 2 · two_column): 캡션 "Chanel 2027 S/S RTW" → 브랜드 Chanel · 시즌 2027SS
     [6] 이미지 (run 2 · two_column): 캡션: 사진 출처만
 이미지 픽셀·URL은 보내지 않는다(링크만, 범위는 텍스트).
+
+기사 헤더의 시즌 후보(`season_candidates`)는 템플릿 앞머리에 `season_candidates: true`가 있을 때만 넣는다(v3~).
 """
 from __future__ import annotations
 
@@ -75,7 +77,34 @@ def render_blocks(blocks: Iterable[dict]) -> str:
     return "\n".join(lines)
 
 
-def _article_header(article: dict) -> str:
+_SEASON_SOURCES = (("title", "제목"), ("tag", "태그"), ("body", "본문"), ("caption", "캡션"))
+
+
+def _season_candidate_lines(candidates: Optional[list[dict]]) -> list[str]:
+    """크롤러의 `season_candidates`(값·원문·출처·횟수) → 헤더 줄. 같은 표준 값은 출처별 횟수를 합친다.
+
+    표준 시즌으로 정규화하지 못한 표현(리조트 등)은 원문 그대로 두고 그렇다고 적는다. 많이 나온 값이 앞,
+    같으면 값 문자열 순이라 같은 입력이면 같은 문자열이다(캐시 키가 안정적이다).
+    """
+    groups: dict[str, dict[str, int]] = {}
+    for c in candidates or []:
+        key = c.get("value") or f"{_one_line(c.get('raw'))} (표준 시즌으로 정규화 불가)"
+        by = groups.setdefault(key, {})
+        src = str(c.get("source") or "?")
+        by[src] = by.get(src, 0) + int(c.get("count") or 1)
+    if not groups:
+        return ["- 시즌 후보: 없음"]
+    known = dict(_SEASON_SOURCES)
+    rows = ["- 시즌 후보 (크롤러가 찾은 시즌 표현. 힌트일 뿐이고 과거 컬렉션 인용도 섞여 있다):"]
+    for key in sorted(groups, key=lambda k: (-sum(groups[k].values()), k)):
+        by = groups[key]
+        parts = [f"{ko} {by[s]}회" for s, ko in _SEASON_SOURCES if s in by]
+        parts += [f"{s} {n}회" for s, n in by.items() if s not in known]
+        rows.append(f"  - {key} ← {' · '.join(parts)}")
+    return rows
+
+
+def _article_header(article: dict, *, season_candidates: bool = False) -> str:
     season = article.get("season") or {}
     rows = [
         f"- article_id: {article.get('article_id')}",
@@ -86,15 +115,17 @@ def _article_header(article: dict) -> str:
         rows.append(f"- 태그: {', '.join(map(str, article['tags']))}")
     if season.get("value"):
         rows.append(f"- 기사 시즌 태그: {season['value']} (출처 {season.get('source')})")
+    if season_candidates:  # 템플릿 앞머리 `season_candidates: true`(v3~)일 때만. v1·v2 입력은 그대로 둔다(캐시 키)
+        rows += _season_candidate_lines(article.get("season_candidates"))
     return "\n".join(rows)
 
 
 def render_prompt(article: dict, prompt_version: str, *, prompt_dir: Optional[str] = None) -> str:
-    template, _front = load_template(prompt_version, str(prompt_dir) if prompt_dir else None)
+    template, front = load_template(prompt_version, str(prompt_dir) if prompt_dir else None)
     return (
         f"{template}\n"
         "## 8. 기사\n"
-        f"{_article_header(article)}\n\n"
+        f"{_article_header(article, season_candidates=bool(front.get('season_candidates')))}\n\n"
         "### 블록 (번호 = block_idx)\n"
         f"{render_blocks(article.get('blocks') or [])}\n\n"
         "위 기사에서 규칙대로 추출한 JSON 객체 하나만 출력하라.\n"

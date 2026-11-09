@@ -33,6 +33,8 @@ EXTRACTIONS = ROOT / "data" / "processed" / "extractions"
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default=None, help="기본 env LLM_MODEL")
+    ap.add_argument("--reasoning-effort", default=None, choices=("minimal", "low", "medium", "high"),
+                    help="추론 모델만(gpt-5·o 계열). 주지 않으면 API 기본값 (docs/pipeline.md D-30)")
     ap.add_argument("--prompt-version", default=DEFAULT_PROMPT_VERSION)
     ap.add_argument("--in", dest="input", type=Path, default=DEFAULT_IN)
     ap.add_argument("--out", type=Path, default=None, help="기본 data/processed/extractions/<prompt_version>/")
@@ -48,6 +50,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="이미 있는 출력도 다시 만든다(캐시된 LLM 응답으로 후처리·검증만, 캐시에 없을 때만 호출)")
     ap.add_argument("--length-area", action="store_true", help="하의·원피스 length_body 롱→맥시 (결정 L-맥시)")
     ap.add_argument("--report-only", action="store_true")
+    # 후처리 P1·P2는 채택됐다(2026-11-09, docs/pipeline.md D-27·§6.7) → 기본 켬
+    ap.add_argument("--no-dedupe", dest="dedupe", action="store_false", help="P1 중복 합치기를 끈다 (기본 켬)")
+    ap.add_argument("--no-name-fix", dest="name_fix", action="store_false", help="P2 이름 끝 '트렌드' 제거를 끈다 (기본 켬)")
     args = ap.parse_args(argv)
 
     out = args.out or EXTRACTIONS / args.prompt_version
@@ -65,7 +70,8 @@ def main(argv: list[str] | None = None) -> int:
         ids=[x.strip() for x in args.ids.split(",") if x.strip()] if args.ids else None, limit=args.limit,
         retry_review=args.retry_review, use_cache=not args.no_cache, timeout_s=args.timeout,
         review_queue=args.review_queue, max_text_gap=args.max_text_gap, reprocess=args.reprocess,
-        length_area=args.length_area,
+        length_area=args.length_area, dedupe=args.dedupe, name_fix=args.name_fix,
+        reasoning_effort=args.reasoning_effort,
     )
     summ = run_batch(cfg, progress=lambda s: print(s, flush=True))
     print(f"추출 {args.prompt_version} → {out}: 통과 {summ.passed} · 검토 {summ.review} · 실패 {summ.failed} · "

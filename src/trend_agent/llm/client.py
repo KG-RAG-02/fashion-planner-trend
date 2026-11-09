@@ -24,7 +24,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, ValidationError
 
 from ..config import load_env
-from .backends import BackendReply, OpenAIAPIBackend
+from .backends import REASONING_EFFORTS, BackendReply, OpenAIAPIBackend, is_reasoning_model
 from .cache import ResponseCache, append_log, default_cache_dir, default_call_log, input_sha256
 from .errors import LLMBackendError, LLMError, LLMOutputError, LLMTimeout
 from .schema import check_instance, schema_sha256, strict_schema
@@ -70,7 +70,12 @@ def resolve_settings(backend: Optional[str] = None, model: Optional[str] = None,
     m = model or env.get("LLM_MODEL") or ""
     if not m:
         raise LLMBackendError("모델이 정해지지 않았다: model 인자나 env LLM_MODEL이 필요하다(고정 모델 원칙)")
-    eff = None  # openai_api(Chat Completions, gpt-4o-mini)는 reasoning effort를 쓰지 않는다. 인자는 호환용으로만 받는다
+    # 추론 강도는 추론 모델에만 (docs/pipeline.md D-30). 일반 모델에 주면 조용히 무시하지 않고 오류다
+    eff = reasoning_effort or None
+    if eff is not None and eff not in REASONING_EFFORTS:
+        raise LLMBackendError(f"reasoning_effort는 {REASONING_EFFORTS} 중 하나: {eff!r}")
+    if eff is not None and not is_reasoning_model(m):
+        raise LLMBackendError(f"일반 모델({m})에는 reasoning_effort를 줄 수 없다")
     t = timeout_s if timeout_s is not None else float(env.get("LLM_TIMEOUT_S") or DEFAULT_TIMEOUT_S)
     return {"backend": b, "model": m, "reasoning_effort": eff, "timeout_s": t, "env": env}
 

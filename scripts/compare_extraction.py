@@ -261,7 +261,15 @@ def load_gold(ids, labels_dir: Path = LABELS) -> dict[str, ArticleExtraction]:
 
 def load_pred(pred_dir: Path, aid: str, include_review: bool):
     """→ (ArticleExtraction | None, status, label_meta). status ∈ ok | review | review_compared | missing | schema_fail"""
-    f, r = pred_dir / f"{aid}.json", pred_dir / "_review" / f"{aid}.json"
+    def _find(d: Path) -> Path:  # <aid>.json, 없으면 프롬프트 버전 접두어 파일 <v?>_<aid>.json (실험 실행기)
+        p = d / f"{aid}.json"
+        if not p.exists():
+            hits = sorted(d.glob(f"v*_{aid}.json"))
+            if hits:
+                return hits[0]
+        return p
+
+    f, r = _find(pred_dir), _find(pred_dir / "_review")
     if f.exists():
         src, status = f, "ok"
     elif r.exists():
