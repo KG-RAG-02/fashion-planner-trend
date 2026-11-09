@@ -10,7 +10,20 @@ import argparse
 from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timezone
-import fcntl
+try:
+    import fcntl
+
+    def _lock_nb(f) -> None:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except ImportError:  # Windows
+    import msvcrt
+
+    def _lock_nb(f) -> None:
+        f.seek(0)
+        try:
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError as exc:
+            raise BlockingIOError(str(exc)) from None
 import hashlib
 import html
 import io
@@ -27,6 +40,13 @@ REVISION = "4335d233ef3b54bc5132a4d572d589042a41219d"
 FILENAME = "data/train-00000-of-00001.parquet"
 IMAGE_BASE = f"hf://datasets/{REPO_ID}@{REVISION}#row="
 LOG = logging.getLogger("C2.images")
+
+
+def _disk(path) -> str:
+    """디스크 용량 요약. `df -h`는 Windows에 없어서 shutil로 대신한다."""
+    import shutil
+    u = shutil.disk_usage(path)
+    return f"total {u.total / 1e9:.0f}GB used {u.used / 1e9:.0f}GB free {u.free / 1e9:.0f}GB ({path})"
 
 
 def utc() -> str:
@@ -55,7 +75,7 @@ def load_jsonl(path: Path) -> list[dict]:
 @contextmanager
 def exclusive(path: Path):
     with path.open("a") as f:
-        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _lock_nb(f)
         yield
 
 
@@ -389,7 +409,7 @@ def main() -> int:
     phases = ["download", "extract", "index", "contact"] if a.phase == "all" else [a.phase]
     try:
         with exclusive(a.images / ".pipeline.lock"):
-            LOG.info("START phases=%s df -h:\n%s", phases, subprocess.check_output(["df", "-h", str(a.shared)], text=True))
+            LOG.info("START phases=%s df -h:\n%s", phases, _disk(a.shared))
             for phase in phases:
                 {"download": validate_download, "extract": extract, "index": build_index, "contact": contact}[phase](a)
             return 0
@@ -400,7 +420,7 @@ def main() -> int:
             LOG.error("Detail: %s", exc)
         return 1
     finally:
-        LOG.info("END df -h:\n%s", subprocess.check_output(["df", "-h", str(a.shared)], text=True))
+        LOG.info("END df -h:\n%s", _disk(a.shared))
 
 
 if __name__ == "__main__":

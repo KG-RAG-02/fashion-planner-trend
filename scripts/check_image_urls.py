@@ -9,7 +9,20 @@ import argparse
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-import fcntl
+try:
+    import fcntl
+
+    def _lock_nb(f) -> None:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except ImportError:  # Windows
+    import msvcrt
+
+    def _lock_nb(f) -> None:
+        f.seek(0)
+        try:
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError as exc:
+            raise BlockingIOError(str(exc)) from None
 import hashlib
 import json
 import logging
@@ -27,6 +40,13 @@ USER_AGENT = "VOGUE-Research-ImageAudit/1.0 (internal image availability check)"
 POLICY = dict(timeout_seconds=10, retries=2, max_workers=8, user_agent=USER_AGENT,
               method="GET", body="not_read", range_header=False, version=2)
 LOG = logging.getLogger("C2.urls")
+
+
+def _disk(path) -> str:
+    """디스크 용량 요약. `df -h`는 Windows에 없어서 shutil로 대신한다."""
+    import shutil
+    u = shutil.disk_usage(path)
+    return f"total {u.total / 1e9:.0f}GB used {u.used / 1e9:.0f}GB free {u.free / 1e9:.0f}GB ({path})"
 
 
 def utc():
@@ -182,8 +202,8 @@ def main() -> int:
                         handlers=[logging.FileHandler(a.images / "run.log"), logging.StreamHandler()])
     try:
         with (a.images / ".url_checks.lock").open("a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            LOG.info("START streaming GET audit df -h:\n%s", subprocess.check_output(["df", "-h", str(a.shared)], text=True))
+            _lock_nb(lock)
+            LOG.info("START streaming GET audit df -h:\n%s", _disk(a.shared))
             return audit(a)
     except Exception as exc:
         LOG.error("URL audit FAILED exception=%s", type(exc).__name__)
@@ -191,7 +211,7 @@ def main() -> int:
             LOG.error("Detail: %s", exc)
         return 1
     finally:
-        LOG.info("END df -h:\n%s", subprocess.check_output(["df", "-h", str(a.shared)], text=True))
+        LOG.info("END df -h:\n%s", _disk(a.shared))
 
 
 if __name__ == "__main__":

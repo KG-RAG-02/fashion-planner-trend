@@ -35,6 +35,13 @@ GARMENT_LABELS = set(list(PROMPTS)[:3])
 UA = "VOGUE-Research-CatalogContent/2.0 (internal research image audit)"
 
 
+def _disk(path) -> str:
+    """디스크 용량 요약. `df -h`는 Windows에 없어서 shutil로 대신한다."""
+    import shutil
+    u = shutil.disk_usage(path)
+    return f"total {u.total / 1e9:.0f}GB used {u.used / 1e9:.0f}GB free {u.free / 1e9:.0f}GB ({path})"
+
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -377,13 +384,13 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
         handlers=[logging.FileHandler(shared / "preprocess/run.log"), logging.StreamHandler()])
     logging.info("START %s df -h:\n%s", args.phase,
-        subprocess.check_output(["df", "-h", str(shared)], text=True))
+        _disk(shared))
     if args.phase == "score":
         score(shared, args.batch_size)
     else:
         globals()[args.phase](shared)
     logging.info("END %s df -h:\n%s", args.phase,
-        subprocess.check_output(["df", "-h", str(shared)], text=True))
+        _disk(shared))
 
 
 if __name__ == "__main__":
