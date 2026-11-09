@@ -1,4 +1,4 @@
-"""그래프에서 트렌드와 비슷한 상품을 찾아 `TrendAnalysisResult`로 출력한다 (질의 파싱 LLM은 아직 없어 조건을 인자로 준다).
+"""그래프에서 트렌드와 비슷한 상품을 찾아 `TrendAnalysisResult`로 출력한다 (검색 조건은 인자로 준다).
 
 실행 예:
   python scripts/run_trend_search.py                                  # 시즌 미지정 → 다음 패션 시즌, 필터 없음

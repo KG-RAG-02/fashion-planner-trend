@@ -42,10 +42,33 @@ def pairs(items, raw="raw", val="value") -> str:
     return ", ".join(out) if out else "—"
 
 
+APPROVAL_GUIDE = [
+    "## 사용자 승인 방법",
+    "",
+    "- gold 전환은 **사용자만** 합니다. `<article_id> gold 승인` 또는 `<article_id> 수정: …`처럼 말해 주세요.",
+    "- 승인하면 라벨 JSON에 `status: gold`·`reviewer`·`reviewed_at`을 적고 지시 원문을 `notes`에 남긴 뒤 매니페스트 `label_status`를 맞춥니다.",
+    "- JSON이 원본이고 이 문서는 보기용입니다.",
+    "",
+]
+
+
+def render_t4_review(meta: dict) -> list[str]:
+    """label_meta.t4_review = [{target, opinion, basis}] → '1차 검수 의견' 표 + 승인 방법. (키 이름 `t4_review`는 이미 만들어진 라벨 파일에 있는 이름이라 그대로 읽는다.)"""
+    rows = meta.get("t4_review") or []
+    if not rows:
+        return []
+    L = ["## 1차 검수 의견", "", "| 대상 | 의견 | 근거 |", "|---|---|---|"]
+    L += [f"| {cell(r.get('target'))} | {cell(r.get('opinion'))} | {cell(r.get('basis'))} |" for r in rows]
+    return L + [""] + APPROVAL_GUIDE
+
+
 def render(doc: dict, art: dict) -> str:
     meta, ext = doc["label_meta"], doc["extraction"]
     L = [f"# 검수: {meta['title']}", ""]
     L += [f"- **원본 링크**: {meta['url']}", f"- article_id `{meta['article_id']}` · 발행 {meta.get('published', '')} · 상태 **{meta['status']}** · 라벨러 {meta['labeler']} · 검토자 {meta['reviewer'] or '(미검수)'} · 기준 v{meta['guideline_version']}", ""]
+    L += render_t4_review(meta)
+    if not ext["styles"]:
+        L += ["## 정답: Style 없음 (`styles = []`, 음성 대조군)", "", "제외 근거는 아래 라벨러 메모에 있습니다. 기사에 트렌드가 있다고 보시면 알려 주세요.", ""]
     if meta.get("review_questions"):
         L += ["## 검수자에게 묻는 것", ""] + [f"{n}. {q}" for n, q in enumerate(meta["review_questions"], 1)] + [""]
     L += ["## 검수 방법", "", "각 줄에서 **틀린 부분**만 알려 주세요 (예: `Item 3: 색 → 블랙`, `Item 7 삭제`, `Style 시즌 추가`). 맞으면 그대로 두세요. 근거 `[번호]`는 기사 문단 번호입니다.", ""]

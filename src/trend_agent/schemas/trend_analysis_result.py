@@ -1,10 +1,16 @@
-"""트렌드 분석 최종 출력. 문서: docs/schemas/trend_analysis_result.md"""
+"""트렌드 분석 최종 출력. 문서: docs/schemas/trend_analysis_result.md (계약 v1.1)
+
+v1.1: `schema_version`, 이미지 필드, Style `aliases`·`article_id`, 안정 evidence_id 규칙.
+추가 필드는 모두 기본값이라 v1.0 JSON은 그대로 읽힌다. `status`는 ok / no_results / error다.
+"""
 from __future__ import annotations
 
+import hashlib
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from .graph_schema import ImageScope, ImageStatus
 from .trend_query import CategoryFilter, SeasonRequest
 from .vocabulary import (
     BodyLength,
@@ -18,6 +24,16 @@ from .vocabulary import (
     Shape,
     SleeveLength,
 )
+
+SCHEMA_VERSION = "1.1"
+
+
+def evidence_id(article_id: str, block_idx: int, quote: str) -> str:
+    """안정 근거 ID `trend:<article_id>:<block_idx>:<hash8>` (hash8 = sha256(quote UTF-8) 앞 8자).
+
+    같은 (기사, 블록, 인용)은 실행·질의가 달라도 같은 id다. quote는 저장된 문자열 그대로 해시한다(정규화하지 않는다).
+    """
+    return f"trend:{article_id}:{block_idx}:{hashlib.sha256(quote.encode('utf-8')).hexdigest()[:8]}"
 
 
 class AppliedAttribute(BaseModel):
@@ -47,6 +63,9 @@ class TrendStyle(BaseModel):
     focus_core: list[str] = Field(default_factory=list)
     focus_supporting: list[str] = Field(default_factory=list)
     focus_evidence_ids: list[str] = Field(default_factory=list)
+    # v1.1
+    aliases: list[str] = Field(default_factory=list)
+    article_id: Optional[str] = None
 
 
 class MatchResult(BaseModel):
@@ -59,13 +78,15 @@ class AttributeScore(BaseModel):
     weight: float  # 적용 가중치 = 기본 가중치 × 트렌드 배수
     base_weight: float
     level: Optional[Literal["core", "supporting"]] = None
-    ratio: float  # 일치 비율 0~1
+    ratio: float  # 일치 비율 0~1 — v1.1: 값 가중 재현율 Σ_{공통} w(v) ÷ Σ_{Item} w(v) (값 가중치가 없으면 |공통|/|Item|)
 
 
 class ScoreBreakdown(BaseModel):
     attributes: dict[str, AttributeScore] = Field(default_factory=dict)
-    base_score: float = 0.0
+    base_score: float = 0.0  # v1.1: Σ w·r ÷ (Σ w + unknown_core_weight) — γ=0이면 v1.0 식과 같다
     bonus: dict[str, float] = Field(default_factory=dict)  # {"category_minor": α}
+    unknown_core_weight: float = 0.0  # v1.1: γ × (미확인 core 속성의 적용 가중치 합)
+    value_weighted: bool = False      # v1.1: 값 가중치(primary/secondary)를 적용했는가
 
 
 class DetailOut(BaseModel):
@@ -103,6 +124,15 @@ class ProductMatch(_AttributesOut):
     match: MatchResult = Field(default_factory=MatchResult)
     score: float = 0.0  # base_score + bonus
     score_breakdown: ScoreBreakdown = Field(default_factory=ScoreBreakdown)
+    # v1.1 — 이미지(그래프 Product와 같은 이름·뜻). has_image = ProductNode.has_image
+    gender: Optional[Gender] = None
+    snap_id: Optional[int] = None
+    image_ref: Optional[str] = None
+    image_scope: Optional[ImageScope] = None
+    image_status: Optional[ImageStatus] = None
+    parent_id: Optional[str] = None
+    multi_wearer_suspected: Optional[bool] = None
+    has_image: bool = False
 
 
 class TrendItem(_AttributesOut):
@@ -112,7 +142,7 @@ class TrendItem(_AttributesOut):
     styling_accessory: Optional[str] = None
     gender: Optional[Gender] = None
     request_match: MatchResult = Field(default_factory=MatchResult)
-    image_urls: list[str] = Field(default_factory=list)
+    image_urls: list[str] = Field(default_factory=list)  # Vogue 이미지 URL — 결과물에는 링크로만(임베드·핫링크·다운로드 금지)
     evidence_ids: list[str] = Field(default_factory=list)
     similar_products: list[ProductMatch] = Field(default_factory=list)
 
@@ -123,7 +153,7 @@ class Trend(BaseModel):
 
 
 class EvidenceRecord(BaseModel):
-    evidence_id: str
+    evidence_id: str  # v1.1: evidence_id(article_id, block_idx, quote)
     article_id: str
     title: Optional[str] = None
     url: Optional[str] = None
@@ -139,3 +169,5 @@ class TrendAnalysisResult(BaseModel):
     trends: list[Trend] = Field(default_factory=list)
     evidence: list[EvidenceRecord] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+    # v1.1
+    schema_version: str = SCHEMA_VERSION

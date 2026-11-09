@@ -4,11 +4,15 @@
 - 03은 착장 사진 한 장에 상의·하의·아우터 라벨이 묶인 데이터다. 이 모듈은 **라벨 한 슬롯 = Product 하나**로 바꾼다.
 - 색은 `서브컬러`뿐이라 `colors`는 비고 `sub_colors`만 채운다. 상품명·URL·브랜드·가격이 없다 (이미지는 parquet 바이트라 저장하지 않는다).
 - 02와 같은 `AliasMap`을 쓴다 (`otpensource.py`와 같은 표준·같은 별칭 사전).
+
+v2: (a) 노이즈 카테고리를 슬롯 상분류로 채우지 않는다(사용자 결정) · (b) 리스트형 라벨 값 보존 ·
+(c) 같은 사진 안 동일 라벨 `dup_of` · (d) `snap_id` = parquet row · (e) 패딩 힌트는 상분류가 비었거나 아우터일 때만.
 """
 from __future__ import annotations
 
 import ast
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -18,16 +22,18 @@ from trend_agent.schemas.graph_schema import AttrEdge, DetailEdge, ProductNode, 
 from .alias_map import AliasMap
 
 REPO_ID = "disl/musinsa-snap-new"
-SLOT_MAJOR = {"상의": V.CategoryMajor.UPPER, "하의": V.CategoryMajor.LOWER, "아우터": V.CategoryMajor.OUTER}
-# 카테고리 값이 의류가 아닌 경우: 상분류를 정하지 않는다 (그래프 밖)
+REVISION = "4335d233ef3b54bc5132a4d572d589042a41219d"  # 고정 리비전
+# 카테고리 값이 의류가 아닌 경우: 상분류를 정하지 않는다 (그래프 밖). 사전 null_values에도 있다 — 리포트 분류용.
 NON_GARMENT = {"모자", "스카프", "가방", "부츠", "백팩", "헤드웨어", "야구모자", "햇모자"}
+SCALAR_FIELDS = ("카테고리", "핏", "기장", "소매기장")  # 값 하나만 쓰는 필드: 리스트가 오면 첫 원소(리포트에 센다)
 _EMPTY = {"", "0", "nan", "none"}
+_PAD_OK_MAJORS = (None, V.CategoryMajor.OUTER)
 
 
-def find_snapshot_dir() -> Path:
+def find_snapshot_dir(revision: str = REVISION) -> Path:
     from huggingface_hub import snapshot_download
 
-    return Path(snapshot_download(repo_id=REPO_ID, repo_type="dataset"))
+    return Path(snapshot_download(repo_id=REPO_ID, repo_type="dataset", revision=revision))
 
 
 def _clean(v: Any) -> str:
@@ -35,6 +41,33 @@ def _clean(v: Any) -> str:
         return ""
     s = str(v).strip()
     return "" if s.lower() in _EMPTY else s
+
+
+def _scalar(v: Any) -> str:
+    """스칼라 필드 값. 리스트·튜플이면 비지 않은 첫 원소(버그 (b): v1은 `str(list)`를 원문으로 썼다)."""
+    if isinstance(v, (list, tuple)):
+        return next((c for c in (_clean(x) for x in v) if c), "")
+    return _clean(v)
+
+
+def scalar_list_fields(attrs: dict[str, Any]) -> list[str]:
+    """스칼라 필드인데 리스트로 온 필드 이름 (리포트용)."""
+    return [k for k in SCALAR_FIELDS if isinstance(attrs.get(k), (list, tuple))]
+
+
+def canonical_label(attrs: dict[str, Any]) -> str:
+    """dup_of 비교용 원문 라벨: 값 정리(_clean, 빈 값·"0" 제거) 후 키 정렬 JSON."""
+    out: dict[str, Any] = {}
+    for k, v in attrs.items():
+        if isinstance(v, (list, tuple)):
+            vals = [c for c in (_clean(x) for x in v) if c]
+            if vals:
+                out[k] = vals
+        else:
+            c = _clean(v)
+            if c:
+                out[k] = c
+    return json.dumps(out, ensure_ascii=False, sort_keys=True)
 
 
 def parse_label(raw: str) -> dict[str, Any]:
@@ -54,7 +87,8 @@ def iter_slots(snapshot_dir: Path | str) -> Iterable[dict[str, Any]]:
     """
     import pandas as pd
 
-    parquet = sorted(Path(snapshot_dir).rglob("*.parquet"))[0]
+    src = Path(snapshot_dir)
+    parquet = src if src.is_file() else sorted(src.rglob("*.parquet"))[0]
     df = pd.read_parquet(parquet, columns=["label"])  # image 바이트는 읽지 않는다
     for row_no, raw in enumerate(df["label"]):
         parsed = parse_label(raw)
@@ -78,22 +112,23 @@ class SnapNormalizer:
         slot = slot_row["slot"]
         approx_fields: list[str] = []
 
-        # 카테고리: 하분류가 정해지면 상분류는 표에서 도출 (슬롯 이름보다 우선), 아니면 슬롯 이름
-        cat_raw = _clean(d.get("카테고리"))
+        # 카테고리: 카테고리 값으로만 정한다(슬롯 이름은 쓰지 않는다, alias_map.md §4.2 · 사용자 결정).
+        # 하분류가 정해지면 상분류는 표에서 도출, 상분류 이름·하분류 모르는 의류명은 hint로 상분류만,
+        # 나머지(노이즈·비의류·판단 보류)는 상분류·하분류 null → 그래프 적재 제외(category_raw는 보존).
+        cat_raw = _scalar(d.get("카테고리"))
         n = self.alias.normalize("category", cat_raw)
         minor: Optional[str] = n.value
+        major: Optional[V.CategoryMajor] = None
         if minor:
             major = V.MINOR_TO_MAJOR[V.CategoryMinor(minor)]
-        elif cat_raw in NON_GARMENT:
-            major = None
-        else:
-            major = SLOT_MAJOR.get(slot)
+        elif n.matched_by == "hint" and n.hint.get("category_major"):
+            major = V.CategoryMajor(n.hint["category_major"])
 
         materials: list[AttrEdge] = []
         patterns: list[AttrEdge] = []
         details: list[DetailEdge] = []
         length_sleeve: Optional[str] = None
-        length_sleeve_raw: Optional[str] = _clean(d.get("소매기장")) or None
+        length_sleeve_raw: Optional[str] = _scalar(d.get("소매기장")) or None
         shape_raw: Optional[str] = None
         shape: Optional[str] = None
 
@@ -106,11 +141,14 @@ class SnapNormalizer:
             if value:
                 add(details, DetailEdge(type=type_, value=value, raw=raw, approx=approx))
 
-        # 소재 (다운·패딩 힌트는 category_minor, 퀼팅 등은 Detail로)
+        # 소재 (다운·패딩 힌트는 상분류가 비었거나 아우터일 때만 category_minor, 상의·하의·원피스면 Detail 패딩 — 버그 (e))
         for t in self.alias.normalize_tokens("material", d.get("소재")):
-            if t.hint.get("category_minor") and minor is None:
-                minor = t.hint["category_minor"]
-                major = V.MINOR_TO_MAJOR[V.CategoryMinor(minor)]
+            if t.hint.get("category_minor"):
+                if minor is None and major in _PAD_OK_MAJORS:
+                    minor = t.hint["category_minor"]
+                    major = V.MINOR_TO_MAJOR[V.CategoryMinor(minor)]
+                elif minor is None:
+                    add_detail(V.DetailType.DETAIL, V.DetailName.PADDING.value, t.raw, False)
             elif t.route_to == "detail":
                 add_detail(V.DetailType.DETAIL, t.value, t.raw, t.approx)
             elif t.value and t.route_to is None:
@@ -149,7 +187,7 @@ class SnapNormalizer:
                 add_detail(V.DetailType.COLLAR, t.value, t.raw, t.approx)
 
         # 핏 (Shape 값이 들어온 경우는 shape로, 슬림→타이트는 approx)
-        fit_raw = _clean(d.get("핏")) or None
+        fit_raw = _scalar(d.get("핏")) or None
         fit: Optional[str] = None
         if fit_raw:
             f = self.alias.normalize("fit", fit_raw)
@@ -161,7 +199,7 @@ class SnapNormalizer:
                     approx_fields.append("fit")
 
         # 기장 · 소매기장
-        length_body_raw = _clean(d.get("기장")) or None
+        length_body_raw = _scalar(d.get("기장")) or None
         length_body: Optional[str] = None
         if length_body_raw:
             b = self.alias.normalize("body_length", length_body_raw)
@@ -198,13 +236,36 @@ class SnapNormalizer:
             sub_colors=sub_colors,
             source_row=f"{REPO_ID}#row{slot_row['row']}:{slot}{suffix} (file {slot_row['file_no']})",
             approx=approx_fields,
+            snap_id=int(slot_row["row"]),
         )
         return ProductRecord(node=node, category_major=major, colors=[], materials=materials, patterns=patterns, details=details)
 
 
-def snap_report(records: list[ProductRecord]) -> dict[str, Any]:
-    from collections import Counter
+def mark_snap_duplicates(records: list[ProductRecord], slots: list[dict[str, Any]]) -> list[ProductRecord]:
+    """(c) 같은 row(사진) 안에서 원문 라벨(canonical_label)이 완전히 같은 뒤쪽 슬롯에 `dup_of` = 앞 슬롯 id.
+    표시만 한다(지우거나 병합하지 않는다). 순서는 라벨 순서 × k. 값이 모두 빈 라벨은 표시하지 않는다."""
+    first: dict[tuple[int, str], str] = {}
+    for rec, slot in zip(records, slots):
+        key = canonical_label(slot["attrs"])
+        if key == "{}":
+            continue
+        k = (int(slot["row"]), key)
+        if k in first:
+            rec.node.dup_of = first[k]
+        else:
+            first[k] = rec.node.id
+    return records
 
+
+def category_reason(rec: ProductRecord) -> str:
+    """상분류가 null인 이유(리포트용): non_garment · empty · noise."""
+    raw = rec.node.category_raw
+    if not raw:
+        return "empty"
+    return "non_garment" if raw in NON_GARMENT else "noise"
+
+
+def snap_report(records: list[ProductRecord]) -> dict[str, Any]:
     n = len(records)
     return {
         "slots": n,
@@ -222,4 +283,13 @@ def snap_report(records: list[ProductRecord]) -> dict[str, Any]:
         "by_category_major": dict(Counter(r.category_major.value for r in records if r.category_major)),
         "by_category_minor": dict(Counter(r.node.category_minor for r in records if r.node.category_minor).most_common()),
         "fit_values": dict(Counter(r.node.fit for r in records if r.node.fit).most_common()),
+        # v2
+        "category_null_by_reason": dict(Counter(category_reason(r) for r in records if r.category_major is None)),
+        "category_null_raw": dict(Counter(r.node.category_raw or "" for r in records
+                                          if r.category_major is None and category_reason(r) != "non_garment").most_common()),
+        "category_major_only_raw": dict(Counter(r.node.category_raw or "" for r in records
+                                                if r.category_major and not r.node.category_minor).most_common()),
+        "dup_of": sum(1 for r in records if r.node.dup_of),
+        "detail_padding_rows": sum(1 for r in records if any(d.value == "패딩" for d in r.details)),
+        "snap_ids": len({r.node.snap_id for r in records}),
     }

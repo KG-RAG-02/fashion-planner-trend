@@ -32,7 +32,11 @@ STANDARD: dict[str, type[Enum]] = {
     "sleeve_length": V.SleeveLength,
 }
 
-_COMPOUNDS = ("시퀸/", "비닐/", "울/")  # 쉼표·슬래시로 나누면 안 되는 표준 값 일부
+# 슬래시가 들어 있는 표준 복합값 3개만 나누지 않는다(대소문자 무시). v1은 `울/`이 들어 있으면 문자열 전체를
+# 한 토큰으로 둬서 `울/폴리`가 통째로 매핑 불가가 됐다(버그 (g)).
+COMPOUND_VALUES = ("시퀸/글리터", "비닐/PVC", "울/캐시미어")
+_COMPOUND_RE = re.compile("|".join(re.escape(c) for c in COMPOUND_VALUES), re.IGNORECASE)
+_PLACEHOLDER = "\x00"
 
 
 def norm_key(text: Any) -> str:
@@ -99,12 +103,18 @@ class AliasMap:
     # ---------- 복수 값 ----------
     @staticmethod
     def split_tokens(raw: Any) -> list[str]:
+        """복수 값을 `,` `/` `+` `&` `:`로 나눈다. 리스트·튜플이면 원소마다 나눠 이어 붙인다(버그 (b): 03 일부 라벨은
+        `['후드', '포켓']` 같은 리스트라 v1은 `str(list)` 한 토큰이 되어 값을 잃었다)."""
+        if isinstance(raw, (list, tuple)):
+            out: list[str] = []
+            for x in raw:
+                out.extend(AliasMap.split_tokens(x))
+            return out
         text = "" if raw is None else str(raw).strip()
         if not text:
             return []
-        if any(c in text for c in _COMPOUNDS):
-            return [text]
-        return [t.strip() for t in re.split(r"[,/+&:]", text) if t.strip()]
+        protected = _COMPOUND_RE.sub(lambda m: m.group(0).replace("/", _PLACEHOLDER), text)
+        return [t.strip().replace(_PLACEHOLDER, "/") for t in re.split(r"[,/+&:]", protected) if t.strip()]
 
     def normalize_tokens(self, attribute: str, raw: Any) -> list[Normalized]:
         if attribute == "color":
