@@ -146,9 +146,15 @@ def test_call_schema_mismatch_not_cached(isolated):
     assert rec["ok"] is False
 
 
-def test_openai_is_the_only_backend_and_effort_is_unused(isolated):
-    st = client.resolve_settings(None, "gpt-x", "low", env={})
+def test_openai_is_the_only_backend_and_effort_rules(isolated):
+    st = client.resolve_settings(None, "gpt-4o-mini", None, env={})
     assert st["backend"] == "openai_api" and st["reasoning_effort"] is None
+    with pytest.raises(llm.LLMBackendError, match="일반 모델"):            # D-30: 일반 모델에 추론 강도 → 오류
+        client.resolve_settings(None, "gpt-4.1", "low", env={})
+    assert client.resolve_settings(None, "gpt-5-mini", "medium", env={})["reasoning_effort"] == "medium"
+    assert client.resolve_settings(None, "gpt-5-mini", None, env={})["reasoning_effort"] is None  # API 기본값
+    with pytest.raises(llm.LLMBackendError, match="reasoning_effort"):
+        client.resolve_settings(None, "gpt-5-mini", "max", env={})
     with pytest.raises(llm.LLMBackendError):
         client.resolve_settings("codex_cli", "m", None, env={})  # Codex CLI 백엔드는 없다
     with pytest.raises(llm.LLMBackendError):
@@ -201,6 +207,27 @@ def test_openai_backend_request_shape():
     assert body["response_format"]["json_schema"]["strict"] is True
     assert body["response_format"]["json_schema"]["name"] == "article_extraction"
     assert r.data == {"color": None, "items": []} and r.thread_id == "chatcmpl-1"
+
+
+def test_openai_backend_reasoning_model_request_shape():
+    """D-30: 추론 모델은 temperature를 보내지 않고, 추론 강도가 있으면 보낸다."""
+    pytest.importorskip("requests")
+    from trend_agent.llm.backends import is_reasoning_model
+    assert is_reasoning_model("gpt-5-mini") and is_reasoning_model("o3") and is_reasoning_model("gpt-5.4-mini")
+    assert not is_reasoning_model("gpt-4.1") and not is_reasoning_model("gpt-4o-mini")
+    ok = {"id": "chatcmpl-2", "choices": [{"message": {"content": '{"color":null,"items":[]}'}, "finish_reason": "stop"}]}
+    sess = _Session(_Resp(200, ok))
+    OpenAIAPIBackend("sk-test", session=sess).run("p", SMALL, name="t", model="gpt-5-mini", reasoning_effort="medium",
+                                                  timeout_s=10)
+    body = sess.sent["json"]
+    assert "temperature" not in body and body["reasoning_effort"] == "medium"
+    sess = _Session(_Resp(200, ok))
+    OpenAIAPIBackend("sk-test", session=sess).run("p", SMALL, name="t", model="gpt-5-mini", reasoning_effort=None,
+                                                  timeout_s=10)
+    assert "temperature" not in sess.sent["json"] and "reasoning_effort" not in sess.sent["json"]
+    with pytest.raises(llm.LLMBackendError, match="일반 모델"):
+        OpenAIAPIBackend("sk-test", session=_Session(_Resp(200, ok))).run(
+            "p", SMALL, name="t", model="gpt-4.1", reasoning_effort="low", timeout_s=10)
 
 
 def test_openai_backend_errors_hide_key():

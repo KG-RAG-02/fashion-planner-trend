@@ -8,6 +8,7 @@
 | V4 | Item 근거 블록 ≥1, 서로 다른 블록 ≤ `max_blocks`(2), 텍스트 블록 순서 간격 ≤ `max_text_gap`(1) | 오류 |
 | V5 | Pattern/Detail/Styling 혼동 키워드 · `raw_text` ⊄ 근거 블록 · Style 시즌 없음 | 경고 |
 | V6 | `image_idx` ∈ 크롤러 이미지 범위 (`basis`는 pydantic Literal) | 오류 |
+| N3 | Style `name`이 제목·본문에 그대로 없음(끝 일반어·괄호 사유 표시). 값은 바꾸지 않는다 | 경고 |
 
 V2·V3는 `scripts/validate_labels.py`의 순수 함수 `check_quotes`·`check_raws`를 그대로 쓴다
 (라벨 검증과 같은 판정). 스크립트를 불러올 수 없는 설치 환경에서만 같은 논리의 내장 구현으로 대신한다.
@@ -28,6 +29,8 @@ from ...schemas.article_extraction import ArticleExtraction, ExtractedItem
 
 __all__ = ["squash", "ValidationReport", "validate_extraction", "text_blocks", "item_raws"]
 
+# N3(이름 충실성, 경고만): Style 이름 끝에 LLM이 덧붙이기 쉬운 일반어. 값은 바꾸지 않고 "떼면 기사에 있는지"만 기록한다.
+GENERIC_NAME_SUFFIXES = ("트렌드", "스타일", "패션", "코디", "룩", "trend", "style", "fashion", "look")
 PATTERN_AS_DETAIL = ("자수", "수놓", "아플리케", "비즈", "프릴", "리본")
 DETAIL_AS_PATTERN = ("프린트", "무늬", "체크", "스트라이프", "도트", "플로럴")
 STYLING_WORDS = ("두른", "두르", "매치", "레이어드", "겹쳐")
@@ -94,6 +97,21 @@ def _short(s: str, n: int = 40) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+def name_not_in_article(name: str, title_and_text_squashed: str) -> Optional[str]:
+    """이름(공백 무시)이 제목·본문에 있으면 None. 없으면 사유: 끝 일반어를 떼면 있음 / 괄호를 빼면 있음 / 없음."""
+    sq = squash(name or "")
+    if not sq or sq.lower() in title_and_text_squashed.lower():
+        return None
+    low = sq.lower()
+    for suf in GENERIC_NAME_SUFFIXES:
+        if low.endswith(suf) and len(low) > len(suf) and low[: -len(suf)] in title_and_text_squashed.lower():
+            return f"끝 일반어 '{suf}'를 떼면 있음: '{sq[: -len(suf)]}'"
+    base = squash(re.sub(r"[(\[（].*?[)\]）]", "", name or ""))
+    if base and base.lower() in title_and_text_squashed.lower():
+        return f"괄호 부분을 빼면 있음: '{base}'"
+    return "일부를 바꾸거나 지어낸 이름일 수 있음"
+
+
 def validate_extraction(ext: ArticleExtraction, article: dict, *, max_blocks: int = 2, max_text_gap: int = 1,
                         extra_errors: Optional[Iterable[str]] = None,
                         use_label_checks: bool = True) -> ValidationReport:
@@ -124,6 +142,10 @@ def validate_extraction(ext: ArticleExtraction, article: dict, *, max_blocks: in
         sw = f"Style[{s.name}]"
         if s.name_origin != "article":
             rep.err("V1", f"{sw}: name_origin은 article이어야 함")
+        hint = name_not_in_article(s.name, title_and_text)
+        if hint is not None:
+            rep.warnings.append(f"N3 {sw}: 이름이 제목·본문에 그대로 없음 ({hint})")
+            rep.counts["N3"] = rep.counts.get("N3", 0) + 1
         for a in s.aliases:
             if not squash(a) or squash(a) not in title_and_text:
                 rep.err("V1", f"{sw}: alias \"{_short(a)}\"가 제목·본문에 없음")

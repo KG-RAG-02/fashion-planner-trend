@@ -51,6 +51,9 @@ class BatchConfig:
     max_blocks: int = 2
     reprocess: bool = False      # 출력이 있어도 다시(캐시 응답으로 후처리·검증만 — 캐시에 없으면 LLM 호출)
     length_area: bool = False    # postprocess.LENGTH_AREA_FIX 적용
+    file_prefix: str = ""        # 결과 파일 이름 앞에 붙임 (예 "v3_" → v3_<article_id>.json). 기본은 접두어 없음
+    dedupe: bool = False         # postprocess.merge_duplicates (중복 focus_attributes·seasons 합치기, P1 경고)
+    name_fix: bool = False       # postprocess.fix_style_names (이름 끝 '트렌드' 제거, P2 경고) — pipeline.md §6.7
 
 
 @dataclass
@@ -108,8 +111,8 @@ def _select(articles: list[dict], cfg: BatchConfig) -> tuple[list[dict], int]:
     todo, skipped = [], 0
     for a in chosen:
         aid = str(a["article_id"])
-        done = (out / f"{aid}.json").exists()
-        in_review = (review / f"{aid}.json").exists()
+        done = (out / f"{cfg.file_prefix}{aid}.json").exists()
+        in_review = (review / f"{cfg.file_prefix}{aid}.json").exists()
         if not cfg.reprocess and (done or (in_review and not cfg.retry_review)):
             skipped += 1
             continue
@@ -158,7 +161,7 @@ def run_batch(cfg: BatchConfig, *, articles: Optional[list[dict]] = None,
                                           prompt_version=cfg.prompt_version, reasoning_effort=cfg.reasoning_effort,
                                           timeout_s=cfg.timeout_s, use_cache=cfg.use_cache,
                                           max_blocks=cfg.max_blocks, max_text_gap=cfg.max_text_gap,
-                                          length_area=cfg.length_area)
+                                          length_area=cfg.length_area, dedupe=cfg.dedupe, name_fix=cfg.name_fix)
         except LLMError as e:
             with _lock:
                 consecutive[0] += 1
@@ -173,21 +176,22 @@ def run_batch(cfg: BatchConfig, *, articles: Optional[list[dict]] = None,
         with _lock:
             consecutive[0] = 0
         doc = build_output_doc(out, article)
+        fname = f"{cfg.file_prefix}{aid}.json"
         if out.passed:
-            _atomic_json(cfg.out_dir / f"{aid}.json", doc)
-            stale = cfg.out_dir / "_review" / f"{aid}.json"
+            _atomic_json(cfg.out_dir / fname, doc)
+            stale = cfg.out_dir / "_review" / fname
             if stale.exists():
                 stale.unlink()
             status = "passed"
             with _lock:
                 summ.passed += 1
         else:
-            _atomic_json(cfg.out_dir / "_review" / f"{aid}.json", doc)
-            stale_ok = cfg.out_dir / f"{aid}.json"
+            _atomic_json(cfg.out_dir / "_review" / fname, doc)
+            stale_ok = cfg.out_dir / fname
             if stale_ok.exists():  # --reprocess로 통과 → 검토로 바뀐 경우
                 stale_ok.unlink()
             _append(review_queue, {"ts": _now(), "article_id": aid, "prompt_version": cfg.prompt_version,
-                                   "path": str(cfg.out_dir / "_review" / f"{aid}.json"),
+                                   "path": str(cfg.out_dir / "_review" / fname),
                                    "n_errors": len(out.errors), "errors": out.errors[:10]})
             status = "review"
             with _lock:
@@ -211,9 +215,11 @@ def _read_docs(folder: Path) -> list[dict]:
     docs = []
     for p in sorted(folder.glob("*.json")):
         try:
-            docs.append(json.loads(p.read_text(encoding="utf-8")))
+            d = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        if isinstance(d, dict) and "label_meta" in d:  # 추출 결과만 (같은 폴더의 스키마·기록 JSON은 뺀다)
+            docs.append(d)
     return docs
 
 
@@ -285,13 +291,18 @@ def write_report(out_dir: Path, *, prompt_version: str, last_run: Optional[Batch
                     flags[fl.split(":", 1)[0]] += 1
     lat = [x for r in live.values() for x in (r.get("latency_s") or []) if x]
     walls = [r["wall_s"] for r in live.values() if r.get("wall_s")]
-    tok_in = sum((u or {}).get("input_tokens", 0) for r in live.values() for u in (r.get("usage") or []))
-    tok_out = sum((u or {}).get("output_tokens", 0) for r in live.values() for u in (r.get("usage") or []))
+    # OpenAI Chat Completions의 usage 키는 prompt_tokens·completion_tokens다 (input_/output_tokens는 다른 형식 호환용)
+    tok_in = sum(int((u or {}).get("prompt_tokens") or (u or {}).get("input_tokens") or 0)
+                 for r in live.values() for u in (r.get("usage") or []))
+    tok_out = sum(int((u or {}).get("completion_tokens") or (u or {}).get("output_tokens") or 0)
+                  for r in live.values() for u in (r.get("usage") or []))
     cache_hits = sum(1 for r in latest.values() for c in (r.get("cache_hit") or []) if c)
     calls = sum(len(r.get("cache_hit") or []) for r in latest.values())
     tools = sum(int(r.get("tool_events") or 0) for r in latest.values())
-    failed_now = sorted(a for a, r in latest.items() if r.get("status") == "failed"
-                        and not (out_dir / f"{a}.json").exists() and not (out_dir / "_review" / f"{a}.json").exists())
+    def _has_output(aid: str) -> bool:  # 파일 이름 접두어(file_prefix)가 있어도 찾는다
+        return any(out_dir.glob(f"*{aid}.json")) or any((out_dir / "_review").glob(f"*{aid}.json"))
+
+    failed_now = sorted(a for a, r in latest.items() if r.get("status") == "failed" and not _has_output(a))
     models = Counter(d["label_meta"].get("labeler") for d in docs)
     efforts = Counter((d["label_meta"].get("llm") or {}).get("reasoning_effort") for d in docs)
 

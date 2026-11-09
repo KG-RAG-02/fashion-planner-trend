@@ -56,11 +56,21 @@ class ExtractionFailed(RuntimeError):
 
 def _attempt(article: dict, prompt: str, schema: dict, *, prompt_version: str, backend: Optional[str],
              model: Optional[str], reasoning_effort: Optional[str], timeout_s: Optional[float], use_cache: bool,
-             max_blocks: int, max_text_gap: int, length_area: bool = False
+             max_blocks: int, max_text_gap: int, length_area: bool = False, dedupe: bool = False,
+             name_fix: bool = False
              ) -> tuple[Optional[ArticleExtraction], Optional[dict], ValidationReport, dict]:
     res = llm.call(prompt, schema, purpose=PURPOSE, prompt_version=prompt_version, backend=backend, model=model,
                    reasoning_effort=reasoning_effort, timeout_s=timeout_s, use_cache=use_cache)
-    doc, v6 = postprocess(res.data, article, length_area=length_area)
+    notes: list[str] = []
+    doc, v6 = postprocess(res.data, article, length_area=length_area, dedupe=dedupe, name_fix=name_fix, notes=notes)
+
+    def _with_notes(rep: ValidationReport) -> ValidationReport:  # 후처리 기록 = 경고. 문구 앞 코드(P1·P2·N3)로 센다
+        for n in notes:
+            rep.warnings.append(n)
+            code = n.split(" ", 1)[0]
+            rep.counts[code] = rep.counts.get(code, 0) + 1
+        return rep
+
     try:
         ext = ArticleExtraction.model_validate(doc)
     except ValidationError as e:
@@ -71,15 +81,16 @@ def _attempt(article: dict, prompt: str, schema: dict, *, prompt_version: str, b
         for x in v6:
             rep.errors.append(x)
             rep.counts["V6"] = rep.counts.get("V6", 0) + 1
-        return None, doc, rep, res.meta
+        return None, doc, _with_notes(rep), res.meta
     rep = validate_extraction(ext, article, max_blocks=max_blocks, max_text_gap=max_text_gap, extra_errors=v6)
-    return ext, doc, rep, res.meta
+    return ext, doc, _with_notes(rep), res.meta
 
 
 def extract_article_outcome(article: dict, *, backend: Optional[str] = None, model: Optional[str] = None,
                             prompt_version: str = "extract-v2", reasoning_effort: Optional[str] = None,
                             timeout_s: Optional[float] = None, use_cache: bool = True, max_retries: int = 1,
-                            max_blocks: int = 2, max_text_gap: int = 1, length_area: bool = False) -> ExtractionOutcome:
+                            max_blocks: int = 2, max_text_gap: int = 1, length_area: bool = False,
+                            dedupe: bool = False, name_fix: bool = False) -> ExtractionOutcome:
     schema, _dropped, sha = extraction_schema()
     _tmpl, front = load_template(prompt_version)
     base_prompt = render_prompt(article, prompt_version)
@@ -93,7 +104,7 @@ def extract_article_outcome(article: dict, *, backend: Optional[str] = None, mod
         ext, doc, rep, meta = _attempt(article, prompt, schema, prompt_version=prompt_version, backend=backend,
                                        model=model, reasoning_effort=reasoning_effort, timeout_s=timeout_s,
                                        use_cache=use_cache, max_blocks=max_blocks, max_text_gap=max_text_gap,
-                                       length_area=length_area)
+                                       length_area=length_area, dedupe=dedupe, name_fix=name_fix)
         calls.append(meta)
         if rep.passed:
             break
@@ -105,7 +116,7 @@ def extract_article_outcome(article: dict, *, backend: Optional[str] = None, mod
         backend=last.get("backend", ""), model=last.get("model", ""), reasoning_effort=last.get("reasoning_effort"),
         prompt_version=prompt_version, guideline_version=front.get("guideline_version"), schema_sha256=sha,
         extracted_at=datetime.now(KST).isoformat(timespec="seconds"),
-        postprocess={"alias_map": True, "length_area": length_area},
+        postprocess={"alias_map": True, "length_area": length_area, "dedupe": dedupe, "name_fix": name_fix},
     )
 
 

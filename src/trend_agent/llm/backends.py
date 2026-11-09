@@ -2,7 +2,8 @@
 
 백엔드는 `run(prompt, json_schema, *, name, model, reasoning_effort, timeout_s) -> BackendReply`를 낸다.
 여기서는 **JSON 파싱까지만** 하고, 스키마 일치·pydantic 검증은 `client`가 한다.
-`reasoning_effort`는 인터페이스 호환용이고 `openai_api`는 쓰지 않는다(항상 None).
+일반 모델은 `temperature: 0`을 보낸다. 추론 모델(`is_reasoning_model`)은 temperature를 보내지 않고, `reasoning_effort`가
+있으면 함께 보낸다 (docs/pipeline.md D-30, §6.4).
 """
 from __future__ import annotations
 
@@ -14,7 +15,15 @@ from typing import Any, Optional
 
 from .errors import LLMBackendError, LLMOutputError, LLMTimeout
 
-__all__ = ["BackendReply", "OpenAIAPIBackend"]
+__all__ = ["BackendReply", "OpenAIAPIBackend", "REASONING_MODEL_PREFIXES", "REASONING_EFFORTS", "is_reasoning_model"]
+
+# 추론 모델 접두어 (temperature를 기본값 외로 받지 않는다). 목록 밖 신규 모델은 합성 문장 1건으로 확인한 뒤 넣는다.
+REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+REASONING_EFFORTS = ("minimal", "low", "medium", "high")
+
+
+def is_reasoning_model(model: str) -> bool:
+    return (model or "").lower().startswith(REASONING_MODEL_PREFIXES)
 
 
 @dataclass
@@ -42,7 +51,8 @@ def _parse_json_text(text: str) -> Any:
 
 
 class OpenAIAPIBackend:
-    """OpenAI Chat Completions + `response_format: json_schema(strict)`, temperature 0. 키 값은 로그·예외에 넣지 않는다."""
+    """OpenAI Chat Completions + `response_format: json_schema(strict)`. 일반 모델은 temperature 0, 추론 모델은
+    temperature 없이 `reasoning_effort`(있으면). 키 값은 로그·예외에 넣지 않는다."""
 
     name = "openai_api"
     URL = "https://api.openai.com/v1/chat/completions"
@@ -62,14 +72,20 @@ class OpenAIAPIBackend:
         import requests  # 지연 import
 
         sess = self._session or requests
-        body = {
+        body: dict[str, Any] = {
             "model": model,
-            "temperature": 0,
             "messages": [{"role": "user", "content": prompt}],
             "response_format": {"type": "json_schema",
                                 "json_schema": {"name": re.sub(r"[^A-Za-z0-9_-]", "_", name)[:64] or "output",
                                                 "schema": json_schema, "strict": True}},
         }
+        if is_reasoning_model(model):
+            if reasoning_effort:
+                body["reasoning_effort"] = reasoning_effort
+        else:
+            if reasoning_effort:
+                raise LLMBackendError(f"openai_api: 일반 모델({model})에는 reasoning_effort를 줄 수 없다")
+            body["temperature"] = 0
         t0 = time.monotonic()
         try:
             resp = sess.post(self.url, json=body, timeout=timeout_s,

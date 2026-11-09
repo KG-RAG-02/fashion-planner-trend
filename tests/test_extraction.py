@@ -103,6 +103,218 @@ def test_render_prompt_and_retry_suffix():
     assert "- V2 e29" in suf and "- V2 e30" not in suf and "외 5건" in suf
 
 
+SEASON_CANDIDATES = [
+    {"raw": "2027 S/S", "value": "2027SS", "source": "caption", "count": 3},
+    {"raw": "2027 봄/여름", "value": "2027SS", "source": "body", "count": 1},
+    {"raw": "2011 S/S", "value": "2011SS", "source": "body", "count": 1},
+    {"raw": "2027 리조트", "value": None, "source": "caption", "count": 1},
+]
+
+
+def test_v3_template_front_matter():
+    body, front = load_template("extract-v3")
+    assert front["prompt_version"] == "extract-v3" and front["guideline_version"] == "0.3-draft"
+    assert front["season_candidates"] is True
+    assert "시즌 후보" in body and "과거 컬렉션" in body and "발행일로 추정하지 않는다" in body
+    _, v2 = load_template("extract-v2")
+    assert not v2.get("season_candidates")  # v2는 동결 — 입력도 그대로
+
+
+def test_render_prompt_season_candidates_only_for_v3():
+    art = {**ARTICLE, "season_candidates": SEASON_CANDIDATES}
+    p3 = render_prompt(art, "extract-v3")
+    assert "- 기사 시즌 태그: 2027SS" in p3 and "- 시즌 후보 (" in p3
+    assert "  - 2027SS ← 본문 1회 · 캡션 3회" in p3           # 같은 값은 출처별 횟수를 합친다 (고정 순서: 제목·태그·본문·캡션)
+    assert "  - 2011SS ← 본문 1회" in p3
+    assert "  - 2027 리조트 (표준 시즌으로 정규화 불가) ← 캡션 1회" in p3
+    assert p3.index("2027SS ←") < p3.index("2011SS ←") < p3.index("2027 리조트")  # 많이 나온 값 먼저, 같으면 문자열 순
+    assert render_prompt(art, "extract-v3") == p3                                  # 같은 입력 → 같은 문자열(캐시 키)
+    assert "시즌 후보" not in render_prompt(art, "extract-v2").split("## 8. 기사")[1]  # v2 입력은 바뀌지 않는다
+    none = render_prompt(ARTICLE, "extract-v3")                                    # 후보 필드가 없는 기사
+    assert "- 시즌 후보: 없음" in none
+
+
+def test_v3_has_no_label_trend_names():
+    """v3의 예시는 합성이다(R-11). 로컬 정답 라벨(gitignore)의 Style 이름·별칭이 프롬프트에 없어야 한다. 라벨이 없으면 건너뛴다."""
+    labels = sorted((ROOT / "eval" / "datasets" / "article_extraction" / "labels").glob("*.json"))
+    if not labels:
+        pytest.skip("로컬 라벨 없음")
+    body, _ = load_template("extract-v3")
+    for p in labels:
+        for s in json.loads(p.read_text(encoding="utf-8"))["extraction"]["styles"]:
+            for name in [s["name"], *(s.get("aliases") or [])]:
+                assert name not in body, f"v3 프롬프트에 라벨 {p.stem}의 트렌드명이 들어 있다"
+
+
+# ---------- N3: 이름 충실성 탐지 (경고만) ----------
+def test_n3_name_not_in_article_reasons():
+    from trend_agent.ingestion.extraction.validate import name_not_in_article
+    text = squash("올봄 유행할 ‘테스트코어’(Test Core) 이번 시즌 테스트코어가 떠오르고 있습니다. 발레 룩도 보인다")
+    assert name_not_in_article("테스트코어", text) is None
+    assert name_not_in_article("테스트 코어", text) is None                      # 공백은 무시
+    assert name_not_in_article("발레 룩", text) is None                          # 기사에 '룩'까지 있으면 정상
+    assert "끝 일반어 '트렌드'" in name_not_in_article("테스트코어 트렌드", text)
+    assert "괄호 부분" in name_not_in_article("테스트코어(TC)", text)
+    assert "지어낸" in name_not_in_article("전혀 없는 이름", text)
+
+
+def test_n3_is_warning_not_error():
+    ext, rep = _validated(_llm_doc(name="테스트코어 트렌드"))
+    assert rep.passed                                         # 오류가 아니다 (통과 여부를 바꾸지 않는다)
+    assert rep.counts.get("N3") == 1 and any(w.startswith("N3 Style[테스트코어 트렌드]") for w in rep.warnings)
+    assert ext.styles[0].name == "테스트코어 트렌드"            # 값은 바꾸지 않는다
+    _, ok = _validated(_llm_doc())
+    assert "N3" not in ok.counts
+
+
+# ---------- 후처리 P2: 이름 끝 '트렌드' 제거 (docs/pipeline.md §6.7 표와 1:1) ----------
+def _name_article(*texts):
+    a = copy.deepcopy(ARTICLE)
+    a["title"] = "합성 기사"
+    a["blocks"] = [{"type": "paragraph", "idx": i, "text": t} for i, t in enumerate(texts)]
+    return a
+
+
+def _names_doc(*names):
+    return {"styles": [{"name": n, "definition": "d"} for n in names]}
+
+
+@pytest.mark.parametrize("name,texts,expected,code", [
+    ("와인색 트렌드", ["올해는 와인색이 돌아온다."], "와인색", "P2"),                   # 표 1행: 고침
+    ("와인색 트렌드", ["와인색 트렌드가 돌아온다. 와인색 코트."], "와인색 트렌드", None),  # ① 기사에 그대로 있음
+    ("소프트 아카이브 룩", ["소프트 아카이브가 뜬다."], "소프트 아카이브 룩", None),       # ② '룩'은 허용 목록 밖
+    ("와인색 코트 트렌드", ["와인색이 돌아온다."], "와인색 코트 트렌드", None),           # ④ 뗀 이름이 기사에 없음
+    ("룩 트렌드", ["이번 룩이 좋다."], "룩 트렌드", None),                               # ③ 1글자
+    ("와인색 Trend", ["와인색이 돌아온다."], "와인색", "P2"),                             # 영문 대소문자 무시
+    ("와인색 트렌드.", ["와인색이 돌아온다."], "와인색", "P2"),                           # 끝 구두점 정리
+    ("와 인 색 트렌드", ["와인색이 돌아온다."], "와 인 색", "P2"),                        # 공백 무시 비교, 표기는 유지
+])
+def test_fix_style_names_rule_table(name, texts, expected, code):
+    from trend_agent.ingestion.extraction.postprocess import fix_style_names
+    doc = _names_doc(name)
+    notes = fix_style_names(doc, _name_article(*texts))
+    assert doc["styles"][0]["name"] == expected
+    if code:
+        assert len(notes) == 1 and notes[0].startswith(f"P2 Style[{name}]: 이름 끝") and f"→ '{expected}'" in notes[0]
+    else:
+        assert notes == []
+
+
+def test_fix_style_names_collision_and_untouched_fields():
+    from trend_agent.ingestion.extraction.postprocess import fix_style_names
+    art = _name_article("와인색이 돌아온다.")
+    doc = _names_doc("와인색", "와인색 트렌드")                          # ⑤ 떼면 같은 기사의 다른 Style과 같아짐
+    notes = fix_style_names(doc, art)
+    assert [s["name"] for s in doc["styles"]] == ["와인색", "와인색 트렌드"]
+    assert len(notes) == 1 and notes[0].startswith("N3 Style[와인색 트렌드]")
+    doc = {"styles": [{"name": "와인색 트렌드", "definition": "와인색 트렌드는 ~", "aliases": [],
+                       "evidence": [{"block_idx": 0, "quote": "와인색이 돌아온다"}]}]}
+    fix_style_names(doc, art)
+    st = doc["styles"][0]
+    assert st["name"] == "와인색" and st["definition"] == "와인색 트렌드는 ~" and st["aliases"] == []
+    assert fix_style_names(doc, art) == []                               # 두 번 적용해도 같다
+
+
+def test_name_fix_off_by_default_and_input_unchanged():
+    doc = _llm_doc(name="테스트코어 트렌드")
+    plain, _ = postprocess(doc, ARTICLE)
+    assert plain["styles"][0]["name"] == "테스트코어 트렌드"
+    notes: list[str] = []
+    fixed, _ = postprocess(doc, ARTICLE, name_fix=True, notes=notes)
+    assert fixed["styles"][0]["name"] == "테스트코어" and notes[0].startswith("P2 ")
+    assert doc["styles"][0]["name"] == "테스트코어 트렌드"            # 원본 dict는 바꾸지 않는다
+
+
+def test_extractor_name_fix_counts_p2_and_clears_n3(monkeypatch, tmp_path):
+    monkeypatch.setattr(client, "load_env", lambda: {})
+    monkeypatch.setenv("LLM_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("LLM_CALL_LOG", str(tmp_path / "calls.jsonl"))
+
+    class _Fixed:
+        def run(self, prompt, schema, **kw):
+            return BackendReply(data=_llm_doc(name="테스트코어 트렌드"), raw_text="{}", latency_s=0.1, thread_id="t")
+
+    client.register_backend("openai_api", _Fixed())
+    try:
+        off = extractor.extract_article_outcome(ARTICLE, model="m", prompt_version="extract-v1", use_cache=False)
+        on = extractor.extract_article_outcome(ARTICLE, model="m", prompt_version="extract-v1", use_cache=False,
+                                               dedupe=True, name_fix=True)
+    finally:
+        client.register_backend("openai_api", None)
+    assert off.counts.get("N3") == 1 and "P2" not in off.counts                 # 꺼짐: 탐지만
+    assert on.counts.get("P2") == 1 and "N3" not in on.counts                   # 켬: 고치고 N3는 사라짐
+    assert on.extraction.styles[0].name == "테스트코어"
+    assert on.postprocess == {"alias_map": True, "length_area": False, "dedupe": True, "name_fix": True}
+
+
+# ---------- 후처리: 중복 합치기 (dedupe) ----------
+def _dup_doc():
+    return _llm_doc(
+        focus_attributes=[
+            {"attribute": "color", "level": "supporting", "evidence": [{"block_idx": 1, "quote": "화려한 컬러"}]},
+            {"attribute": "category", "level": "supporting", "evidence": [{"block_idx": 1, "quote": "테스트코어가 떠오르고"}]},
+            {"attribute": "color", "level": "core", "evidence": [{"block_idx": 1, "quote": "화려한 컬러"},
+                                                                 {"block_idx": 1, "quote": "화려한 컬러가 핵심"}]},
+        ],
+        seasons=[{"year": 2027, "season": "SS"}, {"year": 2027, "season": "SS"}])
+
+
+def test_merge_duplicates_focus_and_seasons():
+    from trend_agent.ingestion.extraction.postprocess import merge_duplicates
+    doc = _dup_doc()
+    notes = merge_duplicates(doc)
+    st = doc["styles"][0]
+    assert [f["attribute"] for f in st["focus_attributes"]] == ["color", "category"]      # 처음 나온 자리 유지
+    color = st["focus_attributes"][0]
+    assert color["level"] == "core"                                                         # core 우선
+    assert [e["quote"] for e in color["evidence"]] == ["화려한 컬러", "화려한 컬러가 핵심"]  # 합집합, 중복 제거
+    assert st["seasons"] == [{"year": 2027, "season": "SS"}]
+    assert len(notes) == 2 and all(n.startswith("P1 Style[테스트코어]") for n in notes)
+    assert merge_duplicates(doc) == []                                                      # 두 번 적용해도 같다
+
+
+def test_dedupe_is_off_by_default_and_fixes_v1_when_on():
+    doc = _dup_doc()
+    plain, _ = postprocess(doc, ARTICLE)
+    with pytest.raises(Exception):
+        ArticleExtraction.model_validate(plain)          # 꺼져 있으면 V1(pydantic) 그대로
+    notes: list[str] = []
+    fixed, _ = postprocess(doc, ARTICLE, dedupe=True, notes=notes)
+    ext = ArticleExtraction.model_validate(fixed)
+    assert len(ext.styles[0].focus_attributes) == 2 and len(notes) == 2
+    assert len(doc["styles"][0]["focus_attributes"]) == 3  # 원본 dict는 바꾸지 않는다
+
+
+def test_dedupe_leaves_too_many_core_as_error():
+    from trend_agent.ingestion.extraction.postprocess import merge_duplicates
+    four = [{"attribute": a, "level": "core", "evidence": [{"block_idx": 1, "quote": "화려한 컬러"}]}
+            for a in ("color", "category", "material", "pattern")]
+    doc = _llm_doc(focus_attributes=four)
+    assert merge_duplicates(doc) == []
+    with pytest.raises(Exception):
+        ArticleExtraction.model_validate(postprocess(doc, ARTICLE, dedupe=True)[0])
+
+
+def test_extractor_dedupe_records_p1_warning(monkeypatch, tmp_path):
+    monkeypatch.setattr(client, "load_env", lambda: {})
+    monkeypatch.setenv("LLM_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("LLM_CALL_LOG", str(tmp_path / "calls.jsonl"))
+
+    class _Fixed:
+        def run(self, prompt, schema, **kw):
+            return BackendReply(data=_dup_doc(), raw_text="{}", latency_s=0.1, thread_id="t")
+
+    client.register_backend("openai_api", _Fixed())
+    try:
+        off = extractor.extract_article_outcome(ARTICLE, model="m", prompt_version="extract-v1", use_cache=False)
+        on = extractor.extract_article_outcome(ARTICLE, model="m", prompt_version="extract-v1", use_cache=False, dedupe=True)
+    finally:
+        client.register_backend("openai_api", None)
+    assert not off.passed and off.counts.get("V1")
+    assert on.passed and on.counts.get("P1") == 2 and on.postprocess["dedupe"] is True
+    assert any(w.startswith("P1 ") for w in on.warnings)
+
+
 # ---------- LLM 스키마 ----------
 def test_extraction_schema_variants():
     schema, dropped, sha = extraction_schema()
@@ -246,7 +458,7 @@ def test_retry_once_then_pass(fake_llm):
     meta = doc["label_meta"]
     assert meta["status"] == "auto" and meta["labeler"] == "llm:openai_api/m-1" and meta["published"] == "2026-10-21"
     assert meta["prompt_version"] == "extract-v1" and meta["guideline_version"] == "0.3-draft"
-    assert meta["postprocess"] == {"alias_map": True, "length_area": False}
+    assert meta["postprocess"] == {"alias_map": True, "length_area": False, "dedupe": False, "name_fix": False}
     assert meta["validation"]["passed"] is True and meta["validation"]["attempts"] == 2
     assert meta["llm"]["thread_ids"] == ["th-1", "th-2"] and meta["llm"]["latency_s"] == 2.5
     ArticleExtraction.model_validate(doc["extraction"])
