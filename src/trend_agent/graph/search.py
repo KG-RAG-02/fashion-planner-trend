@@ -5,10 +5,9 @@
 - Product 후보: **상분류가 같고** 하분류·핏·공유 속성 노드(색·소재·패턴·디테일) 중 하나가 같은 Product를 그래프에서 모으고,
   점수는 `retrieval/scoring.py`가 계산한다 (DB 없이도 같은 점수를 낼 수 있다).
 
-v1.1: 후보 탐색은 **속성 노드에서 출발**한다(Item 노드가 없는 가상 Item도 같은 경로 — Resolver Tier2·4).
+v1.1: 후보 탐색은 **속성 노드에서 출발**한다.
 사용 가능 값(approx 제외)마다 `(:Color {id})<-[:HAS_COLOR]-(p)`를 찾으므로 v1.0의 Item 출발 쿼리와 같은 집합이다.
 근거 id는 안정 규칙 `evidence_id()`, 이름 질의의 실패 사유(이름 없음·시즌 불일치·시즌 미확인)는 서로 다른 문장으로 남긴다.
-조립 메서드(`styles`·`style_items`·`rank_item`·`evidence_for`·`trend_style`·`trend_item`)는 Resolver가 함께 쓴다.
 """
 from __future__ import annotations
 
@@ -244,7 +243,7 @@ class TrendSearcher:
         return evidence, ev_by_node
 
     @staticmethod
-    def trend_style(s: dict[str, Any], evs: list[dict[str, Any]], season_status: Optional[str] = None) -> TrendStyle:
+    def trend_style(s: dict[str, Any], evs: list[dict[str, Any]]) -> TrendStyle:
         descs = s.get("description", [])
         return TrendStyle(
             id=s["id"], name=s["name"], name_origin=s["name_origin"], seasons=s.get("seasons", []), definition=s["definition"],
@@ -252,7 +251,7 @@ class TrendSearcher:
                          for n, t in enumerate(descs)],
             focus_core=s.get("focus_core", []), focus_supporting=s.get("focus_supporting", []),
             focus_evidence_ids=[e["id"] for e in evs if e["about"] == "focus"],
-            aliases=s.get("aliases", []), article_id=s.get("article_id"), season_status=season_status)
+            aliases=s.get("aliases", []), article_id=s.get("article_id"))
 
     @staticmethod
     def trend_item(item: ItemRecord, ranked: list[ScoredProduct], evidence_ids: list[str],
@@ -362,7 +361,7 @@ class TrendSearcher:
 
         trends: list[Trend] = []
         for s, rows in trends_raw:
-            style = self.trend_style(s, ev_by_node.get(s["id"], []), season_status="match")
+            style = self.trend_style(s, ev_by_node.get(s["id"], []))
             items = [self.trend_item(item, ranked, [e["id"] for e in ev_by_node.get(item.node.id, [])], res)
                      for item, res, ranked in rows]
             trends.append(Trend(style=style, items=items))

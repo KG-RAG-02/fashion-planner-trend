@@ -32,6 +32,18 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from trend_agent.schemas.article_extraction import ArticleExtraction  # noqa: E402
 from trend_agent.schemas.graph_schema import normalize_term  # noqa: E402
+
+# 평가 비교용 느슨한 이름 키: 그래프의 normalize_term(결정 D-11, 엄격)에 더해 끝의 일반어를 1회 지운다.
+# 정답 라벨과 추출 결과의 Style 이름을 맞출 때만 쓰며, 그래프의 이름 일치 판정에는 쓰지 않는다.
+_LOOSE_SUFFIXES = ("fashion", "style", "trend", "look", "스타일", "트렌드", "패션", "코디", "룩")
+
+
+def _norm(text: str) -> str:
+    s = normalize_term(text)
+    for suffix in _LOOSE_SUFFIXES:
+        if s.endswith(suffix) and len(s) - len(suffix) >= 2:
+            return s[: -len(suffix)]
+    return s
 from trend_agent.schemas.vocabulary import BodyLength  # noqa: E402
 import validate_labels as VL  # noqa: E402
 
@@ -64,7 +76,7 @@ _SEP = re.compile(r"[,·/]")
 def style_keys(name: str, aliases=()) -> set[str]:
     """Style 비교 키 = norm(괄호 밖) ∪ norm(괄호 안 항목, ,·/ 분리) ∪ norm(aliases). norm = 계약 v1.1 normalize_term."""
     parts = [_PAREN.sub(" ", name)] + [p for inner in _PAREN.findall(name) for p in _SEP.split(inner)] + list(aliases)
-    return {k for k in (normalize_term(p) for p in parts) if k}
+    return {k for k in (_norm(p) for p in parts) if k}
 
 
 def _bigrams(s: str) -> Counter:
@@ -114,9 +126,9 @@ def match_styles(gold, pred):
     gk = [style_keys(s.name, s.aliases) for s in gold]
     pk = [style_keys(s.name, s.aliases) for s in pred]
     ug, up, pairs = set(range(len(gold))), set(range(len(pred))), []
-    _greedy([(-len(gk[i] & pk[j]), -dice(normalize_term(gold[i].name), normalize_term(pred[j].name)), i, j)
+    _greedy([(-len(gk[i] & pk[j]), -dice(_norm(gold[i].name), _norm(pred[j].name)), i, j)
              for i in ug for j in up if gk[i] & pk[j]], ug, up, "exact", pairs)
-    sim = [(-d, i, j) for i in ug for j in up if (d := dice(normalize_term(gold[i].name), normalize_term(pred[j].name))) >= STYLE_DICE]
+    sim = [(-d, i, j) for i in ug for j in up if (d := dice(_norm(gold[i].name), _norm(pred[j].name))) >= STYLE_DICE]
     _greedy(sim, ug, up, "similar", pairs)
     return pairs, sorted(ug), sorted(up)
 
@@ -198,7 +210,7 @@ def compare_article(gold: ArticleExtraction, pred: ArticleExtraction, c: Counter
     for i, j, kind in pairs:
         g, p = gold.styles[i], pred.styles[j]
         c["Style|" + ("일치" if kind == "exact" else "유사 이름")] += 1
-        ga, pa = {normalize_term(a) for a in g.aliases}, {normalize_term(a) for a in p.aliases}
+        ga, pa = {_norm(a) for a in g.aliases}, {_norm(a) for a in p.aliases}
         c["Style 별칭|일치"] += len(ga & pa)
         c["Style 별칭|누락"] += len(ga - pa)
         c["Style 별칭|오추출"] += len(pa - ga)

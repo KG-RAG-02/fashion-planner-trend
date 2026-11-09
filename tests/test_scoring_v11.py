@@ -200,14 +200,13 @@ def test_item_gender_filter():
 
 def test_weights_v11_sections_default_to_v10_when_absent():
     cfg = WeightsConfig.model_validate({"base_weights": dict(W.base_weights)})
-    assert cfg.flags.season_policy == "strict" and cfg.flags.core_unknown_decay == 0.0
+    assert cfg.flags.core_unknown_decay == 0.0
     assert not cfg.flags.image_first_tiebreak and cfg.flags.snap_id_limit == 0 and not cfg.flags.item_gender_filter
-    assert not cfg.resolver.tier3.enabled and cfg.trend_topk.pool_per_item == 20
     assert ScoringOptions.from_weights(cfg) == ScoringOptions()
 
 
-def test_weights_yaml_v11_values_and_sha():
-    assert W.flags.season_policy == "report"  # G1 R1
-    assert W.tier4.value_weights == {"primary": 1.0, "secondary": 0.5}
-    assert ScoringOptions.from_weights(W, tier4=True).core_unknown_decay == W.tier4.core_unknown_decay
+def test_weights_yaml_flags_are_all_off_and_sha():
+    f = W.flags  # 켜는 것은 사용자 결정 사항이다. 저장소 설정은 v1.0 동작(모두 꺼짐)이다.
+    assert (f.image_first_tiebreak, f.core_unknown_decay, f.snap_id_limit, f.item_gender_filter) == (False, 0.0, 0, False)
+    assert ScoringOptions.from_weights(W) == ScoringOptions()
     assert len(W.sha) == 12 and W.sha == load_weights().sha

@@ -62,22 +62,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="이미 있는 출력도 다시 만든다(캐시된 LLM 응답으로 후처리·검증만, 캐시에 없을 때만 호출)")
     ap.add_argument("--length-area", action="store_true", help="하의·원피스 length_body 롱→맥시 (결정 L-맥시)")
     ap.add_argument("--report-only", action="store_true")
-    ap.add_argument("--term-mentions", type=Path, default=None,
-                    help="추출 대신 트렌드 언급 집계: --in 기사 + --out 폴더의 검증 통과 추출 → 이 경로(JSONL)")
-    ap.add_argument("--inventory", type=Path, default=None, help="T2 키워드 행렬 CSV (--term-mentions와 함께, 선택)")
     ap.add_argument("--emit", action="store_true", help="job_* 이벤트 보내기")
     ap.add_argument("--emit-to", default="T3,T4,L0")
     args = ap.parse_args(argv)
 
-    if args.out.name != args.prompt_version and not (args.report_only or args.term_mentions):
+    if args.out.name != args.prompt_version and not args.report_only:
         print(f"경고: --out 폴더 이름({args.out.name})이 prompt_version({args.prompt_version})과 다르다", file=sys.stderr)
-    if args.term_mentions:
-        from trend_agent.ingestion.extraction.terms import main as terms_main
-
-        targs = ["--pool", str(args.input), "--extractions", str(args.out), "--out", str(args.term_mentions)]
-        if args.inventory:
-            targs += ["--inventory", str(args.inventory)]
-        return terms_main(targs)
     if args.report_only:
         path = write_report(args.out, prompt_version=args.prompt_version,
                             review_queue=args.review_queue or args.out.parent / "review_queue.jsonl")

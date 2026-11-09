@@ -1,7 +1,6 @@
-"""Local dense encoders and manifest-backed numpy cosine search. No paid APIs."""
+"""로컬 임베딩 인코더 (유료 API 없음). `embed_texts()`가 공개 진입점이다. 모델 캐시는 Hugging Face 기본 위치(`HF_HOME`)를 쓴다."""
 from __future__ import annotations
 
-import json
 import logging
 import os
 import time
@@ -18,39 +17,10 @@ SPECS = {DEFAULT_MODEL: {"dim": 1024, "max_length": 8192}, FALLBACK_MODEL: {"dim
 LOGGER = logging.getLogger(__name__)
 
 
-def shared_dir() -> Path:
-    configured = os.environ.get("SHARED")
-    if configured:
-        return Path(configured).expanduser().resolve()
-    # Source may live in VOGUE/worktrees/c1 or VOGUE/trend-analysis-agent.
-    for parent in Path(__file__).resolve().parents:
-        if (parent / "_vault/00_Team/PROTOCOL.md").exists():
-            return parent / "_shared"
-    raise RuntimeError("Set SHARED to the VOGUE shared directory")
-
-
-def output_dir() -> Path:
-    value = os.environ.get("VOGUE_EMBEDDINGS_DIR")
-    return Path(value).expanduser().resolve() if value else shared_dir() / "embeddings"
-
-
-def read_manifest() -> dict:
-    path = output_dir() / "manifest.json"
-    manifest = json.loads(path.read_text(encoding="utf-8"))
-    if manifest.get("status") != "ready":
-        raise RuntimeError(f"Embedding manifest is not ready: {path}")
-    if manifest.get("model") not in SPECS:
-        raise ValueError("Manifest model is not an approved local model")
-    if manifest.get("dimension") != SPECS[manifest["model"]]["dim"]:
-        raise ValueError("Manifest dimension does not match model")
-    return manifest
-
-
 class Encoder:
     def __init__(self, model: str, *, revision: str | None = None):
         if model not in SPECS:
             raise ValueError(f"Unsupported local model: {model}")
-        os.environ.setdefault("HF_HOME", str(shared_dir() / "hf_cache"))
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
         import torch
         from huggingface_hub import HfApi, try_to_load_from_cache
@@ -131,65 +101,18 @@ def _query_encoder(model, revision):
 
 
 def embed_texts(texts: list[str], model: str | None = None) -> np.ndarray:
+    """텍스트 목록 → float32 (N, 1024), L2 정규화. 기본 모델은 `BAAI/bge-m3`다(prefix 없음).
+
+    허용 모델: BAAI/bge-m3, (사용자 승인 대체) intfloat/multilingual-e5-large. import만으로는 모델을 읽지 않고 첫 호출에서 읽는다.
+    """
     if not isinstance(texts, list):
         raise TypeError("texts must be list[str]")
-    revision = None
-    if (output_dir() / "manifest.json").exists():
-        manifest = read_manifest()
-        model = model or manifest["model"]
-        if manifest["model"] == model:
-            revision = manifest["model_revision"]
     model = model or DEFAULT_MODEL
     if model not in SPECS:
         raise ValueError(f"Unsupported local model: {model}")
+    import numpy as np
     if not texts:
-        import numpy as np
         return np.empty((0, SPECS[model]["dim"]), dtype=np.float32)
-    import numpy as np
-    encoder = _query_encoder(model, revision)
-    batch_size = max(1, int(os.environ.get("C1_EMBED_BATCH_SIZE", "8")))
+    encoder = _query_encoder(model, None)
+    batch_size = max(1, int(os.environ.get("EMBED_BATCH_SIZE", "8")))
     return np.concatenate([encoder.encode(texts[i:i + batch_size]) for i in range(0, len(texts), batch_size)])
-
-
-@lru_cache(maxsize=4)
-def _load_index(path_str, mtime_ns, size, dim):
-    import numpy as np
-    import pyarrow.parquet as pq
-    table = pq.read_table(path_str, columns=["id", "text_sha", "vector"])
-    ids = np.asarray(table["id"].to_pylist(), dtype=str)
-    vectors = np.asarray(table["vector"].to_pylist(), dtype=np.float32).reshape(len(ids), dim)
-    checked_vectors(vectors, len(ids), dim)
-    if len(set(ids)) != len(ids):
-        raise ValueError("Duplicate ids in embedding parquet")
-    if len(ids):
-        vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
-    return ids, vectors
-
-
-def search(label: str, query_vec, k: int = 10) -> list[tuple[str, float]]:
-    import numpy as np
-    label = label.lower()
-    if label not in ("product", "item", "style", "term"):
-        raise ValueError(f"Unsupported node label: {label}")
-    if isinstance(k, bool) or not isinstance(k, int) or k < 0:
-        raise ValueError("k must be a nonnegative integer")
-    manifest = read_manifest()
-    dim = manifest["dimension"]
-    query = np.asarray(query_vec, dtype=np.float32)
-    if query.shape == (1, dim):
-        query = query[0]
-    if query.shape != (dim,) or not np.isfinite(query).all() or np.linalg.norm(query) <= 0:
-        raise ValueError(f"Query requires finite nonzero shape ({dim},)")
-    filename = manifest["outputs"][label]["path"]
-    path = (output_dir() / filename).resolve()
-    if not path.is_relative_to(output_dir().resolve()):
-        raise ValueError("Index path escapes embeddings directory")
-    stat = path.stat()
-    ids, vectors = _load_index(str(path), stat.st_mtime_ns, stat.st_size, dim)
-    if len(ids) != manifest["outputs"][label]["rows"]:
-        raise ValueError("Parquet count differs from manifest")
-    if not k or not len(ids):
-        return []
-    scores = vectors @ (query / np.linalg.norm(query))
-    order = np.lexsort((ids, -scores))[:min(k, len(ids))]
-    return [(str(ids[i]), float(np.clip(scores[i], -1, 1))) for i in order]

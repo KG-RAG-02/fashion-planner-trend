@@ -51,7 +51,7 @@ def synthetic_label(article_id: str = "900001", status: str = "silver", aliases:
     return {
         "label_meta": {"article_id": article_id, "title": "합성 기사", "url": f"https://example.invalid/{article_id}",
                        "published": "2026-10-01", "status": status,
-                       **({"labeler": "llm:codex_cli/test-model", "prompt_version": "extract-test", "extracted_at": "2026-11-08T21:00:00+09:00"}
+                       **({"labeler": "llm:openai_api/test-model", "prompt_version": "extract-test", "extracted_at": "2026-11-08T21:00:00+09:00"}
                           if status == "auto" else {})},
         "extraction": {"article_id": article_id, "styles": [{
             "name": "테스트 럭셔리", "name_origin": "article", "aliases": list(aliases),

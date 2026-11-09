@@ -3,9 +3,8 @@
 Neo4j 속성은 원시 값과 그 배열만 가질 수 있다. 이 모듈의 *Node 모델은 평탄한 속성만 갖고,
 탐색 경로로 쓰는 값(색·소재·패턴·디테일·상분류)은 *Record의 관계 목록에 둔다.
 
-v1.1: Product 이미지·정제 필드, Style `aliases`·`name_norm`, Term 계층(`TermNode`·`ALIAS_OF`·`MAPS_TO`),
-용어 정규화 `normalize_term()`(Style·Term·질의 공통, 코드 1곳). 추가 필드는 모두 Optional/기본값이라
-v1.0 데이터는 그대로 유효하다.
+v1.1: Product 이미지·정제 필드, Style `aliases`·`name_norm`, 이름 정규화 `normalize_term()`(Style 이름 일치 비교 키,
+코드 1곳). 추가 필드는 모두 Optional/기본값이라 v1.0 데이터는 그대로 유효하다.
 """
 from __future__ import annotations
 
@@ -15,7 +14,7 @@ from collections import Counter
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from .article_extraction import ExtractedItem, ExtractedStyle
 from .vocabulary import (
@@ -37,30 +36,18 @@ SCORED_ATTRIBUTES = ("color", "material", "pattern", "detail", "fit")
 # ---------- v1.1 공통 어휘 ----------
 ImageScope = Literal["catalog", "full_snap", "full_set"]  # 상품 컷 / 착장 원본 1장(Q4, 크롭 없음) / 세트 부모 이미지 공유
 ImageStatus = Literal["ok", "broken", "unchecked"]        # 02는 스트리밍 GET, 03은 원본 디코드로만 정한다(HEAD 금지)
-TermKind = Literal["alias", "translation", "trend_word"]
-TermOrigin = Literal["label", "extraction", "term_mentions", "manual", "llm"]
-ValueLevel = Literal["primary", "secondary"]
 
-# 용어 정규화 (graph_schema.md §1.1). 바꾸면 Term id·Style name_norm·C1 Term 벡터 id가 모두 바뀌므로 계약 변경이다.
+# 이름 정규화 (graph_schema.md §1.1, 결정 D-11). Style 이름이 "온전히 같다"는 것은 이 키가 같다는 뜻이다.
+# 바꾸면 Style name_norm이 모두 바뀌므로 계약 변경이다.
 _NORM_DROP = re.compile(r"[\s\-_·•'\"‘’“”`.,()\[\]{}:;/!?]+")
-_NORM_SUFFIXES = ("fashion", "style", "trend", "look", "스타일", "트렌드", "패션", "코디", "룩")  # 긴 것부터, 1회만
 
 
 def normalize_term(text: str) -> str:
-    """트렌드어·Style명·별칭의 비교 키: NFKC → 소문자 → 공백·구두점 제거 → 끝의 일반어 1회 제거(남는 길이 ≥2일 때).
+    """Style명·별칭의 비교 키: NFKC → 소문자 → 공백·괄호·구두점 제거. 끝의 일반어(룩·스타일 등)는 지우지 않는다.
 
-    예: "‘절제된 맥시멀리즘’" → "절제된맥시멀리즘", "발레코어 룩" → "발레코어", "Quiet Luxury Style" → "quietluxury".
+    예: "‘절제된 맥시멀리즘’" → "절제된맥시멀리즘", "Quiet Luxury" → "quietluxury", "발레코어 룩" → "발레코어룩".
     """
-    s = _NORM_DROP.sub("", unicodedata.normalize("NFKC", text or "").lower())
-    for suffix in _NORM_SUFFIXES:
-        if s.endswith(suffix) and len(s) - len(suffix) >= 2:
-            return s[: -len(suffix)]
-    return s
-
-
-def term_id(norm: str) -> str:
-    """Term 노드 id = "term:<norm>" (C1 Term 벡터 id도 같다)."""
-    return f"term:{norm}"
+    return _NORM_DROP.sub("", unicodedata.normalize("NFKC", text or "").lower())
 
 
 # ---------- 관계 ----------
@@ -105,7 +92,7 @@ class StyleNode(BaseModel):
     concentration_pattern: Optional[float] = None
     concentration_detail: Optional[float] = None
     concentration_fit: Optional[float] = None
-    # v1.1 — 이름 일치(Tier1)와 Term 재구성용. name_norm·aliases_norm은 코드가 normalize_term()으로 계산한다.
+    # v1.1 — Style 이름 일치(D-11)용. name_norm·aliases_norm은 코드가 normalize_term()으로 계산한다.
     aliases: list[str] = Field(default_factory=list)  # 기사 안의 다른 이름(원문 그대로). 원천: 추출 styles[].aliases
     article_id: Optional[str] = None
     name_norm: Optional[str] = None
@@ -179,53 +166,6 @@ class ProductNode(BaseModel):
         if self.image_status is not None:
             return self.image_status == "ok"
         return bool(self.image_url or self.image_ref)
-
-
-class TermNode(BaseModel):
-    """(:Term) — 트렌드어·별칭·번역. 원본은 $SHARED/terms/term_map.jsonl(T3)이고 적재할 때마다 다시 만든다."""
-
-    id: str                                            # term_id(norm)
-    text: str                                          # 대표 표기
-    norm: str                                          # normalize_term(text)
-    kind: TermKind
-    origin: TermOrigin
-    article_count: Optional[int] = None                # 언급 기사 수 (표시용, T1 term_mentions)
-    profile_json: Optional[str] = None                 # Tier4 프로필(JSON 문자열 — Neo4j는 중첩 속성 불가)
-    profile_backend: Optional[str] = None
-    profile_model: Optional[str] = None
-    profile_prompt_version: Optional[str] = None
-
-    @model_validator(mode="after")
-    def _consistent_keys(self) -> "TermNode":
-        if self.norm != normalize_term(self.text):
-            raise ValueError(f"norm {self.norm!r} != normalize_term(text) {normalize_term(self.text)!r}")
-        if self.id != term_id(self.norm):
-            raise ValueError(f"id must be {term_id(self.norm)!r}")
-        return self
-
-
-class AliasOfEdge(BaseModel):
-    """(Term)-[:ALIAS_OF {origin, article_id}]->(Style). Style을 병합하지 않고 잇는다."""
-
-    origin: TermOrigin
-    article_id: Optional[str] = None
-
-
-class MapsToEdge(BaseModel):
-    """(Term)-[:MAPS_TO {...}]->(Color|Material|Pattern|Detail|Category). Tier4 프로필 중 노드형 속성만.
-
-    `value`는 대상 노드 id (Detail은 "<type>:<name>"). fit·하분류는 노드가 아니므로 TermNode.profile_json에 둔다.
-    수치(가중치)는 저장하지 않는다 — 등급만 두고 수치화는 코드(weights.yaml)가 한다.
-    """
-
-    attribute: Literal["color", "material", "pattern", "detail", "category"]
-    value: str
-    level: Optional[FocusLevel] = None                 # core | supporting
-    value_level: Optional[ValueLevel] = None           # primary | secondary
-    item_idx: Optional[int] = None
-    origin: TermOrigin = "llm"
-    model: Optional[str] = None
-    prompt_version: Optional[str] = None
 
 
 # ---------- 노드 + 관계 묶음 ----------

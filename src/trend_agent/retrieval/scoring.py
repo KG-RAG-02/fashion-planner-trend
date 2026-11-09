@@ -63,12 +63,11 @@ class ScoringOptions:
     item_gender_filter: bool = False
 
     @classmethod
-    def from_weights(cls, weights: WeightsConfig, *, tier4: bool = False,
+    def from_weights(cls, weights: WeightsConfig, *,
                      value_weights: Optional[ValueWeights] = None) -> "ScoringOptions":
-        """weights.yaml `flags`로 만든다. Tier4 모드에서는 γ = `tier4.core_unknown_decay`."""
+        """weights.yaml `flags`로 만든다."""
         f = weights.flags
-        gamma = weights.tier4.core_unknown_decay if tier4 else f.core_unknown_decay
-        return cls(value_weights=value_weights, core_unknown_decay=gamma, image_first_tiebreak=f.image_first_tiebreak,
+        return cls(value_weights=value_weights, core_unknown_decay=f.core_unknown_decay, image_first_tiebreak=f.image_first_tiebreak,
                    snap_id_limit=f.snap_id_limit, item_gender_filter=f.item_gender_filter)
 
 

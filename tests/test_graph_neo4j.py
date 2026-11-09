@@ -1,4 +1,4 @@
-"""Neo4j 테스트 인스턴스(7688)에서: 적재 v1.1 · Term 재구성 · 속성 노드 출발 후보 · 사유 구분 · 안정 evidence_id.
+"""Neo4j 테스트 인스턴스(7688)에서: 적재 v1.1 · 속성 노드 출발 후보 · 사유 구분 · 안정 evidence_id.
 
 합성 데이터만 쓴다. **그래프를 비운다** — conftest가 7687을 거부한다.
 """
@@ -10,31 +10,19 @@ import pytest
 from conftest import synthetic_crawl, synthetic_label, synthetic_products
 from trend_agent.graph import loader
 from trend_agent.graph.search import ITEMS_CYPHER, TrendSearcher, _record
-from trend_agent.graph.terms import rebuild_terms
-from trend_agent.resolver.term_map import TermMapRow
 from trend_agent.schemas import vocabulary as V
 from trend_agent.schemas.graph_schema import ItemNode, ItemRecord
 from trend_agent.schemas.trend_query import Requested, SeasonRequest, TermRef, TrendQuery, TrendTerms
 
 pytestmark = pytest.mark.neo4j
 
-TERMS = [
-    TermMapRow(row="alias", term="Quiet Luxury", kind="translation", origin="manual", article_id="900001", style_norm="테스트럭셔리"),
-    TermMapRow(row="alias", term="없는 별칭", kind="alias", origin="manual", article_id="900001", style_norm="없는트렌드명"),
-    TermMapRow(row="profile", term="드뮤어", kind="trend_word", origin="llm", backend="codex_cli", model="m", prompt_version="tier4.v1",
-               context_sha="abc", profile={"recognized": True, "focus": {"color": "core"},
-                                           "items": [{"category_major": "상의", "level": "core", "colors": [
-                                               {"value": "베이지", "value_level": "primary"}, {"value": "화이트", "value_level": "secondary"}]}]}),
-]
-
-
 def _load(d, tmp):
     loader.ensure_schema(d)
     loader.seed_vocabulary(d)
     seen: set = set()
     loader.load_products(d, synthetic_products(), seen=seen)
-    stats = loader.load_articles(d, tmp / "labels", tmp / "ext", tmp / "crawl.jsonl")
-    return seen, stats, rebuild_terms(d, TERMS)
+    stats = loader.load_articles(d, tmp / "labels", tmp / "ext", tmp / "crawl.jsonl", prefer="labels")
+    return seen, stats
 
 
 @pytest.fixture(scope="module")
@@ -49,8 +37,8 @@ def g(neo4j_test_driver, tmp_path_factory):
     (tmp / "ext" / "900002.json").write_text(json.dumps(
         synthetic_label("900002", status="auto", color_raw="차콜 그레이", aliases=(), seasons=()), ensure_ascii=False))
     (tmp / "crawl.jsonl").write_text("\n".join(json.dumps(synthetic_crawl(a), ensure_ascii=False) for a in ("900001", "900002")))
-    seen, stats, terms = _load(d, tmp)
-    return SimpleNamespace(d=d, tmp=tmp, seen=seen, stats=stats, terms=terms)
+    seen, stats = _load(d, tmp)
+    return SimpleNamespace(d=d, tmp=tmp, seen=seen, stats=stats)
 
 
 def _q(d, cypher, **kw):
@@ -60,7 +48,7 @@ def _q(d, cypher, **kw):
 def test_articles_sources_and_props(g):
     assert g.stats["900001"]["from"] == "label" and g.stats["900002"]["from"] == "extraction"
     arts = {r["id"]: r for r in _q(g.d, "MATCH (a:Article) RETURN a.id AS id, a.source AS source, a.labeler AS labeler")}
-    assert arts["900001"]["source"] == "label" and arts["900002"]["labeler"] == "llm:codex_cli/test-model"
+    assert arts["900001"]["source"] == "label" and arts["900002"]["labeler"] == "llm:openai_api/test-model"
 
 
 def test_item_image_urls_from_crawl_map(g):
@@ -81,19 +69,9 @@ def test_style_v11_props(g):
     assert r == {"n": "테스트럭셔리", "an": ["콰이어트럭셔리"], "aid": "900001"}
 
 
-def test_terms_rebuilt(g):
-    assert g.terms == {"terms": 4, "alias_of": 2, "alias_unresolved": 1, "maps_to": 3, "maps_to_unresolved": 0}
-    links = _q(g.d, "MATCH (t:Term)-[e:ALIAS_OF]->(s:Style) RETURN t.id AS t, s.id AS s, e.origin AS o ORDER BY t")
-    assert links == [{"t": "term:quietluxury", "s": "900001-s0", "o": "manual"},
-                     {"t": "term:콰이어트럭셔리", "s": "900001-s0", "o": "label"}]  # 같은 이름의 900002 Style에는 잇지 않는다
-    maps = _q(g.d, "MATCH (:Term {id: 'term:드뮤어'})-[m:MAPS_TO]->(a) RETURN labels(a)[0] AS l, a.id AS v, m.value_level AS vl ORDER BY v")
-    assert {(m["l"], m["v"], m["vl"]) for m in maps} == {("Category", "상의", None), ("Color", "베이지", "primary"), ("Color", "화이트", "secondary")}
-
-
 def test_fulltext_indexes_list_property(g):
     hits = _q(g.d, "CALL db.index.fulltext.queryNodes('style_names', '콰이어트') YIELD node RETURN node.id AS id")
     assert [h["id"] for h in hits] == ["900001-s0"]
-    assert _q(g.d, "CALL db.index.fulltext.queryNodes('term_texts', 'luxury') YIELD node RETURN node.id AS id") == [{"id": "term:quietluxury"}]
 
 
 def test_reload_is_idempotent(g):

@@ -43,7 +43,7 @@ def test_match_styles_exact_by_alias_then_similar_name_then_unmatched():
     gold = ax(st("뉴 로", aliases=["New Raw"]), st("절제된 맥시멀리즘"), st("바스크 웨이스트")).styles
     pred = ax(st("New Raw 트렌드"), st("절제된 맥시멀리즘 룩"), st("전혀 다른 것")).styles
     pairs, mg, mp = ce.match_styles(gold, pred)
-    assert sorted(pairs) == [(0, 0, "exact"), (1, 1, "exact")]  # '룩'은 normalize_term이 떼어낸다
+    assert sorted(pairs) == [(0, 0, "exact"), (1, 1, "exact")]  # 비교 도구는 끝의 일반어('트렌드'·'룩')를 무시하는 느슨한 키를 쓴다
     assert mg == [2] and mp == [2]
     pairs, _, _ = ce.match_styles(ax(st("시럽코어 컬러")).styles, ax(st("시럽코어 칼라")).styles)
     assert pairs == [(0, 0, "similar")]

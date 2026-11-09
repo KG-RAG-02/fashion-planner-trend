@@ -5,14 +5,14 @@
 - `category_major`가 없는 Item·Product(지원 밖)는 적재하지 않는다 (spec §8.2).
 
 v1.1 (계약 G1):
-- 기사 입력 = 라벨(`label_meta.status` silver|gold) **또는** T1 자동 추출 파일(같은 형식, status `auto`). 같은 기사는
-  라벨 우선(`prefer="labels"`). Article에 `source`(label|extraction)·`labeler`·`prompt_version`·`extracted_at`.
+- 기사 입력 = 자동 추출 파일(`label_meta.status` = `auto`). 정답 라벨(silver|gold, 같은 형식)은 `label_dir`를 **명시적으로**
+  줄 때만 적재한다(스키마 확인·평가용이며 실제 GraphRAG 데이터가 아니다, 결정 D-6). 같은 기사가 둘 다 있으면
+  `prefer`(기본 `extractions`)를 쓴다. Article에 `source`(label|extraction)·`labeler`·`prompt_version`·`extracted_at`.
 - Item `image_urls`: 크롤 기사 `images[]`의 `{image_idx: url}` 맵으로 채운다(D4: `ImageLink.image_idx` = 크롤러 순번).
   맵에 없는 idx는 버리고 `image_links_unmapped`로 센다.
 - 자동 추출(auto)은 색·소재·패턴·디테일 raw를 AliasMap으로 다시 판정해 근사(approx) 매핑이면 관계 `approx=true`
   (라벨은 라벨러 값 유지 → 기준선 불변). 근사 값은 1차 점수·후보에 쓰지 않는다.
-- Term 계층은 적재마다 다시 만든다(`graph/terms.py`). 제약 `term_id`, 범위 인덱스 `style_name_norm`,
-  fulltext `style_names`·`term_texts`·`product_names`(분석기 `cjk`가 있으면 cjk).
+- 범위 인덱스 `style_name_norm`, fulltext `style_names`·`product_names`(분석기 `cjk`가 있으면 cjk).
 """
 from __future__ import annotations
 
@@ -36,17 +36,17 @@ from trend_agent.schemas.graph_schema import (  # noqa: I001
     style_node_from_extraction,
 )
 
-LABELS = ["Style", "Item", "Product", "Brand", "Article", "Category", "Color", "Material", "Pattern", "Detail", "Term"]
+LABELS = ["Style", "Item", "Product", "Brand", "Article", "Category", "Color", "Material", "Pattern", "Detail"]
 CONSTRAINTS = [f"CREATE CONSTRAINT {l.lower()}_id IF NOT EXISTS FOR (n:{l}) REQUIRE n.id IS UNIQUE" for l in LABELS]
 INDEXES = [
     "CREATE INDEX product_minor IF NOT EXISTS FOR (p:Product) ON (p.category_minor)",
     "CREATE INDEX product_fit IF NOT EXISTS FOR (p:Product) ON (p.fit)",
     "CREATE INDEX product_source IF NOT EXISTS FOR (p:Product) ON (p.source)",
     "CREATE INDEX item_article IF NOT EXISTS FOR (i:Item) ON (i.article_id)",
-    "CREATE INDEX style_name_norm IF NOT EXISTS FOR (s:Style) ON (s.name_norm)",  # v1.1 Tier1 정확 일치
+    "CREATE INDEX style_name_norm IF NOT EXISTS FOR (s:Style) ON (s.name_norm)",  # v1.1 Style 이름 일치(D-11)
 ]
-# v1.1 fulltext (후보·제안용 — Tier1 판정은 name_norm 정확 일치)
-FULLTEXT = [("style_names", "Style", ["name", "aliases"]), ("term_texts", "Term", ["text"]), ("product_names", "Product", ["name"])]
+# v1.1 fulltext (후보·제안용 — 이름 일치 판정은 name_norm 정확 일치)
+FULLTEXT = [("style_names", "Style", ["name", "aliases"]), ("product_names", "Product", ["name"])]
 FALLBACK_ANALYZER = "standard-no-stop-words"
 BRAND = "Musinsa"
 _ALIAS: Optional[AliasMap] = None
@@ -319,7 +319,7 @@ def image_map_of(article: Optional[dict[str, Any]]) -> dict[int, str]:
 
 
 def article_sources(label_dir: Optional[Path | str] = None, extraction_dir: Optional[Path | str] = None,
-                    prefer: str = "labels", article_ids: Optional[list[str]] = None) -> dict[str, Path]:
+                    prefer: str = "extractions", article_ids: Optional[list[str]] = None) -> dict[str, Path]:
     """기사 id → 적재할 파일. 같은 기사가 둘 다 있으면 `prefer`(labels|extractions)를 쓴다. 하위 폴더(_review/)는 읽지 않는다."""
     found: dict[str, dict[str, Path]] = {}
     for kind, d in (("labels", label_dir), ("extractions", extraction_dir)):
@@ -336,9 +336,9 @@ def article_sources(label_dir: Optional[Path | str] = None, extraction_dir: Opti
 
 
 def load_articles(driver: Driver, label_dir: Optional[Path | str] = None, extraction_dir: Optional[Path | str] = None,
-                  crawl_path: Optional[Path | str] = None, prefer: str = "labels",
+                  crawl_path: Optional[Path | str] = None, prefer: str = "extractions",
                   article_ids: Optional[list[str]] = None) -> dict[str, dict[str, Any]]:
-    """라벨 + 자동 추출 기사를 적재한다(같은 기사는 prefer 우선). 반환: {article_id: 통계 + source 경로 종류}."""
+    """자동 추출 기사(와 명시적으로 준 라벨)를 적재한다(같은 기사는 prefer 우선). 반환: {article_id: 통계 + source 경로 종류}."""
     crawl = read_crawl(crawl_path)
     out: dict[str, dict[str, Any]] = {}
     for aid, path in article_sources(label_dir, extraction_dir, prefer, article_ids).items():

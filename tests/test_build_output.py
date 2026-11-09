@@ -10,7 +10,19 @@ from trend_agent.ingestion.normalization.output import UnsafeOutput, resolve_out
 from trend_agent.ingestion.normalization.set_split import SetSplitter, apply_split
 
 
+def _symlink_supported(tmp_path) -> bool:
+    """Windows는 관리자 권한이나 개발자 모드가 없으면 symlink를 만들 수 없다 (그 환경에서는 symlink 테스트를 건너뛴다)."""
+    try:
+        (tmp_path / "_probe_target").mkdir()
+        (tmp_path / "_probe_link").symlink_to(tmp_path / "_probe_target")
+    except OSError:
+        return False
+    return True
+
+
 def test_resolve_out_refuses_v1_and_symlinks(tmp_path):
+    if not _symlink_supported(tmp_path):
+        pytest.skip("symlink를 만들 수 없는 환경(Windows 권한)")
     v1 = tmp_path / "data" / "processed" / "v1"
     v1.mkdir(parents=True)
     with pytest.raises(UnsafeOutput):
@@ -26,6 +38,8 @@ def test_resolve_out_refuses_v1_and_symlinks(tmp_path):
 
 
 def test_write_refuses_symlinked_target(tmp_path):
+    if not _symlink_supported(tmp_path):
+        pytest.skip("symlink를 만들 수 없는 환경(Windows 권한)")
     real = tmp_path / "v1.jsonl"
     real.write_text("orig\n")
     (tmp_path / "out").mkdir()
