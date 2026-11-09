@@ -1,6 +1,6 @@
 # 02 세트 분해 검수 덮어쓰기 — 규칙(set_split.py) 판정 뒤에 적용한다. 사람이 채택한 것만 적는다.
 # 근거: C2 2단계 B `$SHARED/preprocess/set_components_review.jsonl`(sha256 161453d6…, 원본 사진 view_image 1차 의견)
-#       + 사용자 채택 2026-11-08(handoffs/T2-L0-set-split-proposal.md §G: §A 14행 분해 · §B 13행 split_candidate 해제).
+#       + 사용자 채택 2026-11-08(제안 문서 §A 14행 분해 · §B 13행 split_candidate 해제).
 # split: product_id → 구성품(표준 하분류·상분류). 구성품 Product는 split_from="review", 이미지는 부모 공유(full_set),
 #        색·소재는 부모 공유, 패턴은 부모 상품명 전체에서(셋업은 같은 원단), 디테일·세이프는 붙이지 않는다.
 #        raw = C2가 적은 상품명 근거 토큰(이름에 없는 구성품은 사진 근거라 토큰이 표지뿐일 수 있다).

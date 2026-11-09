@@ -5,7 +5,7 @@
 - 브랜드·가격·상품 URL이 없다 (브랜드는 출처 기준 Musinsa).
 
 v2 (T2): (e) 패딩 힌트는 상분류가 비었거나 아우터일 때만 · (f) 상품명·feature를 따로 토큰 단위로 찾는다(text_match) ·
-(h) 빈 행은 상분류 없이 남겨 적재에서 빠지고(L0 결정), 원본 필드가 모두 같은 뒤쪽 행은 `dup_of`로 표시만 한다.
+(h) 빈 행은 상분류 없이 남겨 적재에서 빠지고(결정), 원본 필드가 모두 같은 뒤쪽 행은 `dup_of`로 표시만 한다.
 세트 분해는 set_split.py.
 """
 from __future__ import annotations
@@ -88,7 +88,7 @@ def raw_signature(row: dict[str, Any]) -> str:
 
 
 def mark_exact_duplicates(records: list[ProductRecord], rows: list[dict[str, Any]]) -> list[ProductRecord]:
-    """(h) 원본 필드(RAW_FIELDS)가 모두 같은 뒤쪽 행에 `dup_of` = 앞 행 id. 빈 행은 표시하지 않는다(L0 결정: 지우지 않음)."""
+    """(h) 원본 필드(RAW_FIELDS)가 모두 같은 뒤쪽 행에 `dup_of` = 앞 행 id. 빈 행은 표시하지 않는다(결정: 지우지 않음)."""
     first: dict[str, str] = {}
     for rec, row in zip(records, rows):
         if is_empty_row(row):
@@ -133,7 +133,7 @@ class OtpenNormalizer:
         name = _clean(row.get("product_name"))
         feature = _clean(row.get("feature"))
 
-        # (h) 빈 행은 대분류가 있어도 상분류를 주지 않는다 → 그래프 적재 제외(행은 지우지 않는다, L0 결정)
+        # (h) 빈 행은 대분류가 있어도 상분류를 주지 않는다 → 그래프 적재 제외(행은 지우지 않는다, 결정)
         cat = OtpenCategory(raw=sub) if is_empty_row(row) else self.alias.map_otpensource_category(sub, name, row.get("big_category"))
         minor: Optional[str] = cat.category_minor
         approx_fields: list[str] = []

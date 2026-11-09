@@ -142,7 +142,7 @@ class TrendItem(_AttributesOut):
     styling_accessory: Optional[str] = None
     gender: Optional[Gender] = None
     request_match: MatchResult = Field(default_factory=MatchResult)
-    image_urls: list[str] = Field(default_factory=list)  # Vogue 이미지 URL — 결과물에는 링크로만(G0-⑤: 임베드·핫링크·다운로드 금지)
+    image_urls: list[str] = Field(default_factory=list)  # Vogue 이미지 URL — 결과물에는 링크로만(임베드·핫링크·다운로드 금지)
     evidence_ids: list[str] = Field(default_factory=list)
     similar_products: list[ProductMatch] = Field(default_factory=list)
 

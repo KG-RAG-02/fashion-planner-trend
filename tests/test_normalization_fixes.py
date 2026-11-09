@@ -1,4 +1,4 @@
-"""T2 점검·버그 수정 (a)~(i) — 합성 입력. 근거: handoffs/T2-L0,T3-design-memo-g0.md §3.2, 결정 G0-②·#47·(h)."""
+"""Product 정규화 점검·버그 수정 (a)~(i) — 합성 입력."""
 import pytest
 
 from trend_agent.ingestion.normalization.alias_map import AliasMap
@@ -34,7 +34,7 @@ def orow(**kw):
     return base
 
 
-# ---------- (a) 03 노이즈 카테고리: 슬롯 상분류로 채우지 않는다 (G0-②, #47 A+B → null) ----------
+# ---------- (a) 03 노이즈 카테고리: 슬롯 상분류로 채우지 않는다 (사용자 결정: 노이즈 → null) ----------
 @pytest.mark.parametrize("raw", ["타이트", "UNKNOWN", " unknown", "기타", "상", "모자", "", "이너웨어", "트레이닝복", "의류"])
 def test_a_noise_category_is_null_not_slot(snap, raw):
     r = srec(snap, "상의", {"카테고리": raw})
@@ -176,7 +176,7 @@ def test_h_empty_row_kept_but_out_of_graph_scope(otp):
     row = orow(sub_category="", product_name="", image_url="", big_category="상의", season="정보 없음")
     assert is_empty_row(row)
     r = otp.normalize_row(row)
-    assert r.category_major is None and not r.in_graph_scope  # 지우지 않고 적재에서만 빠진다(L0 (h))
+    assert r.category_major is None and not r.in_graph_scope  # 지우지 않고 적재에서만 빠진다((h))
 
 
 def test_h_exact_duplicates_marked_not_removed(otp):

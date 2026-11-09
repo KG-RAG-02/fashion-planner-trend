@@ -81,7 +81,7 @@ def test_reload_is_idempotent(g):
 
 
 def _legacy_candidates(d, item):
-    """v1.0 (develop@3834420) 후보 쿼리 — Item 노드 출발. 새 쿼리와 집합이 같아야 한다."""
+    """v1.0 후보 쿼리 — Item 노드 출발. 새 쿼리와 집합이 같아야 한다."""
     rel = "HAS_COLOR|HAS_MATERIAL|HAS_PATTERN|HAS_DETAIL"
     major = item.category_major.value
     ids = set()

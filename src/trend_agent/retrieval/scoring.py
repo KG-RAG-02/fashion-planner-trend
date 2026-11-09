@@ -160,7 +160,7 @@ def score_product(
 
 
 def gender_compatible(item: ItemRecord, product: ProductRecord) -> bool:
-    """G0-③ 성별 필터: Item이 남/여면 반대 성별 상품만 제외한다. 공용·미상(상품이든 Item이든)은 통과."""
+    """Item 성별 필터: Item이 남/여면 반대 성별 상품만 제외한다. 공용·미상(상품이든 Item이든)은 통과."""
     ig, pg = _s(item.node.gender), _s(getattr(product.node, "gender", None))
     if ig not in ("남", "여") or pg not in ("남", "여"):
         return True

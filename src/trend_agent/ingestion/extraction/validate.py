@@ -9,7 +9,7 @@
 | V5 | Pattern/Detail/Styling 혼동 키워드 · `raw_text` ⊄ 근거 블록 · Style 시즌 없음 | 경고 |
 | V6 | `image_idx` ∈ 크롤러 이미지 범위 (`basis`는 pydantic Literal) | 오류 |
 
-V2·V3는 `scripts/validate_labels.py`의 순수 함수 `check_quotes`·`check_raws`(T4, develop@fd92649)를 그대로 쓴다
+V2·V3는 `scripts/validate_labels.py`의 순수 함수 `check_quotes`·`check_raws`를 그대로 쓴다
 (라벨 검증과 같은 판정). 스크립트를 불러올 수 없는 설치 환경에서만 같은 논리의 내장 구현으로 대신한다.
 추가로 빈 인용(공백뿐)은 V2 오류로 본다(라벨 검증은 통과시킨다).
 """

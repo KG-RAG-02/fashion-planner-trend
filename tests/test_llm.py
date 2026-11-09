@@ -191,6 +191,7 @@ class _Session:
 
 
 def test_openai_backend_request_shape():
+    pytest.importorskip("requests")  # 데모 이미지에는 requests가 없다
     sess = _Session(_Resp(200, {"id": "chatcmpl-1", "usage": {"prompt_tokens": 5},
                                 "choices": [{"message": {"content": '{"color":null,"items":[]}'}, "finish_reason": "stop"}]}))
     r = OpenAIAPIBackend("sk-test", session=sess).run("p", SMALL, name="article extraction", model="gpt-4o-mini",
@@ -203,6 +204,7 @@ def test_openai_backend_request_shape():
 
 
 def test_openai_backend_errors_hide_key():
+    pytest.importorskip("requests")
     with pytest.raises(llm.LLMBackendError, match="LLM_API_KEY"):
         OpenAIAPIBackend(None).run("p", SMALL, name="t", model="m", reasoning_effort=None, timeout_s=1)
     sess = _Session(_Resp(401, {"error": {"message": "Incorrect API key"}}))

@@ -5,7 +5,7 @@
     [4] 소제목: …
     [5] 이미지 (run 2 · two_column): 캡션 "Chanel 2027 S/S RTW" → 브랜드 Chanel · 시즌 2027SS
     [6] 이미지 (run 2 · two_column): 캡션: 사진 출처만
-이미지 픽셀·URL은 보내지 않는다(G0-⑤: 링크만, Q1 범위는 텍스트).
+이미지 픽셀·URL은 보내지 않는다(링크만, 범위는 텍스트).
 """
 from __future__ import annotations
 

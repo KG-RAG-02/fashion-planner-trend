@@ -8,7 +8,7 @@
   otpensource_split_parents.jsonl       분해된 부모 원본 레코드와 구성품 id
   otpensource_split_review.csv          세트·팩 표지가 있는 모든 행의 판정(사람 검토용)
   BUILD_INFO.json                       입력 sha256·리비전·커밋
-  --review-candidates PATH              세트 후보 목록(product_id, name, rule_result …) — C2 2단계 B 입력(USER 요청 #137)
+  --review-candidates PATH              세트 후보 목록(product_id, name, rule_result …) — 세트 검토 입력
 읽기 전용으로 지정된 폴더(`output.protected_dirs`)와 심볼릭 링크 대상에는 쓰지 않는다.
 """
 from __future__ import annotations

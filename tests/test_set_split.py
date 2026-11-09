@@ -1,4 +1,4 @@
-"""02 다중 의류 분해 — 상품명 규칙. 근거: handoffs/T2-L0,T3-design-memo-g0.md §3.1, 계약 v1.1 ProductNode."""
+"""02 다중 의류 분해 — 상품명 규칙. 계약 v1.1 ProductNode."""
 import pytest
 
 from trend_agent.ingestion.normalization.otpensource import OtpenNormalizer

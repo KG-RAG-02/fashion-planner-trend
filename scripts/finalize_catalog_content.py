@@ -169,7 +169,7 @@ def main():
     report += ["", "## 사용·한계", "",
         "`product_id`로 left join. URL 단위 결과가 상품별 반복된다. `codex_review=false`면 직접 본 이미지가 아니다. image_content는 최종 모델 판정이고 codex_label은 별도 검수값이며 덮어쓰지 않았다. `source=vision`, `approx=true`. local_path는 로컬 sidecar 전용이고 Product·결과·커밋에 포함하지 않는다.", "",
         "완성 의류가 보이면 로고·부분 확대가 함께 있어도 garment. 직물/단추/라벨만 확대되고 의류 형태가 식별되지 않으면 non_garment. 경계 사례는 unclear. CLIP은 프롬프트·센터링·텍스트의 영향을 받으며 디테일 사진과 전체 의류를 혼동할 수 있다. 모델 입력은 메모리의 224×224 전체 이미지 텐서(센터 크롭 꺼짐)이며 원본 저장 바이트에 리사이즈·크롭·재인코딩을 하지 않았다. 대표 사진 한 장만 평가해 상품 자체의 의류 여부나 세트 포함 범위를 확정하지 않는다.", "",
-        "L0 채택 전 계약은 불변이다. 채택하더라도 non_garment는 이미지 표시 우선순위만 낮추고 상품 후보·점수·필터에서 상품을 제외하지 않는다. 원본·캐시·분석은 내부 연구용으로 git에 넣지 않는다.", "",
+        "사용자 채택 전 계약은 불변이다. 채택하더라도 non_garment는 이미지 표시 우선순위만 낮추고 상품 후보·점수·필터에서 상품을 제외하지 않는다. 원본·캐시·분석은 내부 연구용으로 git에 넣지 않는다.", "",
         f"검증 해시: index `{stats['index_sha256']}`; content `{stats['content_sha256']}`. 상세 통계=`preprocess/content_validation_stats.json`."]
     (image_dir / "content_report.md").write_text("\n".join(report) + "\n")
     print(json.dumps(stats, ensure_ascii=False, indent=2))

@@ -1,6 +1,6 @@
 """점수 v1.1 (값 가중 재현율 · γ · 이미지 동점 · snap 제한 · 성별 필터). 기본값은 v1.0과 같아야 한다.
 
-회귀 기준: v1.0 `score_product`(develop@3834420)의 식을 아래 `_score_v10`에 그대로 얼려 두고, 무작위 합성 쌍에서
+회귀 기준: v1.0 `score_product`의 식을 아래 `_score_v10`에 그대로 얼려 두고, 무작위 합성 쌍에서
 점수·비교 수·breakdown·match가 **완전히 같음**(값 가중치 없음 / 모두 1.0)을 확인한다.
 """
 import random
@@ -194,7 +194,7 @@ def test_item_gender_filter():
     stats: dict = {}
     got = rank_products(_it("여"), ps, W, options=ScoringOptions(item_gender_filter=True), stats=stats)
     assert [s.product.node.id for s in got] == ["f", "n", "u"] and stats["gender_excluded"] == 1
-    assert len(rank_products(_it("여"), ps, W)) == 4  # 기본 꺼짐 (G0-③)
+    assert len(rank_products(_it("여"), ps, W)) == 4  # 기본 꺼짐
     assert gender_compatible(_it("공용"), ps[0]) and gender_compatible(_it(None), ps[0])
 
 

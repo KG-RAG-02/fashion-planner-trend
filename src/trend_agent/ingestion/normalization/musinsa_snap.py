@@ -5,7 +5,7 @@
 - 색은 `서브컬러`뿐이라 `colors`는 비고 `sub_colors`만 채운다. 상품명·URL·브랜드·가격이 없다 (이미지는 parquet 바이트라 저장하지 않는다).
 - 02와 같은 `AliasMap`을 쓴다 (`otpensource.py`와 같은 표준·같은 별칭 사전).
 
-v2 (T2): (a) 노이즈 카테고리를 슬롯 상분류로 채우지 않는다(결정 G0-②) · (b) 리스트형 라벨 값 보존 ·
+v2: (a) 노이즈 카테고리를 슬롯 상분류로 채우지 않는다(사용자 결정) · (b) 리스트형 라벨 값 보존 ·
 (c) 같은 사진 안 동일 라벨 `dup_of` · (d) `snap_id` = parquet row · (e) 패딩 힌트는 상분류가 비었거나 아우터일 때만.
 """
 from __future__ import annotations
@@ -112,7 +112,7 @@ class SnapNormalizer:
         slot = slot_row["slot"]
         approx_fields: list[str] = []
 
-        # 카테고리: 카테고리 값으로만 정한다(슬롯 이름은 쓰지 않는다, alias_map.md §4.2 · 결정 G0-②).
+        # 카테고리: 카테고리 값으로만 정한다(슬롯 이름은 쓰지 않는다, alias_map.md §4.2 · 사용자 결정).
         # 하분류가 정해지면 상분류는 표에서 도출, 상분류 이름·하분류 모르는 의류명은 hint로 상분류만,
         # 나머지(노이즈·비의류·판단 보류)는 상분류·하분류 null → 그래프 적재 제외(category_raw는 보존).
         cat_raw = _scalar(d.get("카테고리"))

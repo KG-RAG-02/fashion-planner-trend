@@ -195,7 +195,7 @@ class TrendSearcher:
 
     def candidates(self, item: ItemRecord, top_k: Optional[int] = None, has_requested: bool = False,
                    options: Optional[ScoringOptions] = None) -> list[str]:
-        """search()·Resolver·verify_graph_search가 같은 규칙으로 쓰는 후보 id."""
+        """search()·verify_graph_search가 같은 규칙으로 쓰는 후보 id."""
         o = options or self.options
         k = top_k or self.top_k
         fast = self.fast_path(item, has_requested, o)
@@ -220,7 +220,7 @@ class TrendSearcher:
             products = kept
         return rank_products(item, products, self.weights, focus_core, focus_supporting, top_k=k, options=o, stats=stats)
 
-    # ---------- 조립 (search()와 Resolver 공용) ----------
+    # ---------- 조립 ----------
     def styles(self) -> list[dict[str, Any]]:
         return [dict(r["s"]) for r in self._q(STYLES_CYPHER)]
 
@@ -373,7 +373,7 @@ def scoring_limitations(stats: dict[str, int]) -> list[str]:
     """점수 플래그로 걸러낸 건수 (플래그가 꺼져 있으면 빈 목록)."""
     out = []
     if stats.get("gender_excluded"):
-        out.append(f"성별 필터(G0-③)로 Item과 반대 성별 상품 {stats['gender_excluded']}건을 제외했습니다.")
+        out.append(f"Item 성별 필터로 Item과 반대 성별 상품 {stats['gender_excluded']}건을 제외했습니다.")
     if stats.get("snap_limited"):
         out.append(f"같은 스냅 사진(snap_id)의 상품 수 제한으로 {stats['snap_limited']}건을 뺐습니다.")
     return out

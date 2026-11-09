@@ -92,7 +92,7 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 
 ## 진행 상황
 
-기준일 2026-11-06. 현재 범위는 **구현해서 결과를 출력하는 데까지**이고, 검증·평가는 후속입니다.
+기준일 2026-11-09. 현재 범위는 **구현해서 결과를 출력하는 데까지**이고, 검증·평가는 후속입니다.
 
 | 영역 | 상태 |
 |---|---|
@@ -132,7 +132,7 @@ trend-analysis-agent/
 │   ├── alias_map/             # 속성별 별칭 사전 (yaml)
 │   └── weights.yaml           # 유사도 가중치 기본값
 ├── scripts/                   # 실행 스크립트 (아래 "스크립트 한눈에")
-├── prompts/extraction/        # 기사 추출 프롬프트 (v1, v2 = 동결본)
+├── prompts/extraction/        # 기사 추출 프롬프트 (v1, v2 = dev 라벨로 조정한 뒤 동결한 기본본, Q-10에 따라 v3로 올릴 수 있다)
 ├── tests/                     # pytest 311개 (스키마·정규화·점수·LLM·추출·적재·비교 등)
 ├── eval/                      # 평가 기준·정답 데이터 (라벨·검수 문서·결과는 git 제외)
 ├── docs/                      # spec.md(명세·결정·현재 상태), schemas/(데이터 계약·표준 어휘·별칭 사전·근거 자료)
@@ -157,7 +157,7 @@ trend-analysis-agent/
 | `.env` | 비밀번호·API 키 | `.env.example`을 복사해 직접 입력 ([환경변수](#환경변수)) |
 | `data/raw/vogue_kr/articles_sample.jsonl` | 기사 원문 20건 (사용자가 검수 중이라 덮어쓰지 않는다) | 크롤러 또는 **팀 내부 전달** |
 | `data/raw/vogue_kr/articles_pool_150.jsonl` | 기사 원문 150건 | 크롤러(`--limit 150`) 또는 **팀 내부 전달** |
-| `data/processed/otpensource_all.jsonl` | 02 정규화 결과 8,827행 (ProductRecord) | `scripts/build_otpensource.py` |
+| `data/processed/otpensource_all.jsonl` | 02 정규화 결과 (ProductRecord. 원천 8,827행 → 세트 분해 후 8,884행, 2026-11-09 빌드) | `scripts/build_otpensource.py` |
 | `data/processed/musinsa_snap_all.jsonl` | 03 정규화 결과 24,532 슬롯 | `scripts/build_musinsa_snap.py` |
 | `data/processed/*_normalization_report.json`, `product_coverage.txt` | 정규화·커버리지 리포트 | 위 스크립트, `check_product_coverage.py` |
 | `data/processed/results/*.json` | 검색 결과 (`TrendAnalysisResult`) | `scripts/run_trend_search.py` |
@@ -182,6 +182,8 @@ trend-analysis-agent/
 | `LLM_API_KEY` | 기사 추출에서 | OpenAI 키. `scripts/extract_articles.py`가 읽는다 (실행하면 기사 원문이 OpenAI로 전송된다) |
 | `LLM_MODEL` | 기사 추출에서 | 사용할 모델명 (정한 모델은 `gpt-4o-mini`). **코드에 기본값이 없어** 비어 있으면 오류다 |
 | `LLM_TIMEOUT_S` | 선택 | 호출당 제한 시간(초). 기본 600 |
+| `LLM_CACHE_DIR`, `LLM_CALL_LOG` | 선택 | LLM 응답 캐시와 호출 기록의 위치. 기본 `data/processed/llm/` |
+| `HF_HOME` | 선택 | 임베딩 모델(`BAAI/bge-m3`) 캐시 위치. 기본은 Hugging Face 기본 위치 |
 | `NEO4J_BOLT_PORT`, `NEO4J_HTTP_PORT` | 선택 | 이미 쓰는 Neo4j와 포트가 겹칠 때 (기본 7687 / 7474). 바꾸면 `NEO4J_URI`의 포트도 같이 바꿉니다 |
 | `DEMO_BOLT_PORT`, `DEMO_HTTP_PORT` | 선택 | 이미지 방식(demo 서비스)의 포트 (기본 7687 / 7474) |
 
@@ -219,6 +221,7 @@ docker compose --profile demo down
 - 코드(`src`, `scripts`, `configs`, `tests`)는 이미지에 없고 **호스트 폴더를 그대로 연결**합니다. 고친 파일이 곧바로 쓰입니다. 검색 결과 JSON은 호스트의 `data/processed/results/`에 저장됩니다.
 - **확인할 수 있는 수정**: `search.py`, `scoring.py`, `weights.yaml`, 결과 출력. **확인할 수 없는 수정**: `loader.py`·그래프 구조처럼 **데이터가 바뀌는 수정**입니다. 이미지의 데이터는 고정된 스냅샷이므로 [실행 방법 B](#b-처음부터-환경을-만들기)로 처음부터 적재해야 합니다.
 - 이미지의 Neo4j는 인증을 끄고(비밀번호 없음) 이 PC의 `127.0.0.1`에만 열립니다. 브라우저는 http://localhost:7474 입니다. 포트가 겹치면 `DEMO_BOLT_PORT`, `DEMO_HTTP_PORT`를 바꿉니다.
+- 이미지에는 `numpy`·`requests`가 없어서 임베딩과 OpenAI 백엔드 테스트 일부는 건너뜁니다 (`docker compose exec app python -m pytest -q`). 이 이미지는 라벨 기반 임시 그래프를 담고 있다 (pipeline.md D-17).
 - **CPU 아키텍처에 맞는 파일을 받아야 합니다.** 이미지는 CPU마다 따로 만들고, 파일 이름 끝이 아키텍처입니다: **Windows·Intel PC → `-amd64`, Apple Silicon Mac(M1 이상) → `-arm64`**. 맞지 않는 파일은 에뮬레이션으로 돌아가 매우 느리고(검색이 10초 안팎에서 약 50초로), Apple Silicon에서 amd64를 `docker compose`로 돌리면 healthcheck(`cypher-shell`)가 쌓여 메모리 부족으로 Neo4j가 종료될 수 있습니다 (exit 137). 맞는 파일을 쓰면 이 문제가 없습니다.
 
 **이미지를 만들어 전달하는 사람**: 그래프가 적재돼 있는 상태에서 `bash docker/demo/build.sh` (Windows는 Git Bash). 지금 그래프를 덤프해 `trend-agent-demo-neo4j`(데이터 포함)와 `trend-agent-demo-app`(파이썬 환경) 이미지를 만들고 `docker/demo/out/trend-agent-demo-images-<arch>.tar.gz`(각 약 370MB)로 저장합니다 (`--no-save`로 파일 저장은 생략). 그래프나 라벨을 바꾼 뒤에는 `python scripts/load_graph.py`를 하고 다시 실행해 새 스냅샷을 만듭니다. 덤프하는 동안 개발용 Neo4j가 잠깐 멈췄다가 자동으로 다시 시작됩니다.
@@ -231,14 +234,14 @@ PLATFORM=linux/amd64 bash docker/demo/build.sh      # Windows·Intel용. Apple S
 ```
 
 - 이미지 이름(태그)은 두 CPU 모두 `:latest`라서 **마지막에 만든 것이 이 PC의 `:latest`가 됩니다.** 파일 이름에만 `-amd64`, `-arm64`가 붙습니다.
-- Apple Silicon에서 amd64를 만든 실측: 이미지 빌드 약 1분, tar.gz 약 374MB. 에뮬레이션 Neo4j는 약 20초에 뜨고 검색·테스트(74개)가 통과했습니다. 다만 `docker compose`의 healthcheck가 쌓여 OOM(exit 137)이 날 수 있어, **amd64 파일은 Windows·Intel에서 쓰고 Mac에서는 arm64를 씁니다.**
+- Apple Silicon에서 amd64를 만든 실측: 이미지 빌드 약 1분, tar.gz 약 374MB. 에뮬레이션 Neo4j는 약 20초에 뜨고 검색·테스트(당시 74개)가 통과했습니다. 다만 `docker compose`의 healthcheck가 쌓여 OOM(exit 137)이 날 수 있어, **amd64 파일은 Windows·Intel에서 쓰고 Mac에서는 arm64를 씁니다.**
 - **전달할 것: ① 받는 사람 CPU에 맞는 tar.gz ② 레포 코드** (`.env`와 `data`는 필요 없음).
 
-만든 뒤에는 **개발용 Neo4j를 멈추고**(`docker compose stop neo4j`) 위 방법 A의 2~3번이 되는지 확인합니다. 그 상태에서 `docker compose --profile demo down`으로 끝낸 다음 개발용을 다시 켭니다. 이 절차로 확인한 결과: 그래프는 Style 5 · Item 36 · Product 33,323이고, 검색이 되며, 테스트 74개가 통과합니다 (arm64는 Apple Silicon에서 `docker compose`로 확인, amd64는 `docker run`으로 확인. Windows·Intel PC에서의 실행은 이 PC에 없어 확인하지 못했습니다).
+만든 뒤에는 **개발용 Neo4j를 멈추고**(`docker compose stop neo4j`) 위 방법 A의 2~3번이 되는지 확인합니다. 그 상태에서 `docker compose --profile demo down`으로 끝낸 다음 개발용을 다시 켭니다. 이 절차로 확인한 결과: 그래프는 Style 5 · Item 36 · Product 33,323(옛 v1 Product)이고, 검색이 되며, 테스트가 통과합니다(2026-11-06 확인 당시 74개) (arm64는 Apple Silicon에서 `docker compose`로 확인, amd64는 `docker run`으로 확인. Windows·Intel PC에서의 실행은 이 PC에 없어 확인하지 못했습니다).
 
 ### B. 처음부터 환경을 만들기
 
-준비물: Python 3.12 (3.9에서도 의존성 설치와 테스트 74개가 통과함을 확인했지만 3.12가 기준), Docker Desktop, Git. **Docker Desktop에는 메모리를 4GB 이상 할당**하고 다른 컨테이너는 정리해 둡니다 (Neo4j가 힙 1GB + 페이지캐시 512MB 등 약 2GB를 씁니다. 메모리가 부족하면 컨테이너가 OOM으로 계속 재시작합니다 → [자주 막히는 곳](#자주-막히는-곳)). 아래는 **이 순서대로** 실행합니다 (명령은 레포 루트에서). Windows 콘솔에서 한글이 깨지면 `PYTHONIOENCODING=utf-8`을 앞에 붙입니다.
+준비물: Python 3.12 (3.9에서도 의존성 설치와 테스트(당시 74개)가 통과함을 확인했지만 3.12가 기준), Docker Desktop, Git. **Docker Desktop에는 메모리를 4GB 이상 할당**하고 다른 컨테이너는 정리해 둡니다 (Neo4j가 힙 1GB + 페이지캐시 512MB 등 약 2GB를 씁니다. 메모리가 부족하면 컨테이너가 OOM으로 계속 재시작합니다 → [자주 막히는 곳](#자주-막히는-곳)). 아래는 **이 순서대로** 실행합니다 (명령은 레포 루트에서). Windows 콘솔에서 한글이 깨지면 `PYTHONIOENCODING=utf-8`을 앞에 붙입니다.
 
 ```bash
 # 1. 받기 + 가상환경 + 의존성
@@ -251,10 +254,10 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 3. 테스트 (Neo4j 없이 도는 단위 테스트)
-python -m pytest -q                       # 74 passed
+python -m pytest -q                       # 311 passed, 12 skipped (Neo4j 테스트 인스턴스가 필요한 것과 symlink 권한이 필요한 것은 건너뜀)
 
 # 4. Product 정규화: 공개 데이터를 내려받아 표준 어휘로 바꾼다 (처음에는 수 분 걸릴 수 있다)
-python scripts/build_otpensource.py       # 02 → data/processed/otpensource_all.jsonl (8,827행)
+python scripts/build_otpensource.py       # 02 → data/processed/otpensource_all.jsonl (세트 분해 후 8,884행)
 python scripts/build_musinsa_snap.py      # 03 → data/processed/musinsa_snap_all.jsonl (24,532 슬롯)
 
 # 5. Neo4j 시작 (처음에는 이미지를 내려받는다. 받은 뒤 healthy까지 약 30초). healthy가 되면 사용 가능
@@ -303,13 +306,16 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 | `check_neo4j.py` | Neo4j 접속 확인 (비밀번호는 출력 안 함) | `.env` | `docker compose up -d` |
 | `extract_articles.py` | 기사를 LLM으로 추출·검증해 저장 (`--limit`, `--ids`, `--report-only`). **OpenAI로 원문이 전송된다** | `data/raw/vogue_kr/articles_pool_150.jsonl` → `data/processed/extractions/<prompt_version>/` | `.env`의 `LLM_API_KEY`·`LLM_MODEL` |
 | `compare_extraction.py` | 추출 결과를 정답 라벨과 **건수**로 비교 | extractions + labels → `eval/results/` | 추출, 라벨 |
-| `load_graph.py` | 표준 값·Product·기사 추출 결과를 Neo4j에 적재. `--articles-only`, `--include-labels`(임시), `--prompt-version`, `--reset` | `data/processed/*_all.jsonl`, `data/processed/extractions/` → Neo4j | Neo4j, 정규화 |
+| `load_graph.py` | 표준 값·Product·기사 추출 결과를 Neo4j에 적재. `--articles-only`, `--include-labels`(임시), `--prompt-version`, `--prune-products`, `--reset` | `data/processed/*_all.jsonl`, `data/processed/extractions/` → Neo4j | Neo4j, 정규화 |
 | `run_trend_search.py` | 조건으로 트렌드·유사 상품 검색 | Neo4j → 요약 + `data/processed/results/<id>.json` | 적재 |
 | `verify_graph_search.py` | 그래프 검색이 전체 Product 직접 계산과 같은지 검증 (`--top-k`) | Neo4j + `data/processed/*_all.jsonl` | 적재 |
 | `validate_labels.py` | 라벨 JSON 검증 (스키마·인용 위치·raw 존재) | labels (+ `data/raw`) | |
 | `render_review.py` | 라벨 → 검수용 md (원본 URL 포함) | labels → `eval/.../review/<id>.md` | |
 | `check_product_coverage.py` | 정답 Item마다 대응 Product가 몇 개 있는지 | labels + `data/processed/*_all.jsonl` → `product_coverage.txt` | 정규화 |
 | `docker/demo/build.sh` | 데이터를 구워 넣은 전달용 이미지 생성 (`bash docker/demo/build.sh`) | 현재 그래프 → `docker/demo/out/*.tar.gz` | 적재, Docker |
+| `audit_products.py` | Product 정규화 전·후(이전·새 산출물 폴더) 수치표 | 두 폴더 → `audit_v1_v2.md` | 정규화 |
+| `check_image_urls.py` | 02 이미지 URL을 스트리밍 GET으로 점검 (이미지는 내려받지 않음) | `--shared` 폴더 → 점검 기록 | 인터넷. **기본 경로에서 쓰지 않는다** |
+| `fetch_snap_images.py`, `catalog_content.py`, `finalize_catalog_content.py`, `set_components_review.py` | 스냅 원본 이미지 내려받기, 이미지 내용 판정(비전·CLIP), 세트 구성품 검토 — 연구용 | `--shared` 폴더 구조가 전제 | **기본 경로에서 쓰지 않는다** (pipeline.md F-12: 지울지 사용자 확인 대기) |
 
 `run_trend_search.py` 옵션:
 

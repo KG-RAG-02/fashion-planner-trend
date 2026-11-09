@@ -43,21 +43,21 @@ def pairs(items, raw="raw", val="value") -> str:
 
 
 APPROVAL_GUIDE = [
-    "## 사용자 승인 방법 (G0-⑥)",
+    "## 사용자 승인 방법",
     "",
-    "- gold 전환은 **사용자만** 합니다. T4 세션에서 직접 `<article_id> gold 승인` 또는 `<article_id> 수정: …`처럼 말해 주세요.",
-    "- 승인하면 T4가 라벨 JSON에 `status: gold`·`reviewer`·`reviewed_at`을 적고 지시 원문을 `notes`에 남긴 뒤 매니페스트 `label_status`를 맞춥니다.",
-    "- BOARD USER 섹션으로 요청하면 T4가 세션 안에서 한 번 더 확인합니다. JSON이 원본이고 이 문서는 보기용입니다.",
+    "- gold 전환은 **사용자만** 합니다. `<article_id> gold 승인` 또는 `<article_id> 수정: …`처럼 말해 주세요.",
+    "- 승인하면 라벨 JSON에 `status: gold`·`reviewer`·`reviewed_at`을 적고 지시 원문을 `notes`에 남긴 뒤 매니페스트 `label_status`를 맞춥니다.",
+    "- JSON이 원본이고 이 문서는 보기용입니다.",
     "",
 ]
 
 
 def render_t4_review(meta: dict) -> list[str]:
-    """label_meta.t4_review = [{target, opinion, basis}] → 'T4 1차 검수 의견' 표 + 승인 방법."""
+    """label_meta.t4_review = [{target, opinion, basis}] → '1차 검수 의견' 표 + 승인 방법. (키 이름 `t4_review`는 이미 만들어진 라벨 파일에 있는 이름이라 그대로 읽는다.)"""
     rows = meta.get("t4_review") or []
     if not rows:
         return []
-    L = ["## T4 1차 검수 의견", "", "| 대상 | 의견 | 근거 |", "|---|---|---|"]
+    L = ["## 1차 검수 의견", "", "| 대상 | 의견 | 근거 |", "|---|---|---|"]
     L += [f"| {cell(r.get('target'))} | {cell(r.get('opinion'))} | {cell(r.get('basis'))} |" for r in rows]
     return L + [""] + APPROVAL_GUIDE
 

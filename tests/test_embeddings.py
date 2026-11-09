@@ -1,6 +1,7 @@
 """임베딩 진입점: 가짜 인코더만 쓴다 (모델을 내려받거나 torch를 읽지 않는다)."""
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy")  # 데모 이미지에는 numpy가 없어 이 파일은 건너뛴다
 
 from trend_agent.embeddings import runtime
 

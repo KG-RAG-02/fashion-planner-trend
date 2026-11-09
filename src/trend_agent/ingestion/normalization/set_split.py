@@ -1,7 +1,7 @@
 """02 다중 의류 분해 — 셋업·세트·투피스·상하의처럼 **종류가 여럿인** 상품을 상품명 근거로 구성품 Product로 나눈다.
 
 사용자 요구(T2 작업 1): 한 레코드에 여러 종류 의류가 있으면 분리한다. 크롭 금지(Q4) — 구성품은 부모 이미지 1장을 공유한다.
-규칙 근거: handoffs/T2-L0,T3-design-memo-g0.md §3.1 · 사전: configs/alias_map/set_components.yaml · 계약 v1.1 ProductNode
+규칙 근거: 상품명의 세트 표지 규칙 · 사전: configs/alias_map/set_components.yaml · 계약 v1.1 ProductNode
 (`parent_id`·`split_from="name_rule"`·`multipack`·`split_candidate`, 구성품 id `<원 id>#<k>`).
 
 판정(decision)

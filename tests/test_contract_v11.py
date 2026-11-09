@@ -60,7 +60,7 @@ def test_v11_product_fields_and_has_image():
     assert not ProductNode(id="b", image_url="https://x", image_status="broken", **BASE).has_image
     assert ProductNode(id="c", image_url="https://x", **BASE).has_image          # 상태 없음 → 참조 존재
     assert not ProductNode(id="d", **BASE).has_image
-    with pytest.raises(ValidationError):  # HEAD 원시 상태는 계약 값이 아니다 (결정 G0-C2)
+    with pytest.raises(ValidationError):  # HEAD 원시 상태는 계약 값이 아니다 (사용자 결정)
         ProductNode(id="e", image_status="head_http_404", **BASE)
     with pytest.raises(ValidationError):
         ProductNode(id="f", image_scope="crop", **BASE)

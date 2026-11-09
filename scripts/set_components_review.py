@@ -296,7 +296,7 @@ def finalize(shared):
         candidate_current_sha256=sha(p / "set_review_candidates.csv") if (p / "set_review_candidates.csv").exists() else None)
     atomic_json(p / "set_review_stats.json", summary)
     lines = ["# 세트 구성품·색 1차 검토 — C2 2단계 B", "",
-        f"{len(reviews)}행. T2 제공 후보 목록을 우선 사용했다(`set_review_candidates.input.csv` 고정 사본, `set_review_input.json` 해시). 실제 CSV는 180행=split41/candidate79/multipack43/accessory17이다. 초기 BOARD의 179는 이후 L0·T2가 180으로 정정했다. 대체 후보 추출은 사용하지 않았다.", "",
+        f"{len(reviews)}행. 제공받은 후보 목록을 우선 사용했다(`set_review_candidates.input.csv` 고정 사본, `set_review_input.json` 해시). 실제 CSV는 180행=split41/candidate79/multipack43/accessory17이다. 초기 집계의 179는 이후 180으로 정정됐다. 대체 후보 추출은 사용하지 않았다.", "",
         f"직접 원본 확인 {summary['original_images_viewed']}행; A 범위 밖 broken 이미지 {len(summary['missing_image_reviews'])}행은 파일이 없어서 볼 수 없었으며 이름·category_raw만 근거로 사용했다. 해당 review_id={summary['missing_image_reviews']}; 색은 비웠다. 이미지 재가공·추가 의존성 설치·유료 API 호출·상품 데이터 수정 없음.", "",
         "## 판정 분포", "", "| kind | 건수 |", "|---|---:|"]
     for kind in sorted(KINDS):
