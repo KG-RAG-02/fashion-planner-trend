@@ -173,17 +173,17 @@ def test_main_writes_two_backend_report(repo, tmp_path, monkeypatch):
     root, labels, man, a, b = repo
     monkeypatch.setattr(ce.VL, "load_articles", lambda: {})
     out = tmp_path / "run"
-    assert ce.main(["--pred", f"codex_cli={a}", "--pred", f"openai_api={b}", "--labels", str(labels), "--manifest", str(man),
+    assert ce.main(["--pred", f"backend_a={a}", "--pred", f"openai_api={b}", "--labels", str(labels), "--manifest", str(man),
                     "--out", str(out)]) == 0
     s = json.loads((out / "summary.json").read_text(encoding="utf-8"))
-    A, B = s["counts"]["codex_cli"], s["counts"]["openai_api"]
+    A, B = s["counts"]["backend_a"], s["counts"]["openai_api"]
     assert A["기사|대상"] == 2 and A["Style|일치"] == 1 and A["음성 기사|낸 Style 수"] == 1 and A["Item|strict 일치"] == 1
     assert B["기사|예측 없음(검토 대기)"] == 1 and B["기사|예측 없음(파일 없음)"] == 1
-    assert s["meta"]["pred_meta"]["codex_cli"]["prompt_version=pv1"] == 2
+    assert s["meta"]["pred_meta"]["backend_a"]["prompt_version=pv1"] == 2
     rep = (out / "report.md").read_text(encoding="utf-8")
-    assert "| 지표 | codex_cli | openai_api |" in rep and "| Style | 일치 1 · 유사 이름 0 · 누락 0 · 오추출 1 |" in rep
+    assert "| 지표 | backend_a | openai_api |" in rep and "| Style | 일치 1 · 유사 이름 0 · 누락 0 · 오추출 1 |" in rep
     rows = [json.loads(l) for l in (out / "details.jsonl").read_text(encoding="utf-8").splitlines()]
-    assert {(r["backend"], r["article_id"], r["status"]) for r in rows} >= {("openai_api", "d1", "review"), ("codex_cli", "d2", "ok")}
+    assert {(r["backend"], r["article_id"], r["status"]) for r in rows} >= {("openai_api", "d1", "review"), ("backend_a", "d2", "ok")}
     assert ce.main(["--pred", f"openai_api={b}", "--include-review", "--labels", str(labels), "--manifest", str(man),
                     "--out", str(tmp_path / "run2")]) == 0
     s2 = json.loads((tmp_path / "run2" / "summary.json").read_text(encoding="utf-8"))

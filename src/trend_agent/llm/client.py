@@ -5,7 +5,7 @@
     structured(...) -> dict                       # call(...).data
     structured_model(prompt, model_cls, *, purpose, prompt_version, exclude=None, overrides=None, **kw) -> BaseModel
 
-- 설정: 인자 → env(`LLM_BACKEND`·`LLM_MODEL`·`LLM_REASONING_EFFORT`·`LLM_API_KEY`·`LLM_TIMEOUT_S`, 저장소 `.env` 포함).
+- 설정: 인자 → env(`LLM_MODEL`·`LLM_API_KEY`·`LLM_TIMEOUT_S`, 저장소 `.env` 포함). 백엔드는 `openai_api` 하나다.
   **모델이 정해지지 않으면 `LLMBackendError`**(고정 모델 원칙).
 - 반환 dict는 strict 스키마 부분집합으로 검사한 것이다(불일치 → `LLMOutputError`). pydantic 재검증은 호출자 몫이고,
   `structured_model`이 대신 해 준다.
@@ -24,7 +24,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, ValidationError
 
 from ..config import load_env
-from .backends import BackendReply, CodexCLIBackend, OpenAIAPIBackend
+from .backends import BackendReply, OpenAIAPIBackend
 from .cache import ResponseCache, append_log, default_cache_dir, default_call_log, input_sha256
 from .errors import LLMBackendError, LLMError, LLMOutputError, LLMTimeout
 from .schema import check_instance, schema_sha256, strict_schema
@@ -35,7 +35,7 @@ __all__ = [
     "register_backend", "resolve_settings",
 ]
 
-BACKENDS = ("codex_cli", "openai_api")
+BACKENDS = ("openai_api",)
 DEFAULT_TIMEOUT_S = 600.0
 _registry: dict[str, Any] = {}
 
@@ -64,15 +64,13 @@ def resolve_settings(backend: Optional[str] = None, model: Optional[str] = None,
                      reasoning_effort: Optional[str] = None, timeout_s: Optional[float] = None,
                      env: Optional[dict[str, str]] = None) -> dict[str, Any]:
     env = env if env is not None else _env()
-    b = backend or env.get("LLM_BACKEND") or "codex_cli"
+    b = backend or "openai_api"
     if b not in BACKENDS:
         raise LLMBackendError(f"알 수 없는 백엔드: {b} (허용 {BACKENDS})")
     m = model or env.get("LLM_MODEL") or ""
     if not m:
         raise LLMBackendError("모델이 정해지지 않았다: model 인자나 env LLM_MODEL이 필요하다(고정 모델 원칙)")
-    eff = reasoning_effort if reasoning_effort is not None else (env.get("LLM_REASONING_EFFORT") or None)
-    if b != "codex_cli":
-        eff = None  # reasoning effort는 codex_cli에만 쓴다
+    eff = None  # openai_api(Chat Completions, gpt-4o-mini)는 reasoning effort를 쓰지 않는다. 인자는 호환용으로만 받는다
     t = timeout_s if timeout_s is not None else float(env.get("LLM_TIMEOUT_S") or DEFAULT_TIMEOUT_S)
     return {"backend": b, "model": m, "reasoning_effort": eff, "timeout_s": t, "env": env}
 
@@ -80,8 +78,6 @@ def resolve_settings(backend: Optional[str] = None, model: Optional[str] = None,
 def _backend_impl(name: str, env: dict[str, str]) -> Any:
     if name in _registry:
         return _registry[name]
-    if name == "codex_cli":
-        return CodexCLIBackend(env.get("LLM_CODEX_BIN") or "codex")
     return OpenAIAPIBackend(env.get("LLM_API_KEY") or None)
 
 

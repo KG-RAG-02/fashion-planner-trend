@@ -42,18 +42,18 @@ def env(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("LLM_CALL_LOG", str(tmp_path / "calls.jsonl"))
     yield tmp_path
-    client.register_backend("codex_cli", None)
+    client.register_backend("openai_api", None)
 
 
 def _cfg(tmp_path, **kw):
     return BatchConfig(input_path=tmp_path / "unused.jsonl", out_dir=tmp_path / "extract-v1", model="m-1",
-                       backend="codex_cli", prompt_version="extract-v1", **kw)
+                       backend="openai_api", prompt_version="extract-v1", **kw)
 
 
 def test_batch_pass_review_resume_and_report(env):
     good, bad = _llm_doc(), _llm_doc(items=[_item(fit_raw="오버핏")])  # bad: V3 → 재시도 후에도 실패
     fb = _ByArticle({"a1": good, "a2": bad, "a3": {"styles": []}})
-    client.register_backend("codex_cli", fb)
+    client.register_backend("openai_api", fb)
     arts = [_article("a1"), _article("a2"), _article("a3")]
     s = run_batch(_cfg(env), articles=arts)
     out = env / "extract-v1"
@@ -83,9 +83,9 @@ def test_batch_pass_review_resume_and_report(env):
 
 
 def test_batch_stops_after_consecutive_backend_errors(env):
-    err = LLMBackendError("codex exec 비정상 종료 1: usage limit reached")
+    err = LLMBackendError("openai_api HTTP 429: rate limit reached")
     fb = _ByArticle({f"b{i}": err for i in range(6)})
-    client.register_backend("codex_cli", fb)
+    client.register_backend("openai_api", fb)
     s = run_batch(_cfg(env, concurrency=1, max_consecutive_failures=3), articles=[_article(f"b{i}") for i in range(6)])
     assert s.stopped_early and s.failed == 3 and len(fb.calls) == 3
     out = env / "extract-v1"
@@ -100,7 +100,7 @@ def test_batch_rejects_high_concurrency(env):
 
 
 def test_batch_ids_order_and_unknown(env):
-    client.register_backend("codex_cli", _ByArticle({"c1": _llm_doc(), "c2": _llm_doc()}))
+    client.register_backend("openai_api", _ByArticle({"c1": _llm_doc(), "c2": _llm_doc()}))
     arts = [_article("c1"), _article("c2")]
     s = run_batch(_cfg(env, ids=["c2"]), articles=arts)
     assert s.passed == 1 and (env / "extract-v1" / "c2.json").exists() and not (env / "extract-v1" / "c1.json").exists()
@@ -111,7 +111,7 @@ def test_batch_ids_order_and_unknown(env):
 def test_reprocess_uses_cache_and_rewrites(env):
     good = _llm_doc()
     fb = _ByArticle({"r1": good})
-    client.register_backend("codex_cli", fb)
+    client.register_backend("openai_api", fb)
     arts = [_article("r1")]
     run_batch(_cfg(env), articles=arts)
     first = json.loads((env / "extract-v1" / "r1.json").read_text(encoding="utf-8"))

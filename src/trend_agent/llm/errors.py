@@ -1,5 +1,4 @@
-"""LLM 오류 (계약 v1.1). T3 Tier4 steps 코드와 1:1: LLMBackendError·LLMTimeout → `llm_unavailable`,
-LLMOutputError → `llm_invalid_output`. 예외의 `.meta`에는 실패한 호출의 로그 레코드(원문 없음)가 붙는다."""
+"""LLM 오류. 예외의 `.meta`에는 실패한 호출의 로그 레코드(원문 없음)가 붙는다."""
 from __future__ import annotations
 
 from typing import Optional
@@ -18,4 +17,4 @@ class LLMOutputError(LLMError):
 
 
 class LLMTimeout(LLMError):
-    """시간 초과(프로세스 그룹을 종료했다)."""
+    """시간 초과."""

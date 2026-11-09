@@ -1,9 +1,7 @@
-"""llm/ 단위 테스트 — 실제 LLM 호출 없음. codex 이벤트는 합성 프롬프트 녹화본(tests/fixtures/llm/)."""
+"""llm/ 단위 테스트 — 실제 LLM 호출 없음."""
 from __future__ import annotations
 
 import json
-import subprocess
-from pathlib import Path
 from typing import Optional
 
 import pytest
@@ -11,11 +9,9 @@ from pydantic import BaseModel, Field
 
 import trend_agent.llm as llm
 from trend_agent.llm import backends, client
-from trend_agent.llm.backends import BackendReply, CodexCLIBackend, OpenAIAPIBackend, parse_codex_events
+from trend_agent.llm.backends import BackendReply, OpenAIAPIBackend
 from trend_agent.llm.schema import check_instance, schema_sha256, strict_schema
 from trend_agent.schemas.article_extraction import ArticleExtraction
-
-FIX = Path(__file__).parent / "fixtures" / "llm"
 
 
 # ---------- schema ----------
@@ -88,106 +84,9 @@ def test_schema_sha256_ignores_key_order():
     assert len(schema_sha256(a)) == 64
 
 
-# ---------- codex 이벤트 ----------
-def test_parse_codex_events_ok_fixture():
-    ev = parse_codex_events((FIX / "codex_events_ok.jsonl").read_text(encoding="utf-8"))
-    assert ev["thread_id"] and ev["tool_events"] == 0 and ev["errors"] == []
-    assert ev["usage"]["input_tokens"] > 0
-    assert json.loads(ev["last_message"])  # 마지막 agent_message = JSON
-
-
-def test_parse_codex_events_counts_tool_once_per_item():
-    ev = parse_codex_events((FIX / "codex_events_tool.jsonl").read_text(encoding="utf-8"))
-    assert ev["tool_events"] == 1 and ev["tool_types"] == ["command_execution"]
-
-
-def test_parse_codex_events_errors_and_garbage():
-    text = 'not json\n{"type":"turn.failed","error":{"message":"usage limit reached"}}\n{"type":"error","message":"x"}\n'
-    ev = parse_codex_events(text)
-    assert ev["unparsed"] == 1 and ev["errors"] == ["usage limit reached", "x"]
-
-
-class _FakePopen:
-    """codex exec 대역: `-o` 파일을 쓰고 녹화 이벤트를 stdout으로 낸다."""
-
-    stdout_text = ""
-    out_text: Optional[str] = None
-    returncode_value = 0
-    hang = False
-    last_cmd: list[str] = []
-    last_input = ""
-
-    def __init__(self, cmd, **kw):
-        type(self).last_cmd = cmd
-        self.cmd = cmd
-        self.pid = 999999
-        self.returncode = None
-
-    def communicate(self, input=None, timeout=None):
-        type(self).last_input = input
-        if self.hang:
-            raise subprocess.TimeoutExpired(self.cmd, timeout)
-        if self.out_text is not None:
-            Path(self.cmd[self.cmd.index("-o") + 1]).write_text(self.out_text, encoding="utf-8")
-        self.returncode = self.returncode_value
-        return self.stdout_text, "stderr-tail"
-
-    def wait(self, timeout=None):
-        return self.returncode
-
-
-@pytest.fixture
-def fake_popen(monkeypatch):
-    class P(_FakePopen):
-        pass
-
-    P.stdout_text = (FIX / "codex_events_ok.jsonl").read_text(encoding="utf-8")
-    P.out_text = '{"color":"레드","items":["셔츠","바지"]}'
-    monkeypatch.setattr(backends.subprocess, "Popen", P)
-    monkeypatch.setattr(backends, "_kill_group", lambda proc: None)
-    return P
-
-
 SMALL = {"type": "object", "properties": {"color": {"anyOf": [{"type": "string", "enum": ["레드", "블루"]}, {"type": "null"}]},
                                           "items": {"type": "array", "items": {"type": "string"}}},
          "required": ["color", "items"], "additionalProperties": False}
-
-
-def test_codex_backend_command_and_reply(fake_popen):
-    r = CodexCLIBackend().run("프롬프트", SMALL, name="t", model="m-1", reasoning_effort="low", timeout_s=30)
-    cmd = fake_popen.last_cmd
-    assert cmd[:4] == ["codex", "exec", "--ephemeral", "--skip-git-repo-check"]
-    for flag in ("--ignore-user-config", "--ignore-rules", "--output-schema", "--json"):
-        assert flag in cmd
-    assert cmd[cmd.index("-s") + 1] == "read-only" and cmd[cmd.index("-m") + 1] == "m-1"
-    assert 'model_reasoning_effort="low"' in cmd and cmd[-1] == "-"
-    assert "shell_tool" in cmd and fake_popen.last_input == "프롬프트"
-    assert r.data == {"color": "레드", "items": ["셔츠", "바지"]} and r.thread_id and r.tool_events == 0
-
-
-def test_codex_backend_nonzero_exit(fake_popen):
-    fake_popen.returncode_value = 2
-    fake_popen.stdout_text = '{"type":"turn.failed","error":{"message":"usage limit reached"}}\n'
-    with pytest.raises(llm.LLMBackendError, match="usage limit"):
-        CodexCLIBackend().run("p", SMALL, name="t", model="m", reasoning_effort=None, timeout_s=30)
-
-
-def test_codex_backend_timeout(fake_popen):
-    fake_popen.hang = True
-    with pytest.raises(llm.LLMTimeout):
-        CodexCLIBackend().run("p", SMALL, name="t", model="m", reasoning_effort=None, timeout_s=1)
-
-
-def test_codex_backend_not_json(fake_popen):
-    fake_popen.out_text = "설명: 결과는 다음과 같다"
-    with pytest.raises(llm.LLMOutputError, match="JSON"):
-        CodexCLIBackend().run("p", SMALL, name="t", model="m", reasoning_effort=None, timeout_s=30)
-
-
-def test_codex_backend_strips_code_fence(fake_popen):
-    fake_popen.out_text = '```json\n{"color": null, "items": []}\n```'
-    r = CodexCLIBackend().run("p", SMALL, name="t", model="m", reasoning_effort=None, timeout_s=30)
-    assert r.data == {"color": None, "items": []}
 
 
 # ---------- client ----------
@@ -205,12 +104,11 @@ class _FakeBackend:
 @pytest.fixture
 def isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(client, "load_env", lambda: {})
-    for k in ("LLM_BACKEND", "LLM_MODEL", "LLM_REASONING_EFFORT", "LLM_API_KEY", "LLM_CACHE_DIR", "LLM_CALL_LOG"):
+    for k in ("LLM_MODEL", "LLM_API_KEY", "LLM_CACHE_DIR", "LLM_CALL_LOG"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("LLM_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("LLM_CALL_LOG", str(tmp_path / "calls.jsonl"))
     yield tmp_path
-    client.register_backend("codex_cli", None)
     client.register_backend("openai_api", None)
 
 
@@ -221,14 +119,14 @@ def test_call_requires_fixed_model(isolated):
 
 def test_call_cache_and_log(isolated):
     fb = _FakeBackend({"color": "블루", "items": ["바지"]})
-    client.register_backend("codex_cli", fb)
-    kw = dict(purpose="unit", prompt_version="v0", model="m-1", reasoning_effort="low")
+    client.register_backend("openai_api", fb)
+    kw = dict(purpose="unit", prompt_version="v0", model="m-1")
     r1 = llm.call("비밀 원문 프롬프트", SMALL, **kw)
     r2 = llm.call("비밀 원문 프롬프트", SMALL, **kw)
     assert fb.calls == 1 and r1.data == r2.data
     assert r1.meta["cache_hit"] is False and r2.meta["cache_hit"] is True and r2.meta["thread_id"] == "th-1"
     assert r1.meta["input_sha256"] == r2.meta["input_sha256"] and r1.meta["schema_sha256"] == schema_sha256(SMALL)
-    files = list((isolated / "cache" / "codex_cli" / "m-1" / "low" / "v0").glob("*.json"))
+    files = list((isolated / "cache" / "openai_api" / "m-1" / "none" / "v0").glob("*.json"))
     assert len(files) == 1
     log = (isolated / "calls.jsonl").read_text(encoding="utf-8")
     assert len(log.splitlines()) == 2 and "비밀 원문" not in log and "블루" not in log
@@ -239,7 +137,7 @@ def test_call_cache_and_log(isolated):
 
 def test_call_schema_mismatch_not_cached(isolated):
     fb = _FakeBackend({"color": "보라", "items": []})
-    client.register_backend("codex_cli", fb)
+    client.register_backend("openai_api", fb)
     with pytest.raises(llm.LLMOutputError) as ei:
         llm.call("p", SMALL, purpose="unit", prompt_version="v0", model="m")
     assert ei.value.meta["ok"] is False and ei.value.meta["error_type"] == "LLMOutputError"
@@ -248,9 +146,11 @@ def test_call_schema_mismatch_not_cached(isolated):
     assert rec["ok"] is False
 
 
-def test_reasoning_effort_only_for_codex(isolated):
-    st = client.resolve_settings("openai_api", "gpt-x", "low", env={})
-    assert st["reasoning_effort"] is None
+def test_openai_is_the_only_backend_and_effort_is_unused(isolated):
+    st = client.resolve_settings(None, "gpt-x", "low", env={})
+    assert st["backend"] == "openai_api" and st["reasoning_effort"] is None
+    with pytest.raises(llm.LLMBackendError):
+        client.resolve_settings("codex_cli", "m", None, env={})  # Codex CLI 백엔드는 없다
     with pytest.raises(llm.LLMBackendError):
         client.resolve_settings("nope", "m", None, env={})
 
@@ -261,11 +161,11 @@ class _Tiny(BaseModel):
 
 
 def test_structured_model_revalidates_and_forgets_cache(isolated):
-    client.register_backend("codex_cli", _FakeBackend({"name": "a", "tags": []}))  # strict 통과, pydantic minItems 위반
+    client.register_backend("openai_api", _FakeBackend({"name": "a", "tags": []}))  # strict 통과, pydantic minItems 위반
     with pytest.raises(llm.LLMOutputError, match="pydantic"):
         llm.structured_model("p", _Tiny, purpose="unit", prompt_version="v0", model="m")
     assert not list((isolated / "cache").rglob("*.json"))
-    client.register_backend("codex_cli", _FakeBackend({"name": "a", "tags": ["x"]}))
+    client.register_backend("openai_api", _FakeBackend({"name": "a", "tags": ["x"]}))
     out = llm.structured_model("p", _Tiny, purpose="unit", prompt_version="v0", model="m")
     assert isinstance(out, _Tiny) and out.tags == ["x"]
 

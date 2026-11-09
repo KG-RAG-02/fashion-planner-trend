@@ -6,12 +6,10 @@
 - 캐시 파일 = {"request": {prompt, schema, …}, "response": dict, "meta": {...}} (로컬 산출물 — 커밋·Sync 금지)
 - 호출 로그(JSONL, 1호출 1줄) = 해시·길이·지연·usage·thread·ok·error. **프롬프트·응답 원문은 넣지 않는다.**
 
-위치(앞에서부터): 인자 → env `LLM_CACHE_DIR`/`LLM_CALL_LOG` → `$SHARED/extractions/{cache,calls.jsonl}` →
-저장소 `data/processed/llm/{cache,calls.jsonl}`(gitignore 대상).
+위치(앞에서부터): 인자 → env `LLM_CACHE_DIR`/`LLM_CALL_LOG` → 저장소 `data/processed/llm/{cache,calls.jsonl}`(gitignore 대상).
 """
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -22,6 +20,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ..config import ROOT
+from ..filelock import file_lock
 
 _LOG_LOCK = threading.Lock()
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -40,8 +39,6 @@ def default_cache_dir(env: Optional[dict[str, str]] = None) -> Path:
     env = env if env is not None else dict(os.environ)
     if env.get("LLM_CACHE_DIR"):
         return Path(env["LLM_CACHE_DIR"])
-    if env.get("SHARED"):
-        return Path(env["SHARED"]) / "extractions" / "cache"
     return ROOT / "data" / "processed" / "llm" / "cache"
 
 
@@ -49,8 +46,6 @@ def default_call_log(env: Optional[dict[str, str]] = None) -> Path:
     env = env if env is not None else dict(os.environ)
     if env.get("LLM_CALL_LOG"):
         return Path(env["LLM_CALL_LOG"])
-    if env.get("SHARED"):
-        return Path(env["SHARED"]) / "extractions" / "calls.jsonl"
     return ROOT / "data" / "processed" / "llm" / "calls.jsonl"
 
 
@@ -85,9 +80,6 @@ def append_log(path: Path | str, record: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n"
-    with _LOG_LOCK, open(p, "a", encoding="utf-8") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
+    with _LOG_LOCK, file_lock(p):
+        with open(p, "a", encoding="utf-8") as f:
             f.write(line)
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)

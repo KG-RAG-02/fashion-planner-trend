@@ -3,8 +3,8 @@
 - 출력(계약 §5.1): `<out>/<article_id>.json`(검증 통과) · `<out>/_review/<article_id>.json`(1회 재시도 후에도 오류)
   + `<review_queue>`(기본 `<out>/../review_queue.jsonl`) 1줄 · `<out>/run.log`(기사별 JSONL) · `<out>/run_report.md`
 - 재개: 출력이나 `_review/`에 이미 있는 article_id는 건너뛴다(`--retry-review`면 `_review/`만 다시).
-- 동시성 ≤ 2(구독 경로 보호). 백엔드 오류가 연속 `max_consecutive_failures`번이면 새 기사를 더 시작하지 않는다
-  (구독 한도·인증 문제 → 중단·보고).
+- 동시성 ≤ 2. 백엔드 오류가 연속 `max_consecutive_failures`번이면 새 기사를 더 시작하지 않는다
+  (API 한도·인증 문제 → 중단·보고).
 - LLM 호출 실패 기사는 파일을 쓰지 않는다(다음 실행에서 다시 시도). run.log에 `status: "failed"`.
 """
 from __future__ import annotations

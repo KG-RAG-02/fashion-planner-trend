@@ -1,6 +1,6 @@
 """pydantic 모델 → LLM용 strict JSON Schema 변환 (계약 v1.1 `strict_schema`·`schema_sha256`).
 
-strict 규칙(OpenAI structured outputs·codex `--output-schema` 공통):
+strict 규칙(OpenAI structured outputs):
 - 모든 객체: `properties`의 키 전부가 `required`, `additionalProperties: false`
 - Optional 필드는 `anyOf [..., {"type": "null"}]`로 남는다(pydantic 기본 출력) → "필수 + nullable"
 - `$ref`/`$defs`는 펼친다(인라인). `default`·`title` 등 설명용 키는 버린다

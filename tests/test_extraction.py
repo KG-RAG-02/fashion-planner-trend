@@ -228,23 +228,23 @@ def fake_llm(monkeypatch, tmp_path):
 
     def install(docs):
         b = _SeqBackend(docs)
-        client.register_backend("codex_cli", b)
+        client.register_backend("openai_api", b)
         return b
 
     yield install
-    client.register_backend("codex_cli", None)
+    client.register_backend("openai_api", None)
 
 
 def test_retry_once_then_pass(fake_llm):
     bad = _llm_doc()
     bad["styles"][0]["evidence"] = [{"block_idx": 1, "quote": "기사에 없는 문장"}]
     b = fake_llm([bad, _llm_doc()])
-    out = extractor.extract_article_outcome(ARTICLE, backend="codex_cli", model="m-1", prompt_version="extract-v1")
+    out = extractor.extract_article_outcome(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
     assert out.passed and out.attempts == 2 and len(b.prompts) == 2
     assert "이전 출력의 검증 오류" in b.prompts[1] and "기사에 없는 문장" in b.prompts[1]
     doc = extractor.build_output_doc(out, ARTICLE)
     meta = doc["label_meta"]
-    assert meta["status"] == "auto" and meta["labeler"] == "llm:codex_cli/m-1" and meta["published"] == "2026-10-21"
+    assert meta["status"] == "auto" and meta["labeler"] == "llm:openai_api/m-1" and meta["published"] == "2026-10-21"
     assert meta["prompt_version"] == "extract-v1" and meta["guideline_version"] == "0.3-draft"
     assert meta["postprocess"] == {"alias_map": True, "length_area": False}
     assert meta["validation"]["passed"] is True and meta["validation"]["attempts"] == 2
@@ -256,10 +256,10 @@ def test_retry_once_then_pass(fake_llm):
 def test_still_failing_goes_to_review(fake_llm):
     bad = _llm_doc(items=[_item(fit_raw="오버핏")])
     fake_llm([bad])
-    out = extractor.extract_article_outcome(ARTICLE, backend="codex_cli", model="m-1", prompt_version="extract-v1")
+    out = extractor.extract_article_outcome(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
     assert not out.passed and out.attempts == 2 and out.counts["V3"] == 1
     with pytest.raises(extractor.ExtractionFailed):
-        extractor.extract_article(ARTICLE, backend="codex_cli", model="m-1", prompt_version="extract-v1")
+        extractor.extract_article(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
 
 
 def test_pydantic_failure_kept_as_raw(fake_llm):
@@ -268,7 +268,7 @@ def test_pydantic_failure_kept_as_raw(fake_llm):
         {"attribute": a, "level": "core", "evidence": [{"block_idx": 1, "quote": "화려한 컬러"}]}
         for a in ("color", "pattern", "detail", "fit")]  # core 4개 > 3
     fake_llm([bad])
-    out = extractor.extract_article_outcome(ARTICLE, backend="codex_cli", model="m-1", prompt_version="extract-v1")
+    out = extractor.extract_article_outcome(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
     assert not out.passed and out.extraction is None and out.counts["V1"] >= 1
     doc = extractor.build_output_doc(out, ARTICLE)
     assert doc["extraction"]["article_id"] == "t-001" and doc["label_meta"]["validation"]["passed"] is False
@@ -276,7 +276,7 @@ def test_pydantic_failure_kept_as_raw(fake_llm):
 
 def test_negative_article_empty_styles(fake_llm):
     fake_llm([{"styles": []}])
-    ext = extractor.extract_article(ARTICLE, backend="codex_cli", model="m-1", prompt_version="extract-v1")
+    ext = extractor.extract_article(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
     assert ext.styles == [] and ext.article_id == "t-001"
 
 
