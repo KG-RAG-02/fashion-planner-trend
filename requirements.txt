@@ -1,4 +1,4 @@
-# 의존성은 개발하면서 추가합니다. (예상: LLM SDK)
+# 의존성은 개발하면서 추가합니다. (OpenAI는 requests로 직접 호출하므로 SDK가 필요 없다)
 requests
 beautifulsoup4
 lxml
@@ -12,7 +12,11 @@ pydantic>=2
 pyyaml
 huggingface_hub
 pyarrow  # 03 parquet
-Pillow  # 이미지 크기·디코드 확인, 콘택트시트 (C2·T4)
+Pillow  # 이미지 크기·디코드 확인
+numpy  # 임베딩 (embeddings/runtime.py)
+# 로컬 임베딩 모델(BAAI/bge-m3)을 실제로 돌릴 때만 설치한다 (설치가 크다, 수 GB):
+#   torch
+#   sentence-transformers
 
 # Knowledge Graph
 neo4j>=5
