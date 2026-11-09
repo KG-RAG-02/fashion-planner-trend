@@ -1,6 +1,6 @@
 """02 otpensource를 표준 어휘로 정규화해 **전체**를 저장한다 (03은 build_musinsa_snap.py, 같은 AliasMap).
 
-실행:  python scripts/build_otpensource.py --out "$SHARED/data/processed/v2" [--snapshot-dir DIR] [--image-index PATH]
+실행:  python scripts/build_otpensource.py [--out DIR] [--snapshot-dir DIR] [--image-index PATH]   # --out 기본 data/processed
        --snapshot-dir를 주지 않으면 HF 캐시(HF_HOME)의 고정 리비전 스냅샷을 쓴다(없으면 내려받는다).
 출력(--out):
   otpensource_all.jsonl                 ProductRecord 한 줄에 하나(그래프 적재용). 세트 분해 구성품 포함, 분해된 부모는 빠진다
@@ -9,7 +9,7 @@
   otpensource_split_review.csv          세트·팩 표지가 있는 모든 행의 판정(사람 검토용)
   BUILD_INFO.json                       입력 sha256·리비전·커밋
   --review-candidates PATH              세트 후보 목록(product_id, name, rule_result …) — C2 2단계 B 입력(USER 요청 #137)
-v1 폴더(`$SHARED/data/processed/v1`)와 심볼릭 링크 대상에는 쓰지 않는다.
+읽기 전용으로 지정된 폴더(`output.protected_dirs`)와 심볼릭 링크 대상에는 쓰지 않는다.
 """
 from __future__ import annotations
 
@@ -24,8 +24,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-if os.environ.get("SHARED"):  # 원천 캐시는 팀 공유 위치에 둔다(사용자 기본 HF 캐시에 받지 않는다)
-    os.environ.setdefault("HF_HOME", str(Path(os.environ["SHARED"]) / "hf_cache"))
 
 from trend_agent.ingestion.normalization.image_index import ImageJoiner, load_image_index  # noqa: E402
 from trend_agent.ingestion.normalization.otpensource import (  # noqa: E402
@@ -145,10 +143,10 @@ def build(snapshot_dir: Path, out: Path, image_index: Path | None, review_candid
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", required=True, help="출력 폴더(예: $SHARED/data/processed/v2). v1 폴더는 거부")
+    ap.add_argument("--out", default=str(ROOT / "data" / "processed"), help="출력 폴더 (기본 data/processed)")
     ap.add_argument("--snapshot-dir", help="02 원천 JSON 폴더(HF 스냅샷). 없으면 HF 캐시의 고정 리비전")
-    ap.add_argument("--image-index", help="C2 이미지 인덱스 parquet($SHARED/images/index.parquet)")
-    ap.add_argument("--review-candidates", help="세트 후보 CSV 경로(예: $SHARED/preprocess/set_review_candidates.csv)")
+    ap.add_argument("--image-index", help="이미지 인덱스 parquet (선택. 없으면 이미지 상태를 채우지 않는다)")
+    ap.add_argument("--review-candidates", help="세트 후보 CSV를 쓸 경로 (선택)")
     a = ap.parse_args()
     out = resolve_out(a.out)
     snap = Path(a.snapshot_dir) if a.snapshot_dir else find_snapshot_dir()

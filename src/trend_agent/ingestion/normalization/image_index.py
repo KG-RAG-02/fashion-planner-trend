@@ -1,4 +1,4 @@
-"""C2 이미지 인덱스(`$SHARED/images/index.parquet`, 계약 v1.1 — handoffs/C2-L0-image-index-proposal.md)를 Product에 붙인다.
+"""이미지 인덱스(parquet, 계약 v1.1)를 Product에 붙인다. 인덱스는 선택이고, 없으면 이미지 상태를 채우지 않는다.
 
 - 원천은 C2 하나다. T2는 `image_ref`·`image_scope`·`image_status`를 **그대로 승계**하고 다시 계산하지 않는다(결정 G0-C2).
 - 조인 키는 `product_id`. 02 세트 구성품(`<원 id>#<k>`)은 `parent_id`로 원 행을 찾아 승계하고 scope만 `full_set`.

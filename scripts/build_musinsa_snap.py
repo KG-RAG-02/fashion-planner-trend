@@ -1,7 +1,7 @@
 """03 musinsa-snap-new를 표준 어휘로 정규화해 전체를 저장한다 (02와 같은 AliasMap).
 
-실행:  python scripts/build_musinsa_snap.py --out "$SHARED/data/processed/v2" [--parquet PATH] [--image-index PATH]
-       --parquet을 주지 않으면 C2가 받은 고정 리비전 $SHARED/hf/data/train-00000-of-00001.parquet, 없으면 HF 캐시($SHARED/hf_cache)
+실행:  python scripts/build_musinsa_snap.py [--out DIR] [--parquet PATH] [--image-index PATH]   # --out 기본 data/processed
+       --parquet을 주지 않으면 HF 캐시(HF_HOME)의 고정 리비전을 쓴다(없으면 내려받는다)
 출력(--out):
   musinsa_snap_all.jsonl                 ProductRecord, 라벨 슬롯 하나당 한 줄(슬롯 수·id는 v1과 같다)
   musinsa_snap_normalization_report.json
@@ -19,8 +19,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-if os.environ.get("SHARED"):  # 원천 캐시는 팀 공유 위치에 둔다(사용자 기본 HF 캐시에 받지 않는다)
-    os.environ.setdefault("HF_HOME", str(Path(os.environ["SHARED"]) / "hf_cache"))
 
 from trend_agent.ingestion.normalization.image_index import ImageJoiner, load_image_index  # noqa: E402
 from trend_agent.ingestion.normalization.musinsa_snap import (  # noqa: E402
@@ -82,13 +80,12 @@ def build(parquet: Path, out: Path, image_index: Path | None) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", required=True, help="출력 폴더(예: $SHARED/data/processed/v2). v1 폴더는 거부")
+    ap.add_argument("--out", default=str(ROOT / "data" / "processed"), help="출력 폴더 (기본 data/processed)")
     ap.add_argument("--parquet", help="03 원천 parquet 파일 또는 폴더. 없으면 HF 캐시")
-    ap.add_argument("--image-index", help="C2 이미지 인덱스 parquet($SHARED/images/index.parquet)")
+    ap.add_argument("--image-index", help="이미지 인덱스 parquet (선택. 없으면 이미지 상태를 채우지 않는다)")
     a = ap.parse_args()
     out = resolve_out(a.out)
-    pinned = Path(os.environ.get("SHARED", "")) / "hf" / "data" / "train-00000-of-00001.parquet"
-    parquet = Path(a.parquet) if a.parquet else (pinned if pinned.is_file() else find_snapshot_dir())
+    parquet = Path(a.parquet) if a.parquet else find_snapshot_dir()
     report = build(parquet, out, Path(a.image_index) if a.image_index else None)
     print(json.dumps({k: v for k, v in report.items() if k not in ("by_category_minor", "category_null_raw",
                                                                    "category_major_only_raw")},

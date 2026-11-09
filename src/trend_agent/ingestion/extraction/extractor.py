@@ -77,7 +77,7 @@ def _attempt(article: dict, prompt: str, schema: dict, *, prompt_version: str, b
 
 
 def extract_article_outcome(article: dict, *, backend: Optional[str] = None, model: Optional[str] = None,
-                            prompt_version: str = "extract-v1", reasoning_effort: Optional[str] = None,
+                            prompt_version: str = "extract-v2", reasoning_effort: Optional[str] = None,
                             timeout_s: Optional[float] = None, use_cache: bool = True, max_retries: int = 1,
                             max_blocks: int = 2, max_text_gap: int = 1, length_area: bool = False) -> ExtractionOutcome:
     schema, _dropped, sha = extraction_schema()
@@ -110,7 +110,7 @@ def extract_article_outcome(article: dict, *, backend: Optional[str] = None, mod
 
 
 def extract_article(article: dict, *, backend: Optional[str] = None, model: Optional[str] = None,
-                    prompt_version: str = "extract-v1", **kw: Any) -> ArticleExtraction:
+                    prompt_version: str = "extract-v2", **kw: Any) -> ArticleExtraction:
     out = extract_article_outcome(article, backend=backend, model=model, prompt_version=prompt_version, **kw)
     if not out.passed or out.extraction is None:
         raise ExtractionFailed(out)

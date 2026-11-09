@@ -1,6 +1,6 @@
 """products v1 ↔ v2 전·후 수치표 (T2 작업 5 · 설계 메모 §3.5).
 
-실행:  python scripts/audit_products.py --v1 "$SHARED/data/processed/v1" --v2 "$SHARED/data/processed/v2" [--out DIR]
+실행:  python scripts/audit_products.py --v1 이전_산출물_폴더 --v2 새_산출물_폴더 [--out DIR]
 출력:  <out>/audit_v1_v2.md · <out>/audit_v1_v2.json (기본 out = v2 폴더)
 
 비교: 건수·그래프 대상(상분류 있음)·상분류/하분류·속성 채움·approx·분해/팩/후보·dup_of·빈 행·노이즈 null·

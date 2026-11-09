@@ -2,13 +2,13 @@
 
 문서: eval/README.md(건수 보고 규칙), eval/guidelines/article_extraction.md, docs/schemas/article_extraction.md §5(V2·V3).
 
-실행 (레포 루트, 공유 venv):
-  python scripts/compare_extraction.py --pred codex_cli="$SHARED/extractions/<pv>" [--pred openai_api="…"] \
+실행 (레포 루트):
+  python scripts/compare_extraction.py --pred openai_api="data/processed/extractions/<pv>" [--pred 라벨2="…"] \
       [--split dev|test|all] [--ids 857922,…] [--include-review] [--no-length-rule] [--out eval/results/extraction/<run>] [--confirm-test]
 
 - 예측 파일: <dir>/<aid>.json(검증 통과) · <dir>/_review/<aid>.json(검증 실패). 형식은 {"label_meta","extraction"} 또는 ArticleExtraction 단독.
   `_review`는 기본으로 "예측 없음(검토 대기)"으로 세고, --include-review면 함께 비교한다.
-- test 기사는 --confirm-test가 있어야 열린다. 열 때마다 $SHARED/eval/test_access.jsonl에 기록한다.
+- test 기사는 --confirm-test가 있어야 열린다. 열 때마다 eval/results/test_access.jsonl에 기록한다.
 - 기장 규칙(사용자 결정 L-맥시): 예측의 하의·원피스 length_body '롱' → '맥시'로 바꿔 비교하고 바꾼 건수를 센다(--no-length-rule로 끔).
 출력: <out>/report.md(행 = 지표, 열 = 백엔드) · details.jsonl(기사별 차이) · summary.json(건수·실행 메타).
 """
@@ -374,7 +374,7 @@ def main(argv=None) -> int:
     ap.add_argument("--include-review", action="store_true", help="_review/ 예측도 비교 (진단용)")
     ap.add_argument("--no-length-rule", action="store_true", help="L-맥시 평가 쪽 보정을 끈다")
     ap.add_argument("--confirm-test", action="store_true", help="test 기사를 연다 (열람 기록이 남는다)")
-    ap.add_argument("--access-log", type=Path, default=Path(os.environ.get("SHARED", ROOT / "eval" / "results")) / "eval" / "test_access.jsonl")
+    ap.add_argument("--access-log", type=Path, default=ROOT / "eval" / "results" / "test_access.jsonl")
     ap.add_argument("--out", type=Path)
     a = ap.parse_args(argv)
 

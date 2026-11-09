@@ -6,7 +6,7 @@
        python scripts/load_graph.py --prune-products # 입력 파일에 없는 Product 삭제 (products v2로 id가 바뀐 뒤)
        python scripts/load_graph.py --reset          # 그래프를 비우고 처음부터 (확인 없이 전부 삭제하므로 주의)
 입력:  data/processed/otpensource_all.jsonl, musinsa_snap_all.jsonl  (build_otpensource.py, build_musinsa_snap.py)
-       data/processed/extractions/*.json                           (기사 추출 결과, extract_articles.py)
+       data/processed/extractions/<prompt_version>/*.json          (기사 추출 결과, extract_articles.py. 기본 extract-v2)
        data/raw/vogue_kr/articles_pool_150.jsonl                   (크롤 기사 — Item 이미지 맵 {image_idx: url})
        eval/datasets/article_extraction/labels/*.json              (--include-labels일 때만. 팀 내부로 전달받는 파일)
 선행:  docker compose up -d  (Neo4j), .env의 NEO4J_* 설정.
@@ -30,6 +30,7 @@ from trend_agent.graph import loader  # noqa: E402
 PROC = ROOT / "data" / "processed"
 LABELS = ROOT / "eval" / "datasets" / "article_extraction" / "labels"
 EXTRACTIONS = PROC / "extractions"
+DEFAULT_PROMPT_VERSION = "extract-v2"
 CRAWL = ROOT / "data" / "raw" / "vogue_kr" / "articles_pool_150.jsonl"
 
 
@@ -40,7 +41,8 @@ def main() -> int:
     ap.add_argument("--products-dir", default=str(PROC), help="정규화 Product JSONL 폴더 (기본 data/processed)")
     ap.add_argument("--include-labels", action="store_true", help="정답 라벨도 적재 (스키마 확인·평가용 임시 옵션, 기본 아님)")
     ap.add_argument("--labels-dir", default=str(LABELS), help="--include-labels일 때 읽는 폴더")
-    ap.add_argument("--extractions-dir", default=str(EXTRACTIONS), help="기사 추출 결과 폴더 (기본 data/processed/extractions)")
+    ap.add_argument("--prompt-version", default=DEFAULT_PROMPT_VERSION, help="읽을 추출 결과 버전 (폴더 data/processed/extractions/<버전>)")
+    ap.add_argument("--extractions-dir", default=None, help="추출 결과 폴더를 직접 지정 (기본 data/processed/extractions/<prompt-version>)")
     ap.add_argument("--prefer", choices=["labels", "extractions"], default="extractions", help="같은 기사가 둘 다 있을 때")
     ap.add_argument("--crawl", default=str(CRAWL), help="크롤 JSONL (Item 이미지 맵·기사 메타)")
     ap.add_argument("--prune-products", action="store_true", help="이번 입력에 없는 Product 삭제")
@@ -69,7 +71,7 @@ def main() -> int:
                     report["pruned_products"] = loader.prune_products(driver, seen)
                 else:
                     print("prune 건너뜀: 적재한 Product가 없다")
-        extractions = Path(args.extractions_dir)
+        extractions = Path(args.extractions_dir) if args.extractions_dir else EXTRACTIONS / args.prompt_version
         if not (extractions.exists() and any(extractions.glob("*.json"))):
             print(f"추출 결과 없음: {extractions} (extract_articles.py를 먼저 실행). 기사 없이 Product만 적재한다")
         labels = Path(args.labels_dir) if args.include_labels else None

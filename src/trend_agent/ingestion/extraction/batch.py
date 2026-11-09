@@ -38,7 +38,7 @@ class BatchConfig:
     backend: Optional[str] = None
     model: Optional[str] = None
     reasoning_effort: Optional[str] = None
-    prompt_version: str = "extract-v1"
+    prompt_version: str = "extract-v2"
     concurrency: int = 2
     ids: Optional[list[str]] = None
     limit: Optional[int] = None
