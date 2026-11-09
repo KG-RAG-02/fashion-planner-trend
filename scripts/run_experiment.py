@@ -166,9 +166,11 @@ def collect(run: Path, tag: str, ids: list[str], labels: Path) -> list[dict]:
     return rows
 
 
-def copy_responses(run: Path, tag: str, rows: list[dict], *, model: str, prompt_version: str) -> int:
-    """LLM 캐시에서 이번 결과의 원 응답(thread id로 찾음)을 실험 폴더로 복사한다."""
-    folder = ResponseCache(default_cache_dir()).path(backend="openai_api", model=model, reasoning_effort=None,
+def copy_responses(run: Path, tag: str, rows: list[dict], *, model: str, prompt_version: str,
+                   reasoning_effort: str | None = None) -> int:
+    """LLM 캐시에서 이번 결과의 원 응답(thread id로 찾음)을 실험 폴더로 복사한다. 캐시 경로에 추론 강도가 들어간다."""
+    folder = ResponseCache(default_cache_dir()).path(backend="openai_api", model=model,
+                                                     reasoning_effort=reasoning_effort,
                                                      prompt_version=prompt_version, key="x").parent
     by_thread = {}
     for p in folder.glob("*.json") if folder.exists() else []:
@@ -318,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
             (run / name).replace(run / f"{tag}_{name}")
 
     rows = collect(run, tag, ids, LABELS)
-    n_copied = copy_responses(run, tag, rows, model=model, prompt_version=a.prompt_version)
+    n_copied = copy_responses(run, tag, rows, model=model, prompt_version=a.prompt_version, reasoning_effort=effort)
     tin = sum(r.get("tokens_in", 0) for r in rows)
     tcached = sum(r.get("tokens_cached", 0) for r in rows)
     tout = sum(r.get("tokens_out", 0) for r in rows)

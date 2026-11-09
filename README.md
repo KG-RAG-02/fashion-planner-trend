@@ -98,15 +98,15 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 |---|---|
 | Vogue 크롤러, 샘플 수집 스크립트 | ✅ 구현 (150건 수집) |
 | 스키마 코드 (`vocabulary`, `trend_query`, `article_extraction`, `graph_schema`, `trend_analysis_result`) | ✅ 작성 (문서는 사용자 검수 전) |
-| 별칭 사전 + Product 정규화: 02 전체(세트 분해 포함 8,884행), 03 전체 24,532 슬롯 (같은 사전) | ✅ 구현 |
+| 별칭 사전 + Product 정규화: 02 전체(세트 분해 포함 8,884행), 03 전체 24,532 슬롯 (같은 사전) | ✅ 구현 (8,884는 다른 환경의 빌드 수치. **이 PC의 산출물은 아직 v1 8,827행**이고 v2 재빌드·검수가 남았다 — [pipeline §0.1](docs/pipeline.md) ③) |
 | 로컬 Neo4j (`docker-compose.yml`, 5.26 LTS) | ✅ 실행·접속 확인 |
 | Neo4j 적재 (`scripts/load_graph.py`) | ✅ Product와 **기사 추출 결과**를 적재한다. 다시 실행해도 같은 그래프. 정답 라벨은 `--include-labels`일 때만(스키마 확인용 임시 옵션) |
 | 유사도 가중치 설정 (`configs/weights.yaml`)·점수 계산 (`retrieval/scoring.py`) | ✅ 구현 (값은 임의 시작값) |
 | 검색·결과 출력 (`scripts/run_trend_search.py`) | ✅ 구현. 그래프 검색이 전체 Product 직접 점수 계산과 36/36 일치 |
 | 데이터를 구워 넣은 Docker 이미지 (`docker/demo/build.sh`) | ✅ 구현. CPU별로 `amd64`(Windows·Intel)와 `arm64`(Apple Silicon) 두 파일. arm64는 Apple Silicon에서 `docker compose`로 확인, amd64는 Apple Silicon 에뮬레이션에서 `docker run`으로만 확인 (**Windows·Intel PC 실행은 미확인**). 전달용, 팀 내부 |
-| 테스트 | ✅ 335개 통과, 12개 건너뜀 (Neo4j 테스트 인스턴스가 필요한 것과 Windows에서 symlink를 못 만드는 것). **Neo4j 통합 테스트는 아직 못 돌렸다** ([pipeline §13 R-9](docs/pipeline.md)) |
+| 테스트 | ✅ 336개 통과, 12개 건너뜀 (Neo4j 테스트 인스턴스가 필요한 것과 Windows에서 symlink를 못 만드는 것). **Neo4j 통합 테스트는 아직 못 돌렸다** ([pipeline §13 R-9](docs/pipeline.md)) |
 | LLM 호출·기사 추출·검증·비교 (WP-A) | ✅ 구현 (`llm/`, `ingestion/extraction/`, `scripts/extract_articles.py`, `compare_extraction.py`). ⬜ 150건 배치 실행(OpenAI로 기사 원문이 나가므로 실행 전 확인), 시즌 후보 대조, Item 단위 제외 ([docs/pipeline.md §1.1](docs/pipeline.md)) |
-| 추출 프롬프트·모델 실험 | 🔶 진행 중. 프롬프트 v3(합성 예시 + 시즌 후보)·v4(Item 규칙 완화), 후처리 P1·P2 채택, 라벨 5건으로 gpt-4o-mini·gpt-4.1 비교 완료, 다음은 추론 모델 gpt-5-mini ([pipeline §6.7·§6.8, D-24~D-30](docs/pipeline.md)) |
+| 추출 프롬프트·모델 실험 | 🔶 진행 중. 프롬프트 v3(합성 예시 + 시즌 후보)·v4(Item 규칙 완화), 후처리 P1·P2 채택, 라벨 5건으로 gpt-4o-mini·gpt-4.1 비교 완료. 다음은 LLM 호출 구조 정리(모델 계열 모듈 + 모델 등록표) → 추론 모델 gpt-5-mini 실험 ([pipeline §6.7·§6.8, D-24~D-30](docs/pipeline.md)) |
 | 검색 과정·점수 사유 출력(trace) | 🔶 점수 분해·근거는 나오지만 "무엇이 왜 빠졌는지"는 아직. 추가 여부 확인 대기 |
 | 자동화 파이프라인(주 1회 수집 → 추출 → Style 해소 → 적재, 스케줄러) (WP-B) | ⬜ 설계 완료, 구현 전 |
 | 자동화 파이프라인 설계와 작업 계획 | ✅ [docs/pipeline.md](docs/pipeline.md) (결정, 설계, 작업 패키지, 확인 대기 질문) |
@@ -133,8 +133,8 @@ trend-analysis-agent/
 │   ├── alias_map/             # 속성별 별칭 사전 (yaml)
 │   └── weights.yaml           # 유사도 가중치 기본값
 ├── scripts/                   # 실행 스크립트 (아래 "스크립트 한눈에")
-├── prompts/extraction/        # 기사 추출 프롬프트 (v1, v2 = dev 라벨로 조정한 뒤 동결한 기본본, Q-10에 따라 v3로 올릴 수 있다)
-├── tests/                     # pytest 335개 (스키마·정규화·점수·LLM·추출·적재·비교·실험 등)
+├── prompts/extraction/        # 기사 추출 프롬프트 (v1, v2 = 동결한 스크립트 기본값, v3 = 합성 예시+시즌 후보, v4 = v3에서 Item 규칙 완화. 기본값은 실험 뒤 결정)
+├── tests/                     # pytest 336개 (스키마·정규화·점수·LLM·추출·적재·비교·실험 등)
 ├── eval/                      # 평가 기준·정답 데이터 (라벨·검수 문서·결과는 git 제외)
 ├── docs/                      # spec.md(명세·결정·현재 상태), schemas/(데이터 계약·표준 어휘·별칭 사전·근거 자료)
 ├── data/                      # raw/ (수집 원본), processed/ (가공 결과) — 모두 git 제외
@@ -256,7 +256,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 3. 테스트 (Neo4j 없이 도는 단위 테스트)
-python -m pytest -q                       # 335 passed, 12 skipped (Neo4j 테스트 인스턴스가 필요한 것과 symlink 권한이 필요한 것은 건너뜀)
+python -m pytest -q                       # 336 passed, 12 skipped (Neo4j 테스트 인스턴스가 필요한 것과 symlink 권한이 필요한 것은 건너뜀)
 
 # 4. Product 정규화: 공개 데이터를 내려받아 표준 어휘로 바꾼다 (처음에는 수 분 걸릴 수 있다)
 python scripts/build_otpensource.py       # 02 → data/processed/otpensource_all.jsonl (세트 분해 후 8,884행)

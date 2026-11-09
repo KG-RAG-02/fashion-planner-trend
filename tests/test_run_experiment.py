@@ -37,6 +37,31 @@ def test_vtag():
     assert rx.vtag("extract-v4") == "v4" and rx.vtag("extract-v3") == "v3"
 
 
+def test_reasoning_model_run_copies_responses_and_reports_tokens(monkeypatch, tmp_path):
+    """추론 모델(추론 강도 있음)도 원 응답 사본이 남고, 실행 보고서가 OpenAI usage 키로 토큰을 센다."""
+    src, _ = _setup(monkeypatch, tmp_path)
+
+    class _OpenAIStyle(_ByArticle):
+        def run(self, prompt, schema, **kw):
+            r = super().run(prompt, schema, **kw)
+            r.usage = {"prompt_tokens": 1200, "completion_tokens": 300,
+                       "completion_tokens_details": {"reasoning_tokens": 200}}
+            return r
+
+    client.register_backend("openai_api", _OpenAIStyle({"e1": _llm_doc()}))
+    try:
+        rx.main(["--prompt-version", "extract-v4", "--model", "gpt-5-mini", "--reasoning-effort", "medium",
+                 "--ids", "e1", "--in", str(src), "--out-root", str(tmp_path / "exp")])
+    finally:
+        client.register_backend("openai_api", None)
+    run = next((tmp_path / "exp").glob("v4_gpt-5-mini-medium_*"))
+    assert (run / "llm_responses" / "v4_e1_try1.json").exists()
+    rec = json.loads((run / "v4_EXPERIMENT.json").read_text(encoding="utf-8"))
+    assert rec["condition"]["reasoning_effort"] == "medium" and rec["condition"]["temperature"] is None
+    assert rec["results"]["summary"]["tokens_reasoning"] == 200
+    assert "입력 1,200 · 출력 300" in (run / "v4_run_report.md").read_text(encoding="utf-8")
+
+
 def test_cost_usd_and_pricing_file():
     pricing = {"models": {"m": [2.0, 0.5, 8.0]}}
     # 입력 1M 중 0.4M 캐시 적중 → 0.6·2 + 0.4·0.5 = 1.4, 출력 0.1M·8 = 0.8

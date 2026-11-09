@@ -273,7 +273,7 @@ def postprocess(raw_doc: dict, article: dict, *, am: Optional[AliasMap] = None, 
                 notes: Optional[list[str]] = None) -> tuple[dict, list[str]]:
     """(pydantic 입력 dict, V6 오류). 원본 dict는 바꾸지 않는다.
 
-    선택 후처리(기본 꺼짐 — 실험으로 사용 여부를 정한다, pipeline.md §6.7): `dedupe=True`면 P1 `merge_duplicates`,
+    선택 후처리(라이브러리 기본값은 꺼짐. P1·P2는 채택돼 실행 스크립트가 기본으로 켠다 — pipeline.md D-27, §6.7): `dedupe=True`면 P1 `merge_duplicates`,
     `name_fix=True`면 P2 `fix_style_names`를 이 순서로 적용하고 기록을 `notes`(주면)에 덧붙인다.
     """
     doc = copy.deepcopy(raw_doc)

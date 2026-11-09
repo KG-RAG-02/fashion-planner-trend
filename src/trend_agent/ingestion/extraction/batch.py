@@ -291,8 +291,11 @@ def write_report(out_dir: Path, *, prompt_version: str, last_run: Optional[Batch
                     flags[fl.split(":", 1)[0]] += 1
     lat = [x for r in live.values() for x in (r.get("latency_s") or []) if x]
     walls = [r["wall_s"] for r in live.values() if r.get("wall_s")]
-    tok_in = sum((u or {}).get("input_tokens", 0) for r in live.values() for u in (r.get("usage") or []))
-    tok_out = sum((u or {}).get("output_tokens", 0) for r in live.values() for u in (r.get("usage") or []))
+    # OpenAI Chat Completions의 usage 키는 prompt_tokens·completion_tokens다 (input_/output_tokens는 다른 형식 호환용)
+    tok_in = sum(int((u or {}).get("prompt_tokens") or (u or {}).get("input_tokens") or 0)
+                 for r in live.values() for u in (r.get("usage") or []))
+    tok_out = sum(int((u or {}).get("completion_tokens") or (u or {}).get("output_tokens") or 0)
+                  for r in live.values() for u in (r.get("usage") or []))
     cache_hits = sum(1 for r in latest.values() for c in (r.get("cache_hit") or []) if c)
     calls = sum(len(r.get("cache_hit") or []) for r in latest.values())
     tools = sum(int(r.get("tool_events") or 0) for r in latest.values())
