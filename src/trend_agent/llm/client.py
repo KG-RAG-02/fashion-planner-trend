@@ -24,7 +24,8 @@ from typing import Any, Optional
 from pydantic import BaseModel, ValidationError
 
 from ..config import load_env
-from .backends import REASONING_EFFORTS, BackendReply, OpenAIAPIBackend, is_reasoning_model
+from .backends import BackendReply, OpenAIAPIBackend
+from .models import get_profile, get_spec
 from .cache import ResponseCache, append_log, default_cache_dir, default_call_log, input_sha256
 from .errors import LLMBackendError, LLMError, LLMOutputError, LLMTimeout
 from .schema import check_instance, schema_sha256, strict_schema
@@ -47,7 +48,9 @@ class LLMResult:
 
 
 def register_backend(name: str, impl: Any) -> None:
-    """백엔드 구현을 바꿔 끼운다(테스트·녹화 재생용). `impl.run(prompt, schema, name=, model=, reasoning_effort=, timeout_s=)`."""
+    """백엔드 구현을 바꿔 끼운다(테스트·녹화 재생용).
+    `impl.run(prompt, schema, name=, model=, reasoning_effort=, timeout_s=, request_params=)` — request_params는 모델 계열
+    모듈(llm/models/)이 만든 요청 파라미터다."""
     if impl is None:
         _registry.pop(name, None)
     else:
@@ -70,14 +73,14 @@ def resolve_settings(backend: Optional[str] = None, model: Optional[str] = None,
     m = model or env.get("LLM_MODEL") or ""
     if not m:
         raise LLMBackendError("모델이 정해지지 않았다: model 인자나 env LLM_MODEL이 필요하다(고정 모델 원칙)")
-    # 추론 강도는 추론 모델에만 (docs/pipeline.md D-30). 일반 모델에 주면 조용히 무시하지 않고 오류다
-    eff = reasoning_effort or None
-    if eff is not None and eff not in REASONING_EFFORTS:
-        raise LLMBackendError(f"reasoning_effort는 {REASONING_EFFORTS} 중 하나: {eff!r}")
-    if eff is not None and not is_reasoning_model(m):
-        raise LLMBackendError(f"일반 모델({m})에는 reasoning_effort를 줄 수 없다")
+    # 모델 등록표(configs/llm_models.yaml)에 있어야 하고, 요청 규칙은 그 모델의 계열 모듈이 정한다 (docs/pipeline.md D-30, §14.2).
+    # 일반 모델에 추론 강도를 주면 조용히 무시하지 않고 오류다
+    spec = get_spec(m)
+    profile = get_profile(spec)
+    eff = profile.check_effort(spec, reasoning_effort or None)
     t = timeout_s if timeout_s is not None else float(env.get("LLM_TIMEOUT_S") or DEFAULT_TIMEOUT_S)
-    return {"backend": b, "model": m, "reasoning_effort": eff, "timeout_s": t, "env": env}
+    return {"backend": b, "model": m, "reasoning_effort": eff, "timeout_s": t, "env": env,
+            "profile": spec.profile, "request_params": profile.request_params(eff)}
 
 
 def _backend_impl(name: str, env: dict[str, str]) -> Any:
@@ -100,8 +103,8 @@ def call(prompt: str, json_schema: dict, *, purpose: str, prompt_version: str, b
     key = input_sha256(prompt, schema_sha)
     meta: dict[str, Any] = {
         "ts": _now(), "purpose": purpose, "prompt_version": prompt_version, "backend": st["backend"],
-        "model": st["model"], "reasoning_effort": st["reasoning_effort"], "schema_sha256": schema_sha,
-        "input_sha256": key, "prompt_chars": len(prompt), "thread_id": None, "latency_s": None, "usage": None,
+        "model": st["model"], "reasoning_effort": st["reasoning_effort"], "profile": st["profile"],
+        "schema_sha256": schema_sha, "input_sha256": key, "prompt_chars": len(prompt), "thread_id": None, "latency_s": None, "usage": None,
         "cache_hit": False, "tool_events": 0, "tool_types": [], "ok": False, "error": None, "error_type": None,
     }
     cache = ResponseCache(cache_dir or default_cache_dir(env))
@@ -123,7 +126,8 @@ def call(prompt: str, json_schema: dict, *, purpose: str, prompt_version: str, b
     t0 = time.monotonic()
     try:
         reply: BackendReply = impl.run(prompt, json_schema, name=purpose, model=st["model"],
-                                       reasoning_effort=st["reasoning_effort"], timeout_s=st["timeout_s"])
+                                       reasoning_effort=st["reasoning_effort"], timeout_s=st["timeout_s"],
+                                       request_params=st["request_params"])
         if not isinstance(reply.data, dict):
             raise LLMOutputError(f"최상위가 객체가 아님: {type(reply.data).__name__}")
         problems = check_instance(reply.data, json_schema)

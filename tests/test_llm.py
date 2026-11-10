@@ -95,7 +95,7 @@ class _FakeBackend:
         self.data = data
         self.calls = 0
 
-    def run(self, prompt, schema, *, name, model, reasoning_effort, timeout_s):
+    def run(self, prompt, schema, *, name, model, reasoning_effort, timeout_s, **kw):
         self.calls += 1
         return BackendReply(data=self.data, raw_text=json.dumps(self.data), latency_s=0.5, thread_id="th-1",
                             usage={"input_tokens": 10}, tool_events=0)
@@ -197,37 +197,42 @@ class _Session:
 
 
 def test_openai_backend_request_shape():
+    """백엔드는 모델 규칙을 모른다: request_params(계열 모듈이 만든 것)를 요청 본문에 더할 뿐이다 (D-30)."""
     pytest.importorskip("requests")  # 데모 이미지에는 requests가 없다
     sess = _Session(_Resp(200, {"id": "chatcmpl-1", "usage": {"prompt_tokens": 5},
                                 "choices": [{"message": {"content": '{"color":null,"items":[]}'}, "finish_reason": "stop"}]}))
     r = OpenAIAPIBackend("sk-test", session=sess).run("p", SMALL, name="article extraction", model="gpt-4o-mini",
-                                                      reasoning_effort=None, timeout_s=10)
+                                                      reasoning_effort=None, timeout_s=10,
+                                                      request_params={"temperature": 0})
     body = sess.sent["json"]
     assert body["temperature"] == 0 and body["model"] == "gpt-4o-mini"
     assert body["response_format"]["json_schema"]["strict"] is True
     assert body["response_format"]["json_schema"]["name"] == "article_extraction"
     assert r.data == {"color": None, "items": []} and r.thread_id == "chatcmpl-1"
+    sess = _Session(_Resp(200, {"id": "x", "choices": [{"message": {"content": "{}"}}]}))
+    OpenAIAPIBackend("sk-test", session=sess).run("p", SMALL, name="t", model="any", reasoning_effort=None, timeout_s=1)
+    assert "temperature" not in sess.sent["json"]                     # 파라미터를 받지 않으면 더하지 않는다
+    with pytest.raises(llm.LLMBackendError, match="고정 필드"):        # 고정 필드(model 등)는 덮어쓸 수 없다
+        OpenAIAPIBackend("sk-test", session=sess).run("p", SMALL, name="t", model="m", reasoning_effort=None,
+                                                      timeout_s=1, request_params={"model": "other"})
 
 
-def test_openai_backend_reasoning_model_request_shape():
-    """D-30: 추론 모델은 temperature를 보내지 않고, 추론 강도가 있으면 보낸다."""
-    pytest.importorskip("requests")
-    from trend_agent.llm.backends import is_reasoning_model
-    assert is_reasoning_model("gpt-5-mini") and is_reasoning_model("o3") and is_reasoning_model("gpt-5.4-mini")
-    assert not is_reasoning_model("gpt-4.1") and not is_reasoning_model("gpt-4o-mini")
-    ok = {"id": "chatcmpl-2", "choices": [{"message": {"content": '{"color":null,"items":[]}'}, "finish_reason": "stop"}]}
-    sess = _Session(_Resp(200, ok))
-    OpenAIAPIBackend("sk-test", session=sess).run("p", SMALL, name="t", model="gpt-5-mini", reasoning_effort="medium",
-                                                  timeout_s=10)
-    body = sess.sent["json"]
-    assert "temperature" not in body and body["reasoning_effort"] == "medium"
-    sess = _Session(_Resp(200, ok))
-    OpenAIAPIBackend("sk-test", session=sess).run("p", SMALL, name="t", model="gpt-5-mini", reasoning_effort=None,
-                                                  timeout_s=10)
-    assert "temperature" not in sess.sent["json"] and "reasoning_effort" not in sess.sent["json"]
-    with pytest.raises(llm.LLMBackendError, match="일반 모델"):
-        OpenAIAPIBackend("sk-test", session=_Session(_Resp(200, ok))).run(
-            "p", SMALL, name="t", model="gpt-4.1", reasoning_effort="low", timeout_s=10)
+def test_client_sends_profile_params_through_backend(isolated):
+    """client가 등록표의 계열 모듈로 요청 파라미터를 만들어 백엔드에 넘긴다: 일반 = temperature 0, 추론 = reasoning_effort."""
+    seen = []
+
+    class _Rec:
+        def run(self, prompt, schema, *, name, model, reasoning_effort, timeout_s, request_params=None):
+            seen.append((model, reasoning_effort, request_params))
+            return BackendReply(data={"color": None, "items": []}, raw_text="{}", latency_s=0.1, thread_id="t")
+
+    client.register_backend("openai_api", _Rec())
+    res = llm.call("p", SMALL, purpose="unit", prompt_version="v0", model="m", use_cache=False)
+    assert seen[-1] == ("m", None, {"temperature": 0}) and res.meta["profile"] == "standard"
+    llm.call("p", SMALL, purpose="unit", prompt_version="v0", model="gpt-5-mini", reasoning_effort="medium", use_cache=False)
+    assert seen[-1] == ("gpt-5-mini", "medium", {"reasoning_effort": "medium"})
+    llm.call("p", SMALL, purpose="unit", prompt_version="v0", model="gpt-5-mini", use_cache=False)
+    assert seen[-1] == ("gpt-5-mini", None, {})                         # 강도를 주지 않으면 API 기본값
 
 
 def test_openai_backend_errors_hide_key():

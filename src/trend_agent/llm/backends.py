@@ -1,9 +1,10 @@
 """LLM 백엔드 — `openai_api`(OpenAI Chat Completions, 기본이자 유일). 키는 `.env`의 `LLM_API_KEY`다.
 
-백엔드는 `run(prompt, json_schema, *, name, model, reasoning_effort, timeout_s) -> BackendReply`를 낸다.
-여기서는 **JSON 파싱까지만** 하고, 스키마 일치·pydantic 검증은 `client`가 한다.
-일반 모델은 `temperature: 0`을 보낸다. 추론 모델(`is_reasoning_model`)은 temperature를 보내지 않고, `reasoning_effort`가
-있으면 함께 보낸다 (docs/pipeline.md D-30, §6.4).
+백엔드는 `run(prompt, json_schema, *, name, model, reasoning_effort, timeout_s, request_params=None) -> BackendReply`를
+낸다. 여기서는 **전송과 JSON 파싱까지만** 하고, 스키마 일치·pydantic 검증은 `client`가 한다.
+**모델 규칙을 모른다**: temperature·reasoning_effort 같은 모델별 파라미터는 `client`가 모델 계열 모듈
+(`llm/models/standard.py`·`reasoning.py`)에서 받아 `request_params`로 넘기고, 백엔드는 요청 본문에 더할 뿐이다
+(docs/pipeline.md D-30, §14.2).
 """
 from __future__ import annotations
 
@@ -15,15 +16,7 @@ from typing import Any, Optional
 
 from .errors import LLMBackendError, LLMOutputError, LLMTimeout
 
-__all__ = ["BackendReply", "OpenAIAPIBackend", "REASONING_MODEL_PREFIXES", "REASONING_EFFORTS", "is_reasoning_model"]
-
-# 추론 모델 접두어 (temperature를 기본값 외로 받지 않는다). 목록 밖 신규 모델은 합성 문장 1건으로 확인한 뒤 넣는다.
-REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3", "o4")
-REASONING_EFFORTS = ("minimal", "low", "medium", "high")
-
-
-def is_reasoning_model(model: str) -> bool:
-    return (model or "").lower().startswith(REASONING_MODEL_PREFIXES)
+__all__ = ["BackendReply", "OpenAIAPIBackend"]
 
 
 @dataclass
@@ -51,8 +44,8 @@ def _parse_json_text(text: str) -> Any:
 
 
 class OpenAIAPIBackend:
-    """OpenAI Chat Completions + `response_format: json_schema(strict)`. 일반 모델은 temperature 0, 추론 모델은
-    temperature 없이 `reasoning_effort`(있으면). 키 값은 로그·예외에 넣지 않는다."""
+    """OpenAI Chat Completions + `response_format: json_schema(strict)`. 모델별 파라미터는 `request_params`로 받는다.
+    키 값은 로그·예외에 넣지 않는다."""
 
     name = "openai_api"
     URL = "https://api.openai.com/v1/chat/completions"
@@ -66,7 +59,8 @@ class OpenAIAPIBackend:
         return f"OpenAIAPIBackend(url={self.url!r}, api_key=***)"
 
     def run(self, prompt: str, json_schema: dict, *, name: str, model: str, reasoning_effort: Optional[str],
-            timeout_s: float) -> BackendReply:
+            timeout_s: float, request_params: Optional[dict] = None) -> BackendReply:
+        """`reasoning_effort`는 기록·호환용 인자다. 실제로 보내는 모델 파라미터는 `request_params`(계열 모듈이 만든 것)다."""
         if not self._api_key:
             raise LLMBackendError("openai_api: LLM_API_KEY가 없다")
         import requests  # 지연 import
@@ -79,13 +73,10 @@ class OpenAIAPIBackend:
                                 "json_schema": {"name": re.sub(r"[^A-Za-z0-9_-]", "_", name)[:64] or "output",
                                                 "schema": json_schema, "strict": True}},
         }
-        if is_reasoning_model(model):
-            if reasoning_effort:
-                body["reasoning_effort"] = reasoning_effort
-        else:
-            if reasoning_effort:
-                raise LLMBackendError(f"openai_api: 일반 모델({model})에는 reasoning_effort를 줄 수 없다")
-            body["temperature"] = 0
+        reserved = set(body) & set(request_params or {})
+        if reserved:
+            raise LLMBackendError(f"openai_api: request_params가 고정 필드를 덮어쓸 수 없다: {sorted(reserved)}")
+        body.update(request_params or {})
         t0 = time.monotonic()
         try:
             resp = sess.post(self.url, json=body, timeout=timeout_s,

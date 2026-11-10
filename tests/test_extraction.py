@@ -425,7 +425,7 @@ class _SeqBackend:
         self.docs = list(docs)
         self.prompts = []
 
-    def run(self, prompt, schema, *, name, model, reasoning_effort, timeout_s):
+    def run(self, prompt, schema, *, name, model, reasoning_effort, timeout_s, **kw):
         self.prompts.append(prompt)
         d = self.docs.pop(0) if len(self.docs) > 1 else self.docs[0]
         return BackendReply(data=copy.deepcopy(d), raw_text="{}", latency_s=1.25, thread_id=f"th-{len(self.prompts)}",
