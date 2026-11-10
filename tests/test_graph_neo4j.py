@@ -32,11 +32,11 @@ def g(neo4j_test_driver, tmp_path_factory):
     tmp = tmp_path_factory.mktemp("graph")
     (tmp / "labels").mkdir()
     (tmp / "ext").mkdir()
-    (tmp / "labels" / "900001.json").write_text(json.dumps(synthetic_label(), ensure_ascii=False))
-    (tmp / "ext" / "900001.json").write_text(json.dumps(synthetic_label(status="auto"), ensure_ascii=False))  # 라벨이 이긴다
+    (tmp / "labels" / "900001.json").write_text(json.dumps(synthetic_label(), ensure_ascii=False), encoding="utf-8")
+    (tmp / "ext" / "900001.json").write_text(json.dumps(synthetic_label(status="auto"), ensure_ascii=False), encoding="utf-8")  # 라벨이 이긴다
     (tmp / "ext" / "900002.json").write_text(json.dumps(
-        synthetic_label("900002", status="auto", color_raw="차콜 그레이", aliases=(), seasons=()), ensure_ascii=False))
-    (tmp / "crawl.jsonl").write_text("\n".join(json.dumps(synthetic_crawl(a), ensure_ascii=False) for a in ("900001", "900002")))
+        synthetic_label("900002", status="auto", color_raw="차콜 그레이", aliases=(), seasons=()), ensure_ascii=False), encoding="utf-8")
+    (tmp / "crawl.jsonl").write_text("\n".join(json.dumps(synthetic_crawl(a), ensure_ascii=False) for a in ("900001", "900002")), encoding="utf-8")
     seen, stats = _load(d, tmp)
     return SimpleNamespace(d=d, tmp=tmp, seen=seen, stats=stats)
 

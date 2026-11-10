@@ -10,7 +10,7 @@
        data/processed/extractions/<prompt_version>/*.json          (기사 추출 결과, extract_articles.py. 기본 extract-v2)
        data/raw/vogue_kr/articles_pool_150.jsonl                   (크롤 기사 — Item 이미지 맵 {image_idx: url})
        eval/datasets/article_extraction/labels/*.json              (--include-labels일 때만. 팀 내부로 전달받는 파일)
-선행:  docker compose up -d  (Neo4j), .env의 NEO4J_* 설정.
+선행:  .env의 NEO4J_* 설정 (Aura면 그 주소, 로컬이면 docker compose up -d).
 """
 from __future__ import annotations
 
@@ -23,9 +23,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from neo4j import GraphDatabase  # noqa: E402
 
-from trend_agent.config import neo4j_settings  # noqa: E402
+from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
 from trend_agent.graph import loader  # noqa: E402
 
 PROC = ROOT / "data" / "processed"
@@ -54,7 +53,7 @@ def main() -> int:
     s = neo4j_settings()
     t0 = time.time()
     report: dict = {"uri": s.uri}
-    with GraphDatabase.driver(s.uri, auth=(s.user, s.password)) as driver:
+    with neo4j_driver(s) as driver:
         driver.verify_connectivity()
         if args.reset:
             driver.execute_query("MATCH (n) DETACH DELETE n")
@@ -76,9 +75,10 @@ def main() -> int:
                 else:
                     print("prune 건너뜀: 적재한 Product가 없다")
         extractions = Path(args.extractions_dir) if args.extractions_dir else EXTRACTIONS / args.prompt_version
-        if not (extractions.exists() and any(extractions.glob("*.json"))):
-            print(f"추출 결과 없음: {extractions} (extract_articles.py를 먼저 실행). 기사 없이 Product만 적재한다")
         labels = Path(args.labels_dir) if args.include_labels else None
+        if not (extractions.exists() and any(extractions.glob("*.json"))):
+            then = "기사는 정답 라벨만 적재한다" if labels is not None else "기사 없이 Product만 적재한다"
+            print(f"추출 결과 없음: {extractions} (extract_articles.py를 먼저 실행). {then}")
         if labels is not None and not (labels.exists() and any(labels.glob("*.json"))):
             print(f"라벨 없음: {labels} (팀 내부로 전달받아 이 위치에 둔다)")
         crawl = args.crawl if Path(args.crawl).exists() else None

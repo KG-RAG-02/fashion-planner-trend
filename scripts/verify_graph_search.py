@@ -19,9 +19,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from neo4j import GraphDatabase  # noqa: E402
 
-from trend_agent.config import neo4j_settings  # noqa: E402
+from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
 from trend_agent.graph.loader import read_products  # noqa: E402
 from trend_agent.graph.search import ITEMS_CYPHER, TrendSearcher, _record  # noqa: E402
 from dataclasses import replace  # noqa: E402
@@ -63,7 +62,7 @@ def main() -> int:
 
     s = neo4j_settings()
     bad = total = 0
-    with GraphDatabase.driver(s.uri, auth=(s.user, s.password)) as driver:
+    with neo4j_driver(s) as driver:
         searcher = TrendSearcher(driver, weights=weights, top_k=k, options=opts)
         styles = [dict(r["s"]) for r in driver.execute_query("MATCH (s:Style) RETURN s ORDER BY s.id").records]
         for st in styles:

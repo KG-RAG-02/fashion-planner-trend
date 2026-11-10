@@ -100,12 +100,12 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 | Vogue 크롤러, 샘플 수집 스크립트 | ✅ 구현 (150건 수집) |
 | 스키마 코드 (`vocabulary`, `trend_query`, `article_extraction`, `graph_schema`, `trend_analysis_result`) | ✅ 작성 (문서는 사용자 검수 전) |
 | 별칭 사전 + Product 정규화 v2: 02 8,819행(image_url 없는 빈 행 65 제외·세트 분해 포함), 03 24,532 슬롯(`snap_id`·`image_ref`), 통합본 `musinsa_dataset_v2.jsonl` 33,351행 (같은 사전) | ✅ 재빌드 완료 2026-11-10 ([D-33](docs/pipeline.md), 기록 [product_v2_rebuild.md](docs/product_v2_rebuild.md)). 세트 분해 검토·그래프 재적재는 남음 |
-| 로컬 Neo4j (`docker-compose.yml`, 5.26 LTS) | ✅ 실행·접속 확인 |
+| Neo4j: 운영 그래프 = **AuraDB Free(클라우드)**, 개발·테스트 = 로컬 Docker (`docker-compose.yml`, 5.26 LTS) | ✅ Aura 적재·검색 확인 2026-11-10 ([D-35](docs/pipeline.md)): Product v2 33,203 + 라벨 5건(Style 5·Item 36), 검증 불일치 0/36. 인증서는 `neo4j_driver()`가 처리(D-35 ⑦). 로컬은 실행·접속 확인 |
 | Neo4j 적재 (`scripts/load_graph.py`) | ✅ Product와 **기사 추출 결과**를 적재한다. 다시 실행해도 같은 그래프. 정답 라벨은 `--include-labels`일 때만(스키마 확인용 임시 옵션) |
 | 유사도 가중치 설정 (`configs/weights.yaml`)·점수 계산 (`retrieval/scoring.py`) | ✅ 구현 (값은 임의 시작값) |
 | 검색·결과 출력 (`scripts/run_trend_search.py`) | ✅ 구현. 그래프 검색이 전체 Product 직접 점수 계산과 36/36 일치 |
 | 데이터를 구워 넣은 Docker 이미지 (`docker/demo/build.sh`) | ✅ 구현. CPU별로 `amd64`(Windows·Intel)와 `arm64`(Apple Silicon) 두 파일. arm64는 Apple Silicon에서 `docker compose`로 확인, amd64는 Apple Silicon 에뮬레이션에서 `docker run`으로만 확인 (**Windows·Intel PC 실행은 미확인**). 전달용, 팀 내부 |
-| 테스트 | ✅ 359개 통과, 12개 건너뜀 (Neo4j 테스트 인스턴스가 필요한 것과 Windows에서 symlink를 못 만드는 것). **Neo4j 통합 테스트는 아직 못 돌렸다** ([pipeline §13 R-9](docs/pipeline.md)) |
+| 테스트 | ✅ 366개 통과, 12개 건너뜀 (Neo4j 테스트 인스턴스가 필요한 것과 Windows에서 symlink를 못 만드는 것). 테스트 인스턴스(7688)를 붙이면 376개 통과, 2개 건너뜀(2026-11-10). Neo4j 통합 테스트 10개 통과 ([pipeline §13 R-9](docs/pipeline.md)) |
 | LLM 호출·기사 추출·검증·비교 (WP-A) | ✅ 구현 (`llm/`, `ingestion/extraction/`, `scripts/extract_articles.py`, `compare_extraction.py`). ⬜ 150건 배치 실행(OpenAI로 기사 원문이 나가므로 실행 전 확인), 시즌 후보 대조, Item 단위 제외 ([docs/pipeline.md §1.1](docs/pipeline.md)) |
 | 추출 프롬프트·모델 실험 | 🔶 진행 중. 프롬프트 v3(합성 예시 + 시즌 후보)·v4(Item 규칙 완화), 후처리 P1·P2 채택, 라벨 5건으로 gpt-4o-mini·gpt-4.1 비교 완료. LLM 호출 구조 정리(모델 계열 모듈 + 모델 등록표 `configs/llm_models.yaml`) 완료. 다음은 추론 모델 gpt-5-mini 실험 ([pipeline §6.7·§6.8, D-24~D-30](docs/pipeline.md)) |
 | 검색 과정·점수 사유 출력(trace) | 🔶 점수 분해·근거는 나오지만 "무엇이 왜 빠졌는지"는 아직. 추가 여부 확인 대기 |
@@ -182,9 +182,9 @@ trend-analysis-agent/
 
 | 변수 | 필수 | 설명 |
 |---|---|---|
-| `NEO4J_URI` | 선택 | 비워 두면 로컬 Neo4j 기본 주소를 씁니다 (코드 기본값). 포트를 바꿨을 때만 채웁니다 |
-| `NEO4J_USER` | 선택 | 비워 두면 `neo4j`를 씁니다 (Docker Neo4j의 사용자는 항상 `neo4j`) |
-| `NEO4J_PASSWORD` | ✅ | `docker compose up -d`가 이 값으로 Neo4j 비밀번호를 정합니다. 8자 이상을 권장합니다 (compose가 최소 길이를 5자로 낮춰 두었음) |
+| `NEO4J_URI` | 선택 | 비워 두면 로컬 Neo4j 기본 주소를 씁니다 (코드 기본값). **Aura를 쓸 때는 `neo4j+s://<인스턴스 id>.databases.neo4j.io`** (Aura가 만들 때 내려 주는 접속 정보 파일의 값). 로컬 포트를 바꿨을 때도 채웁니다 |
+| `NEO4J_USER` | 선택 | 비워 두면 `neo4j`를 씁니다 (Docker Neo4j의 사용자는 항상 `neo4j`). Aura 접속 정보 파일에서는 이름이 **`NEO4J_USERNAME`** 이므로 그 값을 여기에 옮겨 적습니다 |
+| `NEO4J_PASSWORD` | ✅ | 로컬: `docker compose up -d`가 이 값으로 Neo4j 비밀번호를 정합니다. 8자 이상을 권장합니다 (compose가 최소 길이를 5자로 낮춰 두었음). Aura: 인스턴스를 만들 때 한 번만 보여 주는 비밀번호 |
 | `LLM_API_KEY` | 기사 추출에서 | OpenAI 키. `scripts/extract_articles.py`가 읽는다 (실행하면 기사 원문이 OpenAI로 전송된다) |
 | `LLM_MODEL` | 기사 추출에서 | 사용할 모델명. **코드에 기본값이 없어** 비어 있으면 오류다. `configs/llm_models.yaml`에 등록된 모델만 쓸 수 있다(기준선 `gpt-4o-mini`, 모델은 실험으로 고른다 — [pipeline §6.8, D-30](docs/pipeline.md)) |
 | `LLM_TIMEOUT_S` | 선택 | 호출당 제한 시간(초). 기본 600 |
@@ -260,7 +260,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 3. 테스트 (Neo4j 없이 도는 단위 테스트)
-python -m pytest -q                       # 359 passed, 12 skipped (Neo4j 테스트 인스턴스가 필요한 것과 symlink 권한이 필요한 것은 건너뜀)
+python -m pytest -q                       # 366 passed, 12 skipped (Neo4j 테스트 인스턴스가 필요한 것과 symlink 권한이 필요한 것은 건너뜀)
 
 # 4. Product 정규화: 공개 데이터를 내려받아 표준 어휘로 바꾼다 (처음에는 수 분 걸릴 수 있다)
 python scripts/build_otpensource.py       # 02 → data/processed/v2/otpensource_all.jsonl (8,819행)
@@ -287,6 +287,7 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 
 - 추출 결과가 없으면 7번은 Product까지만 적재하고 "추출 결과 없음"을 알립니다. 이때 8번은 `no_results`입니다.
 - Neo4j 브라우저: http://localhost:7474 (Bolt `bolt://localhost:7687`).
+- **Aura(클라우드)를 쓸 때** ([D-35](docs/pipeline.md)): 5번의 `docker compose`는 건너뛰고 `.env`에 Aura 접속 정보(위 [환경변수](#환경변수))를 넣은 뒤 `check_neo4j.py`부터 같은 순서로 실행합니다. 콘솔·브라우저는 https://console.neo4j.io . 적재는 네트워크를 타므로 로컬보다 오래 걸립니다. **`pytest -m neo4j`는 그래프를 비우므로 Aura에 돌리지 않습니다** (로컬 7688 테스트 인스턴스만, `tests/conftest.py`가 막음). 접속은 모두 `trend_agent.config.neo4j_driver()`를 거치며, Aura 인증서를 운영체제 저장소와 certifi 묶음으로 함께 검증합니다 (Windows에서 `ServiceUnavailable: Unable to retrieve routing information`이 나던 원인, D-35 ⑦).
 - 중지는 `docker compose down`, **그래프 데이터까지 삭제**는 `docker compose down -v`입니다. 그래프만 비우고 다시 만들려면 `python scripts/load_graph.py --reset`.
 - 기사를 새로 수집하려면 `python scripts/crawl_vogue_sample.py --limit 20 --delay 1.0` (`--out`으로 저장 위치 지정, 기본 `data/raw/vogue_kr/articles_sample.jsonl`. **기존 파일을 덮어쓰니** 사용자가 검수 중인 파일은 `--out`을 바꿉니다).
 

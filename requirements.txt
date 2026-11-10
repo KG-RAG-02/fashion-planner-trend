@@ -20,6 +20,7 @@ numpy  # 임베딩 (embeddings/runtime.py)
 
 # Knowledge Graph
 neo4j>=5
+certifi  # Aura(neo4j+s) 인증서 검증용 루트 묶음 — Windows 저장소에 없는 루트 보완 (config.neo4j_driver, D-35 ⑦)
 
 # 테스트
 pytest

@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import os
+import ssl
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -41,3 +43,38 @@ def neo4j_settings(env: dict[str, str] | None = None) -> Neo4jSettings:
         user=env.get("NEO4J_USER") or "neo4j",
         password=env.get("NEO4J_PASSWORD") or "",
     )
+
+
+# 인증서를 검증하는 암호화 주소 → 같은 프로토콜의 일반 주소 (pipeline.md D-35 ⑦)
+_VERIFIED_TLS_SCHEMES = {"neo4j+s": "neo4j", "bolt+s": "bolt"}
+
+
+def neo4j_driver_args(settings: Neo4jSettings) -> tuple[str, dict[str, Any]]:
+    """`GraphDatabase.driver`에 넘길 (주소, 추가 설정).
+
+    `neo4j+s://`·`bolt+s://`(Aura)는 `neo4j://`·`bolt://` + `encrypted=True` + `ssl_context`로 바꾼다.
+    `ssl_context`는 운영체제 인증서 저장소와 certifi 묶음을 함께 신뢰한다 — Windows 저장소에는 Aura 체인의
+    루트(SSL.com)가 없을 수 있어 `+s` 주소 그대로는 `ServiceUnavailable`이 난다. 드라이버는 `+s` 주소에
+    `ssl_context`를 같이 받지 않으므로 주소를 바꾼다. `+ssc`와 암호화 없는 주소는 그대로 둔다.
+    """
+    scheme, sep, rest = settings.uri.partition("://")
+    plain = _VERIFIED_TLS_SCHEMES.get(scheme.lower()) if sep else None
+    if plain is None:
+        return settings.uri, {}
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+    except ImportError:  # certifi가 없으면 운영체제 저장소만 쓴다 (원래 `+s`와 같다)
+        pass
+    else:
+        ctx.load_verify_locations(certifi.where())
+    return f"{plain}://{rest}", {"encrypted": True, "ssl_context": ctx}
+
+
+def neo4j_driver(settings: Neo4jSettings | None = None, **kwargs: Any):
+    """Neo4j 드라이버를 연다. 접속 스크립트·테스트는 `GraphDatabase.driver` 대신 이것을 쓴다 (D-35 ⑦)."""
+    from neo4j import GraphDatabase
+
+    s = settings or neo4j_settings()
+    uri, extra = neo4j_driver_args(s)
+    return GraphDatabase.driver(uri, auth=(s.user, s.password), **extra, **kwargs)

@@ -9,16 +9,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from neo4j import GraphDatabase  # noqa: E402
 
-from trend_agent.config import neo4j_settings  # noqa: E402
+from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
 
 
 def main() -> int:
     s = neo4j_settings()
     print("접속:", s)
     try:
-        with GraphDatabase.driver(s.uri, auth=(s.user, s.password)) as driver:
+        with neo4j_driver(s) as driver:
             driver.verify_connectivity()
             rec = driver.execute_query("CALL dbms.components() YIELD name, versions, edition RETURN name, versions[0] AS v, edition")
             name, v, edition = rec.records[0]
