@@ -5,7 +5,8 @@
        python scripts/load_graph.py --include-labels # 정답 라벨도 적재 — 스키마 확인·평가용 임시 옵션 (기본 아님)
        python scripts/load_graph.py --prune-products # 입력 파일에 없는 Product 삭제 (products v2로 id가 바뀐 뒤)
        python scripts/load_graph.py --reset          # 그래프를 비우고 처음부터 (확인 없이 전부 삭제하므로 주의)
-입력:  data/processed/otpensource_all.jsonl, musinsa_snap_all.jsonl  (build_otpensource.py, build_musinsa_snap.py)
+입력:  data/processed/v2/musinsa_dataset_v2.jsonl                   (02·03 통합 Product, build_musinsa_dataset.py, D-33)
+       --products-dir DIR를 주면 그 폴더의 otpensource_all.jsonl·musinsa_snap_all.jsonl을 읽는다(예: data/processed/v1)
        data/processed/extractions/<prompt_version>/*.json          (기사 추출 결과, extract_articles.py. 기본 extract-v2)
        data/raw/vogue_kr/articles_pool_150.jsonl                   (크롤 기사 — Item 이미지 맵 {image_idx: url})
        eval/datasets/article_extraction/labels/*.json              (--include-labels일 때만. 팀 내부로 전달받는 파일)
@@ -28,6 +29,7 @@ from trend_agent.config import neo4j_settings  # noqa: E402
 from trend_agent.graph import loader  # noqa: E402
 
 PROC = ROOT / "data" / "processed"
+PRODUCTS = PROC / "v2" / "musinsa_dataset_v2.jsonl"
 LABELS = ROOT / "eval" / "datasets" / "article_extraction" / "labels"
 EXTRACTIONS = PROC / "extractions"
 DEFAULT_PROMPT_VERSION = "extract-v2"
@@ -38,7 +40,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--articles-only", action="store_true", help="Product는 건드리지 않고 기사만")
     ap.add_argument("--reset", action="store_true", help="MATCH (n) DETACH DELETE n 후 다시 적재")
-    ap.add_argument("--products-dir", default=str(PROC), help="정규화 Product JSONL 폴더 (기본 data/processed)")
+    ap.add_argument("--products", default=str(PRODUCTS), help="통합 Product JSONL (기본 data/processed/v2/musinsa_dataset_v2.jsonl)")
+    ap.add_argument("--products-dir", default=None, help="출처별 JSONL 폴더를 대신 읽는다 (otpensource_all·musinsa_snap_all, 예: v1)")
     ap.add_argument("--include-labels", action="store_true", help="정답 라벨도 적재 (스키마 확인·평가용 임시 옵션, 기본 아님)")
     ap.add_argument("--labels-dir", default=str(LABELS), help="--include-labels일 때 읽는 폴더")
     ap.add_argument("--prompt-version", default=DEFAULT_PROMPT_VERSION, help="읽을 추출 결과 버전 (폴더 data/processed/extractions/<버전>)")
@@ -60,12 +63,13 @@ def main() -> int:
         print("표준 값 노드:", loader.seed_vocabulary(driver))
         if not args.articles_only:
             seen: set[str] = set()
-            for name in ("otpensource_all.jsonl", "musinsa_snap_all.jsonl"):
-                path = Path(args.products_dir) / name
+            paths = ([Path(args.products_dir) / n for n in ("otpensource_all.jsonl", "musinsa_snap_all.jsonl")]
+                     if args.products_dir else [Path(args.products)])
+            for path in paths:
                 if not path.exists():
-                    print(f"건너뜀: {name} 없음 (정규화 스크립트를 먼저 실행)")
+                    print(f"건너뜀: {path} 없음 (정규화·통합 스크립트를 먼저 실행)")
                     continue
-                print(name, loader.load_products(driver, loader.read_products(path), seen=seen))
+                print(path.name, loader.load_products(driver, loader.read_products(path), seen=seen))
             if args.prune_products:
                 if seen:
                     report["pruned_products"] = loader.prune_products(driver, seen)

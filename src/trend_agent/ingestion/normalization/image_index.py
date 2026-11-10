@@ -1,6 +1,8 @@
 """이미지 인덱스(parquet, 계약 v1.1)를 Product에 붙인다. 인덱스는 선택이고, 없으면 이미지 상태를 채우지 않는다.
 
-- 원천은 이미지 인덱스 하나다. Product 정규화는 `image_ref`·`image_scope`·`image_status`를 **그대로 승계**하고 다시 계산하지 않는다(사용자 결정).
+- `image_status`·`multi_wearer_suspected`의 원천은 이미지 인덱스 하나다. 정규화는 이 값들을 **그대로 승계**하고 다시 계산하지 않는다(사용자 결정).
+- `image_ref`·`image_scope`는 v2부터 정규화가 먼저 채운다(D-33: 02 = image_url, 03 = parquet 행 참조). 인덱스 값과 다르면
+  `image_ref_mismatch`로 세고 **인덱스 값을 쓴다**(인덱스가 실제로 확인한 이미지다). 정상이면 0이어야 한다.
 - 조인 키는 `product_id`. 02 세트 구성품(`<원 id>#<k>`)은 `parent_id`로 원 행을 찾아 승계하고 scope만 `full_set`.
 - `multi_wearer_suspected`는 인덱스가 True일 때만 True, 그 밖은 None(조건 미발동일 뿐 "한 명"의 확정이 아니다).
 - `local_path`는 개인 절대 경로라 Product에 싣지 않는다. 표현층은 인덱스에서 직접 읽는다.
@@ -55,8 +57,12 @@ class ImageJoiner:
         if row is None:
             self.stats["missing_in_index"] += 1
             return rec
-        node.image_ref = row.get("image_ref")
-        node.image_scope = "full_set" if node.parent_id else row.get("image_scope")
+        index_ref = row.get("image_ref")
+        if node.image_ref is not None and index_ref is not None and node.image_ref != index_ref:
+            self.stats["image_ref_mismatch"] += 1
+        if index_ref is not None:
+            node.image_ref = index_ref
+        node.image_scope = "full_set" if node.parent_id else (row.get("image_scope") or node.image_scope)
         node.image_status = row.get("image_status")
         node.multi_wearer_suspected = True if row.get("multi_wearer_suspected") is True else None
         if node.source == "musinsa_snap" and node.snap_id is not None and _nn(row.get("row")) is not None \

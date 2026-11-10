@@ -17,7 +17,7 @@ def test_registry_file_lists_only_checked_models():
     reg = models.load_registry()
     assert reg["gpt-4o-mini"].profile == "standard" and reg["gpt-4.1"].profile == "standard"
     assert all(s.checked_at for s in reg.values())                       # 등록표 항목은 동작 확인일이 있어야 한다
-    assert "gpt-5-mini" not in reg                                       # 합성 확인 전에는 등록하지 않는다 (다음 작업 2)
+    assert reg["gpt-5-mini"].profile == "reasoning" and "medium" in reg["gpt-5-mini"].efforts  # 합성 확인 뒤 등록(2026-11-10)
     assert models.get_profile("gpt-4o-mini").NAME == "standard"
 
 

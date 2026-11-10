@@ -1,9 +1,11 @@
 """02 otpensource를 표준 어휘로 정규화해 **전체**를 저장한다 (03은 build_musinsa_snap.py, 같은 AliasMap).
 
-실행:  python scripts/build_otpensource.py [--out DIR] [--snapshot-dir DIR] [--image-index PATH]   # --out 기본 data/processed
+실행:  python scripts/build_otpensource.py [--out DIR] [--snapshot-dir DIR] [--image-index PATH]   # --out 기본 data/processed/v2
        --snapshot-dir를 주지 않으면 HF 캐시(HF_HOME)의 고정 리비전 스냅샷을 쓴다(없으면 내려받는다).
 출력(--out):
-  otpensource_all.jsonl                 ProductRecord 한 줄에 하나(그래프 적재용). 세트 분해 구성품 포함, 분해된 부모는 빠진다
+  otpensource_all.jsonl                 ProductRecord 한 줄에 하나. 세트 분해 구성품 포함, 분해된 부모는 빠진다.
+                                        image_url이 없는 행(원천의 빈 행)은 저장하지 않는다(D-33). 그래프 적재는 통합본
+                                        musinsa_dataset_v2.jsonl(build_musinsa_dataset.py)로 한다
   otpensource_normalization_report.json 매핑 결과 요약(+ 분해·팩·후보·빈 행·dup_of·이미지 상태)
   otpensource_split_parents.jsonl       분해된 부모 원본 레코드와 구성품 id
   otpensource_split_review.csv          세트·팩 표지가 있는 모든 행의 판정(사람 검토용)
@@ -33,6 +35,7 @@ from trend_agent.ingestion.normalization.otpensource import (  # noqa: E402
     _clean,
     find_snapshot_dir,
     iter_rows,
+    drop_without_image,
     mark_exact_duplicates,
     normalization_report,
 )
@@ -84,6 +87,7 @@ def build(snapshot_dir: Path, out: Path, image_index: Path | None, review_candid
                             "component_ids": [c.node.id for c in out_recs],
                             "accessories": d.accessories, "record": json.loads(rec.model_dump_json())})
         body.extend(out_recs)
+    body, drop_stats = drop_without_image(body)  # D-33: 이미지 URL 없는 행은 저장하지 않는다
 
     joiner = ImageJoiner(load_image_index(image_index) if image_index else None)
     for rec in body:
@@ -92,6 +96,8 @@ def build(snapshot_dir: Path, out: Path, image_index: Path | None, review_candid
     report = normalization_report(body, rows)
     report["split_decisions"] = dict(decisions)
     report["image_join"] = dict(joiner.stats)
+    report["image_ref_rows"] = sum(1 for r in body if r.node.image_ref)
+    report.update(drop_stats)
 
     write_lines_atomic(out / "otpensource_all.jsonl", (r.model_dump_json() for r in body))
     write_json_atomic(out / "otpensource_normalization_report.json", report)
@@ -136,14 +142,14 @@ def build(snapshot_dir: Path, out: Path, image_index: Path | None, review_candid
         "git": git_state(ROOT),
         "outputs": {n: sha256_file(out / n) for n in ("otpensource_all.jsonl", "otpensource_normalization_report.json",
                                                       "otpensource_split_parents.jsonl", "otpensource_split_review.csv")},
-        "rows_raw": len(rows), "rows_out": len(body),
+        "rows_raw": len(rows), "rows_out": len(body), "dropped_no_image_url": drop_stats["dropped_no_image_url"],
     })
     return report
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=str(ROOT / "data" / "processed"), help="출력 폴더 (기본 data/processed)")
+    ap.add_argument("--out", default=str(ROOT / "data" / "processed" / "v2"), help="출력 폴더 (기본 data/processed/v2)")
     ap.add_argument("--snapshot-dir", help="02 원천 JSON 폴더(HF 스냅샷). 없으면 HF 캐시의 고정 리비전")
     ap.add_argument("--image-index", help="이미지 인덱스 parquet (선택. 없으면 이미지 상태를 채우지 않는다)")
     ap.add_argument("--review-candidates", help="세트 후보 CSV를 쓸 경로 (선택)")

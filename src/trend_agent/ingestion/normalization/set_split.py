@@ -336,6 +336,7 @@ def apply_split(parent: ProductRecord, d: Decision, normalizer: Any, row: dict[s
             id=f"{p.id}#{k}",
             name=p.name,
             image_url=p.image_url,
+            image_ref=p.image_ref,
             source=p.source,
             kind=p.kind,
             gender=p.gender,

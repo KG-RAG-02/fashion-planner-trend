@@ -101,6 +101,20 @@ def mark_exact_duplicates(records: list[ProductRecord], rows: list[dict[str, Any
     return records
 
 
+def drop_without_image(records: list[ProductRecord]) -> tuple[list[ProductRecord], dict[str, Any]]:
+    """v2 (D-33): `image_url`이 없는 Product는 저장하지 않는다(사용자 결정 2026-11-10, 이전 "빈 행은 지우지 않는다"를 대체).
+    원천에서는 이런 행이 모두 빈 행(상품명·이미지 URL·소분류 없음)이다. 세트 구성품은 부모 URL을 물려받으므로 부모와 함께 남거나 빠진다.
+    반환: (남은 레코드, 리포트). 남은 레코드의 `dup_of`·`parent_id`가 빠진 id를 가리키면 리포트에 센다(정상이면 0)."""
+    kept = [r for r in records if r.node.image_url]
+    dropped = {r.node.id for r in records if not r.node.image_url}
+    return kept, {
+        "dropped_no_image_url": len(dropped),
+        "dropped_in_graph_scope": sum(1 for r in records if not r.node.image_url and r.category_major is not None),
+        "dangling_dup_of": sum(1 for r in kept if r.node.dup_of in dropped),
+        "dangling_parent_id": sum(1 for r in kept if r.node.parent_id in dropped),
+    }
+
+
 class OtpenNormalizer:
     def __init__(self, alias: Optional[AliasMap] = None):
         self.alias = alias or AliasMap()
@@ -133,7 +147,7 @@ class OtpenNormalizer:
         name = _clean(row.get("product_name"))
         feature = _clean(row.get("feature"))
 
-        # (h) 빈 행은 대분류가 있어도 상분류를 주지 않는다 → 그래프 적재 제외(행은 지우지 않는다, 결정)
+        # (h) 빈 행은 대분류가 있어도 상분류를 주지 않는다 → 그래프 적재 제외. v2 빌드는 image_url이 없어 저장하지 않는다(D-33)
         cat = OtpenCategory(raw=sub) if is_empty_row(row) else self.alias.map_otpensource_category(sub, name, row.get("big_category"))
         minor: Optional[str] = cat.category_minor
         approx_fields: list[str] = []
@@ -179,10 +193,13 @@ class OtpenNormalizer:
         if shape_approx:
             approx_fields.append("shape")
 
+        image_url = _clean(row.get("image_url")) or None
         node = ProductNode(
             id=product_id(row),
             name=name or None,
-            image_url=_clean(row.get("image_url")) or None,
+            image_url=image_url,
+            image_ref=image_url,  # 주소 필드 통일(D-33): 02는 image_url 그대로
+            image_scope="catalog" if image_url else None,
             source="otpensource",
             kind="catalog_item",
             gender=_gender(row.get("gender")),
