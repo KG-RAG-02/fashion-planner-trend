@@ -2,11 +2,12 @@
 
 문서: docs/schemas/graph_schema.md §2.3, docs/schemas/sources/alias_map.md (§4.2 카테고리, §8 속성 간 이동, §9 핏)
 - 03은 착장 사진 한 장에 상의·하의·아우터 라벨이 묶인 데이터다. 이 모듈은 **라벨 한 슬롯 = Product 하나**로 바꾼다.
-- 색은 `서브컬러`뿐이라 `colors`는 비고 `sub_colors`만 채운다. 상품명·URL·브랜드·가격이 없다 (이미지는 parquet 바이트라 저장하지 않는다).
+- 색은 `서브컬러`뿐이라 `colors`는 비고 `sub_colors`만 채운다. 상품명·URL·브랜드·가격이 없다 (이미지는 parquet 바이트라 저장하지 않고 `image_ref`로 행을 가리킨다).
 - 02와 같은 `AliasMap`을 쓴다 (`otpensource.py`와 같은 표준·같은 별칭 사전).
 
 v2: (a) 노이즈 카테고리를 슬롯 상분류로 채우지 않는다(사용자 결정) · (b) 리스트형 라벨 값 보존 ·
 (c) 같은 사진 안 동일 라벨 `dup_of` · (d) `snap_id` = parquet row · (e) 패딩 힌트는 상분류가 비었거나 아우터일 때만.
+v2 (D-33): `image_ref` = `hf://datasets/disl/musinsa-snap-new@<rev>#row=<snap_id>`, `image_scope` = full_snap.
 """
 from __future__ import annotations
 
@@ -23,11 +24,17 @@ from .alias_map import AliasMap
 
 REPO_ID = "disl/musinsa-snap-new"
 REVISION = "4335d233ef3b54bc5132a4d572d589042a41219d"  # 고정 리비전
+IMAGE_BASE = f"hf://datasets/{REPO_ID}@{REVISION}#row="  # image_ref = IMAGE_BASE + snap_id (fetch_snap_images.py와 같은 형식)
 # 카테고리 값이 의류가 아닌 경우: 상분류를 정하지 않는다 (그래프 밖). 사전 null_values에도 있다 — 리포트 분류용.
 NON_GARMENT = {"모자", "스카프", "가방", "부츠", "백팩", "헤드웨어", "야구모자", "햇모자"}
 SCALAR_FIELDS = ("카테고리", "핏", "기장", "소매기장")  # 값 하나만 쓰는 필드: 리스트가 오면 첫 원소(리포트에 센다)
 _EMPTY = {"", "0", "nan", "none"}
 _PAD_OK_MAJORS = (None, V.CategoryMajor.OUTER)
+
+
+def image_ref(row: int) -> str:
+    """03 이미지 참조. 이미지 바이트는 고정 리비전 parquet의 `row`번째 행 `image.bytes`(JPEG)에 있다."""
+    return f"{IMAGE_BASE}{int(row)}"
 
 
 def find_snapshot_dir(revision: str = REVISION) -> Path:
@@ -237,6 +244,8 @@ class SnapNormalizer:
             source_row=f"{REPO_ID}#row{slot_row['row']}:{slot}{suffix} (file {slot_row['file_no']})",
             approx=approx_fields,
             snap_id=int(slot_row["row"]),
+            image_ref=image_ref(int(slot_row["row"])),  # 주소 필드 통일(D-33): parquet 행 참조
+            image_scope="full_snap",  # 착장 사진 1장 전체(크롭 없음). 같은 사진의 슬롯은 같은 참조
         )
         return ProductRecord(node=node, category_major=major, colors=[], materials=materials, patterns=patterns, details=details)
 

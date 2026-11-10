@@ -176,7 +176,7 @@ def test_h_empty_row_kept_but_out_of_graph_scope(otp):
     row = orow(sub_category="", product_name="", image_url="", big_category="상의", season="정보 없음")
     assert is_empty_row(row)
     r = otp.normalize_row(row)
-    assert r.category_major is None and not r.in_graph_scope  # 지우지 않고 적재에서만 빠진다((h))
+    assert r.category_major is None and not r.in_graph_scope  # 정규화는 행을 남기고 적재에서만 뺀다((h)). v2 빌드는 drop_without_image로 저장하지 않는다(D-33)
 
 
 def test_h_exact_duplicates_marked_not_removed(otp):

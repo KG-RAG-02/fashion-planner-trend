@@ -14,6 +14,7 @@
 | 스크립트가 무엇을 하는지, 어떤 파일이 어디에 있는지 | [스크립트 한눈에](#스크립트-한눈에), [파일과 경로](#파일과-경로) |
 | 다른 Agent에 작업을 넘긴다 / 이어받는다 | [docs/pipeline.md §0.1](docs/pipeline.md) (이어받기 요약), [docs/spec.md](docs/spec.md) §0.2·§13 |
 | **다음에 무엇을 만들어야 하는지** (자동 수집·LLM 추출 작업 계획) | [docs/pipeline.md](docs/pipeline.md) |
+| 무신사 Product v2(이미지 주소 통일·통합본)의 경위와 검수할 발견 사항 | [docs/product_v2_rebuild.md](docs/product_v2_rebuild.md) |
 
 ## 이 레포의 역할
 
@@ -98,13 +99,13 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 |---|---|
 | Vogue 크롤러, 샘플 수집 스크립트 | ✅ 구현 (150건 수집) |
 | 스키마 코드 (`vocabulary`, `trend_query`, `article_extraction`, `graph_schema`, `trend_analysis_result`) | ✅ 작성 (문서는 사용자 검수 전) |
-| 별칭 사전 + Product 정규화: 02 전체(세트 분해 포함 8,884행), 03 전체 24,532 슬롯 (같은 사전) | ✅ 구현 (8,884는 다른 환경의 빌드 수치. **이 PC의 산출물은 아직 v1 8,827행**이고 v2 재빌드·검수가 남았다 — [pipeline §0.1](docs/pipeline.md) ③) |
+| 별칭 사전 + Product 정규화 v2: 02 8,819행(image_url 없는 빈 행 65 제외·세트 분해 포함), 03 24,532 슬롯(`snap_id`·`image_ref`), 통합본 `musinsa_dataset_v2.jsonl` 33,351행 (같은 사전) | ✅ 재빌드 완료 2026-11-10 ([D-33](docs/pipeline.md), 기록 [product_v2_rebuild.md](docs/product_v2_rebuild.md)). 세트 분해 검토·그래프 재적재는 남음 |
 | 로컬 Neo4j (`docker-compose.yml`, 5.26 LTS) | ✅ 실행·접속 확인 |
 | Neo4j 적재 (`scripts/load_graph.py`) | ✅ Product와 **기사 추출 결과**를 적재한다. 다시 실행해도 같은 그래프. 정답 라벨은 `--include-labels`일 때만(스키마 확인용 임시 옵션) |
 | 유사도 가중치 설정 (`configs/weights.yaml`)·점수 계산 (`retrieval/scoring.py`) | ✅ 구현 (값은 임의 시작값) |
 | 검색·결과 출력 (`scripts/run_trend_search.py`) | ✅ 구현. 그래프 검색이 전체 Product 직접 점수 계산과 36/36 일치 |
 | 데이터를 구워 넣은 Docker 이미지 (`docker/demo/build.sh`) | ✅ 구현. CPU별로 `amd64`(Windows·Intel)와 `arm64`(Apple Silicon) 두 파일. arm64는 Apple Silicon에서 `docker compose`로 확인, amd64는 Apple Silicon 에뮬레이션에서 `docker run`으로만 확인 (**Windows·Intel PC 실행은 미확인**). 전달용, 팀 내부 |
-| 테스트 | ✅ 344개 통과, 12개 건너뜀 (Neo4j 테스트 인스턴스가 필요한 것과 Windows에서 symlink를 못 만드는 것). **Neo4j 통합 테스트는 아직 못 돌렸다** ([pipeline §13 R-9](docs/pipeline.md)) |
+| 테스트 | ✅ 359개 통과, 12개 건너뜀 (Neo4j 테스트 인스턴스가 필요한 것과 Windows에서 symlink를 못 만드는 것). **Neo4j 통합 테스트는 아직 못 돌렸다** ([pipeline §13 R-9](docs/pipeline.md)) |
 | LLM 호출·기사 추출·검증·비교 (WP-A) | ✅ 구현 (`llm/`, `ingestion/extraction/`, `scripts/extract_articles.py`, `compare_extraction.py`). ⬜ 150건 배치 실행(OpenAI로 기사 원문이 나가므로 실행 전 확인), 시즌 후보 대조, Item 단위 제외 ([docs/pipeline.md §1.1](docs/pipeline.md)) |
 | 추출 프롬프트·모델 실험 | 🔶 진행 중. 프롬프트 v3(합성 예시 + 시즌 후보)·v4(Item 규칙 완화), 후처리 P1·P2 채택, 라벨 5건으로 gpt-4o-mini·gpt-4.1 비교 완료. LLM 호출 구조 정리(모델 계열 모듈 + 모델 등록표 `configs/llm_models.yaml`) 완료. 다음은 추론 모델 gpt-5-mini 실험 ([pipeline §6.7·§6.8, D-24~D-30](docs/pipeline.md)) |
 | 검색 과정·점수 사유 출력(trace) | 🔶 점수 분해·근거는 나오지만 "무엇이 왜 빠졌는지"는 아직. 추가 여부 확인 대기 |
@@ -158,9 +159,12 @@ trend-analysis-agent/
 | `.env` | 비밀번호·API 키 | `.env.example`을 복사해 직접 입력 ([환경변수](#환경변수)) |
 | `data/raw/vogue_kr/articles_sample.jsonl` | 기사 원문 20건 (사용자가 검수 중이라 덮어쓰지 않는다) | 크롤러 또는 **팀 내부 전달** |
 | `data/raw/vogue_kr/articles_pool_150.jsonl` | 기사 원문 150건 | 크롤러(`--limit 150`) 또는 **팀 내부 전달** |
-| `data/processed/otpensource_all.jsonl` | 02 정규화 결과 (ProductRecord. 원천 8,827행 → 세트 분해 후 8,884행, 2026-11-09 빌드) | `scripts/build_otpensource.py` |
-| `data/processed/musinsa_snap_all.jsonl` | 03 정규화 결과 24,532 슬롯 | `scripts/build_musinsa_snap.py` |
-| `data/processed/*_normalization_report.json`, `product_coverage.txt` | 정규화·커버리지 리포트 | 위 스크립트, `check_product_coverage.py` |
+| `data/processed/v2/otpensource_all.jsonl` | 02 정규화 결과 v2 (ProductRecord. 원천 8,827행 → image_url 없는 빈 행 65 제외·세트 분해 후 8,819행) | `scripts/build_otpensource.py` |
+| `data/processed/v2/musinsa_snap_all.jsonl` | 03 정규화 결과 v2 24,532 슬롯 (`snap_id`·`image_ref`로 parquet 행의 사진에 연결) | `scripts/build_musinsa_snap.py` |
+| `data/processed/v2/musinsa_dataset_v2.jsonl` | **02·03 통합본** 33,351행 (같은 필드, 출처 `node.source`, 이미지 주소 `image_ref`). 그래프 적재의 기본 입력 | `scripts/build_musinsa_dataset.py` |
+| `data/processed/v2/*_report.json`, `audit_v1_v2.md`, `product_coverage.txt` | 정규화·통합·v1↔v2 비교·커버리지 리포트 | 위 스크립트, `audit_products.py`, `check_product_coverage.py` |
+| `data/processed/v1/` | 이전 v1 산출물 보관 (빌드 스크립트가 쓰지 못한다) | — |
+| `data/processed/images_preview/` | 이미지 조회 확인용 jpg | `scripts/resolve_image.py` |
 | `data/processed/results/*.json` | 검색 결과 (`TrendAnalysisResult`) | `scripts/run_trend_search.py` |
 | `data/processed/extractions/<prompt_version>/<기사id>.json` | **기사 추출 결과** (검증 통과분. 실패는 `_review/`, 목록은 `review_queue.jsonl`) | `scripts/extract_articles.py` |
 | `data/processed/llm/` | LLM 호출 기록(`calls.jsonl`, 원문 없음)과 응답 캐시(`cache/`, 원문 포함 — git 제외) | `llm` 모듈 |
@@ -256,11 +260,12 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 3. 테스트 (Neo4j 없이 도는 단위 테스트)
-python -m pytest -q                       # 344 passed, 12 skipped (Neo4j 테스트 인스턴스가 필요한 것과 symlink 권한이 필요한 것은 건너뜀)
+python -m pytest -q                       # 359 passed, 12 skipped (Neo4j 테스트 인스턴스가 필요한 것과 symlink 권한이 필요한 것은 건너뜀)
 
 # 4. Product 정규화: 공개 데이터를 내려받아 표준 어휘로 바꾼다 (처음에는 수 분 걸릴 수 있다)
-python scripts/build_otpensource.py       # 02 → data/processed/otpensource_all.jsonl (세트 분해 후 8,884행)
-python scripts/build_musinsa_snap.py      # 03 → data/processed/musinsa_snap_all.jsonl (24,532 슬롯)
+python scripts/build_otpensource.py       # 02 → data/processed/v2/otpensource_all.jsonl (8,819행)
+python scripts/build_musinsa_snap.py      # 03 → data/processed/v2/musinsa_snap_all.jsonl (24,532 슬롯)
+python scripts/build_musinsa_dataset.py   # 02·03 통합 → data/processed/v2/musinsa_dataset_v2.jsonl (33,351행, 그래프 적재 입력)
 
 # 5. Neo4j 시작 (처음에는 이미지를 내려받는다. 받은 뒤 healthy까지 약 30초). healthy가 되면 사용 가능
 #    .env의 NEO4J_PASSWORD가 비어 있으면 컨테이너가 Restarting을 반복한다. 방법 A의 demo가 떠 있으면 포트가 겹친다
@@ -293,7 +298,7 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 | `graph/loader.py`, 그래프 구조·속성 | `python scripts/load_graph.py` (기사만 바꾸면 `--articles-only`) |
 | 라벨 JSON (`eval/.../labels/*.json`) | `python scripts/validate_labels.py` → `python scripts/render_review.py` (검수 문서 갱신). 그래프에는 올리지 않는다 |
 | 기사 추출 결과 (`data/processed/extractions/…`) | `python scripts/load_graph.py --articles-only` |
-| 별칭 사전 (`configs/alias_map/*.yaml`), `ingestion/normalization/*` | `build_otpensource.py`, `build_musinsa_snap.py` → `load_graph.py` |
+| 별칭 사전 (`configs/alias_map/*.yaml`), `ingestion/normalization/*` | `build_otpensource.py`, `build_musinsa_snap.py` → `build_musinsa_dataset.py` → `load_graph.py` |
 | `src` 안 어느 코드든 | `python -m pytest -q` |
 
 ### 스크립트 한눈에
@@ -303,22 +308,24 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 | 스크립트 | 하는 일 | 입력 → 출력 | 선행 |
 |---|---|---|---|
 | `crawl_vogue_sample.py` | Vogue 기사 수집 (`--limit`, `--delay`, `--out`) | 웹 → `data/raw/vogue_kr/*.jsonl` | 인터넷 |
-| `build_otpensource.py` | 02를 표준 어휘로 정규화 (전체) | HuggingFace 02 → `data/processed/otpensource_all.jsonl` + 리포트 | 인터넷(처음) |
-| `build_musinsa_snap.py` | 03을 같은 사전으로 정규화 (전체) | HuggingFace 03 → `data/processed/musinsa_snap_all.jsonl` + 리포트 | 인터넷(처음) |
+| `build_otpensource.py` | 02를 표준 어휘로 정규화 (전체) | HuggingFace 02 → `data/processed/v2/otpensource_all.jsonl` + 리포트 | 인터넷(처음) |
+| `build_musinsa_snap.py` | 03을 같은 사전으로 정규화 (전체) | HuggingFace 03 → `data/processed/v2/musinsa_snap_all.jsonl` + 리포트 | 인터넷(처음) |
+| `build_musinsa_dataset.py` | 02·03 v2를 통합본 하나로 합침 (출처·id·필드 검사) | `v2/*_all.jsonl` → `data/processed/v2/musinsa_dataset_v2.jsonl` + 리포트 | 위 두 스크립트 |
+| `resolve_image.py` | Product id·`image_ref` → 이미지 (03은 jpg 저장, 02는 URL만 출력, 외부 요청 없음) | 통합본 + HF 캐시 parquet → `data/processed/images_preview/` | 03 parquet 캐시 |
 | `check_neo4j.py` | Neo4j 접속 확인 (비밀번호는 출력 안 함) | `.env` | `docker compose up -d` |
 | `extract_articles.py` | 기사를 LLM으로 추출·검증해 저장 (`--limit`, `--ids`, `--report-only`). **OpenAI로 원문이 전송된다** | `data/raw/vogue_kr/articles_pool_150.jsonl` → `data/processed/extractions/<prompt_version>/` | `.env`의 `LLM_API_KEY`·`LLM_MODEL` |
 | `compare_extraction.py` | 추출 결과를 정답 라벨과 **건수**로 비교 | extractions + labels → `eval/results/` | 추출, 라벨 |
 | `run_experiment.py` | 추출 실험 1조건(프롬프트 버전 × 모델) 실행·기록: 코드·프롬프트·비용·라벨 비교까지 저장 (`--prompt-version`, `--model`, `--reasoning-effort`, `--ids`, `--no-dedupe`, `--no-name-fix`, `--note`). **OpenAI로 원문이 전송된다**(같은 조건은 캐시로 재사용) | 기사 + labels → `data/processed/experiments/<vN>_…/` | `.env`의 `LLM_API_KEY` |
 | `check_llm_model.py` | 새 LLM 모델을 등록표에 넣기 전 합성 문장 1건으로 요청 형식 확인 (`--model`, `--profile standard\|reasoning`, `--reasoning-effort`). 기사는 보내지 않는다 | 합성 문장 → 통과/실패 + `configs/llm_models.yaml`에 넣을 항목 | `.env`의 `LLM_API_KEY` |
 | `measure_style_similarity.py` | Style 이름·정의의 임베딩 유사도 측정 (로컬 BGE-M3, 외부 호출 없음) | labels + 실험 결과 → `data/processed/experiments/embedding_<시각>/` | `.venv`에 `torch`·`sentence-transformers` |
-| `load_graph.py` | 표준 값·Product·기사 추출 결과를 Neo4j에 적재. `--articles-only`, `--include-labels`(임시), `--prompt-version`, `--prune-products`, `--reset` | `data/processed/*_all.jsonl`, `data/processed/extractions/` → Neo4j | Neo4j, 정규화 |
+| `load_graph.py` | 표준 값·Product·기사 추출 결과를 Neo4j에 적재. `--articles-only`, `--include-labels`(임시), `--prompt-version`, `--prune-products`, `--reset`, `--products`(기본 통합본), `--products-dir`(출처별 폴더, 예: v1) | `data/processed/v2/musinsa_dataset_v2.jsonl`, `data/processed/extractions/` → Neo4j | Neo4j, 정규화 |
 | `run_trend_search.py` | 조건으로 트렌드·유사 상품 검색 | Neo4j → 요약 + `data/processed/results/<id>.json` | 적재 |
 | `verify_graph_search.py` | 그래프 검색이 전체 Product 직접 계산과 같은지 검증 (`--top-k`) | Neo4j + `data/processed/*_all.jsonl` | 적재 |
 | `validate_labels.py` | 라벨 JSON 검증 (스키마·인용 위치·raw 존재) | labels (+ `data/raw`) | |
 | `render_review.py` | 라벨 → 검수용 md (원본 URL 포함) | labels → `eval/.../review/<id>.md` | |
 | `check_product_coverage.py` | 정답 Item마다 대응 Product가 몇 개 있는지 | labels + `data/processed/*_all.jsonl` → `product_coverage.txt` | 정규화 |
 | `docker/demo/build.sh` | 데이터를 구워 넣은 전달용 이미지 생성 (`bash docker/demo/build.sh`) | 현재 그래프 → `docker/demo/out/*.tar.gz` | 적재, Docker |
-| `audit_products.py` | Product 정규화 전·후(이전·새 산출물 폴더) 수치표 | 두 폴더 → `audit_v1_v2.md` | 정규화 |
+| `audit_products.py` | Product 정규화 전·후(이전·새 산출물 폴더) 수치표 (`--v1 data/processed/v1 --v2 data/processed/v2`) | 두 폴더 → `audit_v1_v2.md` | 정규화 |
 | `check_image_urls.py` | 02 이미지 URL을 스트리밍 GET으로 점검 (이미지는 내려받지 않음) | `--shared` 폴더 → 점검 기록 | 인터넷. **기본 경로에서 쓰지 않는다** |
 | `fetch_snap_images.py`, `catalog_content.py`, `finalize_catalog_content.py`, `set_components_review.py` | 스냅 원본 이미지 내려받기, 이미지 내용 판정(비전·CLIP), 세트 구성품 검토 — 연구용 | `--shared` 폴더 구조가 전제 | **기본 경로에서 쓰지 않는다** (pipeline.md F-12: 지울지 사용자 확인 대기) |
 

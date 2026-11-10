@@ -30,7 +30,7 @@ from trend_agent.retrieval.scoring import ScoringOptions, rank_products  # noqa:
 from trend_agent.retrieval.weights import load_weights  # noqa: E402
 from trend_agent.schemas.graph_schema import ItemNode, ItemRecord  # noqa: E402
 
-PROC = ROOT / "data" / "processed"
+PRODUCTS = ROOT / "data" / "processed" / "v2" / "musinsa_dataset_v2.jsonl"  # 02·03 통합본 (D-33)
 
 
 def main() -> int:
@@ -55,8 +55,7 @@ def main() -> int:
         opts = replace(opts, item_gender_filter=True)
     print("적용 플래그:", opts)
 
-    products = [r for name in ("otpensource_all.jsonl", "musinsa_snap_all.jsonl")
-                for r in read_products(PROC / name) if r.in_graph_scope]
+    products = [r for r in read_products(PRODUCTS) if r.in_graph_scope]
     by_major: dict[str, list] = {}
     for p in products:
         by_major.setdefault(p.category_major.value, []).append(p)

@@ -5,10 +5,9 @@
 approx 값과 값이 없는 속성은 일치로 세지 않는다 (spec Step 8~9와 같은 규칙). 지원 밖 Item(category_major=null)은 건너뛴다.
 
 실행:  python scripts/check_product_coverage.py [article_id ...]
-입력:  eval/datasets/article_extraction/labels/*.json, data/processed/otpensource_all.jsonl,
-       musinsa_snap_all.jsonl (없으면 03은 건너뛴다)
-       (02 전체 파일은 `python scripts/build_otpensource.py`, 03은 `python scripts/build_musinsa_snap.py`로 만든다)
-출력:  data/processed/product_coverage.txt 와 표준 출력
+입력:  eval/datasets/article_extraction/labels/*.json, data/processed/v2/musinsa_dataset_v2.jsonl
+       (02·03 통합본. node.source로 나눈다. build_otpensource.py → build_musinsa_snap.py → build_musinsa_dataset.py)
+출력:  data/processed/v2/product_coverage.txt 와 표준 출력
 """
 from __future__ import annotations
 
@@ -23,15 +22,20 @@ sys.path.insert(0, str(ROOT / "src"))
 from trend_agent.schemas.graph_schema import ProductRecord  # noqa: E402
 
 LABELS = ROOT / "eval" / "datasets" / "article_extraction" / "labels"
-PROC = ROOT / "data" / "processed"
+PROC = ROOT / "data" / "processed" / "v2"
+PRODUCTS = PROC / "musinsa_dataset_v2.jsonl"
+POOL_NAME = {"otpensource": "02", "musinsa_snap": "03"}
 
 
-def load(path: Path) -> list[dict]:
-    out = []
+def load(path: Path) -> dict[str, list[dict]]:
+    """출처별 풀: {"02": [...], "03": [...]}."""
+    out: dict[str, list[dict]] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
         r = ProductRecord.model_validate_json(line)
         n = r.node
-        out.append(dict(
+        out.setdefault(POOL_NAME[n.source], []).append(dict(
             major=r.category_major.value if r.category_major else None,
             minor=n.category_minor.value if n.category_minor else None,
             gender=n.gender.value if n.gender else None,
@@ -56,13 +60,9 @@ def count(pool: list[dict], it: dict) -> tuple[int, int, int | None, int]:
 
 
 def main() -> None:
-    all_path = PROC / "otpensource_all.jsonl"
-    if not all_path.exists():
-        sys.exit("otpensource_all.jsonl이 없다. 먼저 `python scripts/build_otpensource.py`")
-    pools = {"02": load(all_path)}
-    snap_path = PROC / "musinsa_snap_all.jsonl"
-    if snap_path.exists():
-        pools["03"] = load(snap_path)
+    if not PRODUCTS.exists():
+        sys.exit(f"{PRODUCTS}가 없다. 먼저 build_otpensource.py → build_musinsa_snap.py → build_musinsa_dataset.py")
+    pools = dict(sorted(load(PRODUCTS).items()))
     lines = ["Product: " + ", ".join(f"{k} {len(v)}" for k, v in pools.items()), "형식: (상분류 / 하분류 / 하분류+색 / 하분류+속성1개이상)", ""]
     ids = sys.argv[1:] or sorted(p.stem for p in LABELS.glob("*.json"))
     tot = {k: [0, 0, 0] for k in pools}
