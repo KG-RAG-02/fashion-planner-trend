@@ -48,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--max-text-gap", type=int, default=1)
     ap.add_argument("--reprocess", action="store_true",
                     help="이미 있는 출력도 다시 만든다(캐시된 LLM 응답으로 후처리·검증만, 캐시에 없을 때만 호출)")
-    ap.add_argument("--length-area", action="store_true", help="하의·원피스 length_body 롱→맥시 (결정 L-맥시)")
+    ap.add_argument("--length-area", action="store_true", help="폐기된 L-맥시(하의·원피스 롱→맥시) 재현용 — 기본 꺼짐, 롱은 롱 (D-38)")
     ap.add_argument("--report-only", action="store_true")
     # 후처리 P1·P2는 채택됐다(2026-11-09, docs/pipeline.md D-27·§6.7) → 기본 켬
     ap.add_argument("--no-dedupe", dest="dedupe", action="store_false", help="P1 중복 합치기를 끈다 (기본 켬)")
