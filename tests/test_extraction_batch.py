@@ -26,7 +26,7 @@ class _ByArticle:
         self.table = table
         self.calls = []
 
-    def run(self, prompt, schema, *, name, model, reasoning_effort, timeout_s):
+    def run(self, prompt, schema, *, name, model, reasoning_effort, timeout_s, **kw):
         aid = next(line.split(": ", 1)[1] for line in prompt.splitlines() if line.startswith("- article_id: "))
         self.calls.append(aid)
         v = self.table[aid]

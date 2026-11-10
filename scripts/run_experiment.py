@@ -304,9 +304,8 @@ def main(argv: list[str] | None = None) -> int:
                       concurrency=a.concurrency, use_cache=not a.no_cache, file_prefix=f"{tag}_",
                       review_queue=run / f"{tag}_review_queue.jsonl", dedupe=a.dedupe, name_fix=a.name_fix,
                       reasoning_effort=effort)
-    from trend_agent.llm.backends import is_reasoning_model
-    reasoning = is_reasoning_model(model)
-    rec["condition"] = {"backend": "openai_api", "model": model, "reasoning_model": reasoning,
+    reasoning = st["profile"] == "reasoning"   # 모델 계열은 등록표(configs/llm_models.yaml)가 정한다 (D-30)
+    rec["condition"] = {"backend": "openai_api", "model": model, "profile": st["profile"], "reasoning_model": reasoning,
                         "temperature": None if reasoning else 0, "reasoning_effort": effort, "ids": ids,
                         "input": str(a.input.relative_to(ROOT) if a.input.is_relative_to(ROOT) else a.input).replace("\\", "/"),
                         "input_sha256": sha256_file(a.input), "concurrency": cfg.concurrency, "max_blocks": cfg.max_blocks,

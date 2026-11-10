@@ -18,6 +18,21 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "neo4j: Neo4j 테스트 인스턴스(7688)가 필요하다. NEO4J_TEST_URI 없으면 skip")
 
 
+# 테스트에서 가짜 백엔드와 함께 쓰는 모델 이름. 모델 등록표(configs/llm_models.yaml)는 실제 모델만 담으므로,
+# 이 이름들은 프로세스 안에서만 임시 등록한다 (docs/pipeline.md §14.2 `register_model`). 등록표 파일은 바꾸지 않는다.
+TEST_MODELS = {"m": "standard", "m-1": "standard", "m-test": "standard", "gpt-5-mini": "reasoning"}
+
+
+@pytest.fixture(autouse=True)
+def _test_llm_models():
+    from trend_agent.llm import models
+    for name, profile in TEST_MODELS.items():
+        models.register_model(name, profile, note="test")
+    yield
+    for name in TEST_MODELS:
+        models.unregister_model(name)
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if os.environ.get("NEO4J_TEST_URI"):
         return

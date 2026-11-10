@@ -1,0 +1,23 @@
+# 쓸 수 있는 LLM 모델 등록표 (docs/pipeline.md D-30, §6.4, §14.2)
+# - 여기 없는 모델은 호출할 수 없다(LLMBackendError). 캐시 재생도 같다. 모델 이름으로 계열을 추정하지 않는다.
+# - profile: standard(일반 모델, temperature 0) | reasoning(추론 모델, temperature 없음, reasoning_effort)
+#   계열별 요청 규칙은 src/trend_agent/llm/models/<profile>.py 에 있다.
+# - efforts: reasoning 모델이 허용하는 추론 강도 목록 (standard에는 쓰지 않는다)
+# - checked_at: 이 모델이 이 코드로 동작하는 것을 확인한 날짜. 새 모델은 합성 문장 1건으로 확인한 뒤 적는다:
+#     python scripts/check_llm_model.py --model <모델> --profile <계열> [--reasoning-effort <강도>]
+# - 단가는 configs/llm_pricing.yaml (파일을 나눈다: 단가는 자주 바뀌는 값, 이 파일은 동작 규칙)
+models:
+  gpt-4o-mini:
+    profile: standard
+    checked_at: "2026-11-09"
+    note: 기준선. 실제 기사 실험 호출로 확인 (v3·v4, 라벨 5건)
+  gpt-4.1:
+    profile: standard
+    checked_at: "2026-11-09"
+    note: 실제 기사 실험 호출로 확인 (v4, 라벨 5건)
+  # gpt-5-mini: 다음 작업 2에서 합성 확인(check_llm_model.py)을 통과하면 아래처럼 등록한다
+  #   gpt-5-mini:
+  #     profile: reasoning
+  #     efforts: [minimal, low, medium, high]
+  #     checked_at: "<확인일>"
+  #     note: 합성 확인 통과

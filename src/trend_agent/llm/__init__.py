@@ -1,9 +1,10 @@
-"""LLM 호출 단일 진입점. 구현: `client.py`·`backends.py`·`schema.py`·`cache.py`.
+"""LLM 호출 단일 진입점. 구현: `client.py`·`backends.py`·`schema.py`·`cache.py`·`models/`.
 
-문서: docs/spec.md §7.2 · docs/pipeline.md §14.2. 결정 D-1: OpenAI API(`gpt-4o-mini`)를 기본이자 유일한 백엔드로 쓴다.
+문서: docs/spec.md §7.2 · docs/pipeline.md §14.2. 결정 D-1·D-16: OpenAI API를 유일한 백엔드로 쓴다(모델은 실험으로 고른다).
 
 - 백엔드 `openai_api`(`LLM_API_KEY` 필요, OpenAI Chat Completions + strict JSON schema, 기존 `requests`로 구현).
-  일반 모델은 temperature 0, 추론 모델(gpt-5·o 계열)은 temperature 없이 reasoning_effort(있으면) — docs/pipeline.md D-30.
+- 모델은 `configs/llm_models.yaml`에 **등록된 것만** 쓴다. 요청 규칙은 모델 계열 모듈이 정한다 — `models/standard.py`
+  (일반 모델, temperature 0), `models/reasoning.py`(추론 모델, temperature 없음, reasoning_effort). D-30.
 - 반환은 **검증 전 JSON dict**다. 호출자가 pydantic으로 다시 검증한다. LLM은 숫자를 내지 않는다 — 스키마에 수치
   필드를 두지 않고 등급만 받는다(수치화는 코드·weights.yaml).
 - 캐시 키 = (입력 sha256, backend, model, reasoning_effort, prompt_version). 호출 로그는 env `LLM_CALL_LOG`.
