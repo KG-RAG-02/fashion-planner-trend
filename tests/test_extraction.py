@@ -120,6 +120,19 @@ def test_v3_template_front_matter():
     assert not v2.get("season_candidates")  # v2는 동결 — 입력도 그대로
 
 
+def test_v5_template_front_matter_and_rules():
+    body, front = load_template("extract-v5")
+    assert front["prompt_version"] == "extract-v5" and front["base"] == "extract-v4"
+    assert front["guideline_version"] == "0.4-draft" and front["season_candidates"] is True
+    for rule in ("한 문장으로 정의", "항목 하나에 사실 하나", "정의에 쓴 주장 하나하나", "확실하지 않으면 Item으로 내지 않는다",
+                 "착용 사례로 나열만", "같이 입으라고 권하는 옷", "착용 법칙·비율", "대비시키며 나열한", "일반 범주",
+                 "\"롱\"·\"긴\"은 **롱**", "성질만 말한 표현", "발행일로 추정하지 않는다", "자리표시자"):
+        assert rule in body, rule
+    assert "애매하면 Item으로 내고" not in body                       # v4의 완화 규칙은 v5에서 뺐다
+    art = {**ARTICLE, "season_candidates": SEASON_CANDIDATES}
+    assert "- 시즌 후보 (" in render_prompt(art, "extract-v5")         # v3·v4와 같은 입력 형식
+
+
 def test_render_prompt_season_candidates_only_for_v3():
     art = {**ARTICLE, "season_candidates": SEASON_CANDIDATES}
     p3 = render_prompt(art, "extract-v3")
@@ -134,21 +147,23 @@ def test_render_prompt_season_candidates_only_for_v3():
     assert "- 시즌 후보: 없음" in none
 
 
-def test_v3_has_no_label_trend_names():
-    """v3의 예시는 합성이다(R-11). 로컬 정답 라벨(gitignore)의 Style 이름·별칭이 프롬프트에 없어야 한다. 라벨이 없으면 건너뛴다."""
+@pytest.mark.parametrize("version", ["extract-v3", "extract-v5"])
+def test_v3_has_no_label_trend_names(version):
+    """v3·v5의 예시는 합성이다(R-11, D-39). 로컬 정답 라벨(gitignore)의 Style 이름·별칭이 프롬프트에 없어야 한다. 라벨이 없으면 건너뛴다."""
     labels = sorted((ROOT / "eval" / "datasets" / "article_extraction" / "labels").glob("*.json"))
     if not labels:
         pytest.skip("로컬 라벨 없음")
-    from trend_agent.schemas.vocabulary import Color
+    from trend_agent.schemas.vocabulary import CategoryMajor, CategoryMinor, Color
 
-    generic = {c.value for c in Color}  # 표준 색 이름 같은 일반어 Style 이름("화이트")은 누출이 아니다 (pipeline R-11)
-    body, _ = load_template("extract-v3")
+    # 표준 값과 같은 일반어 Style 이름(색 "화이트", 카테고리 "스커트")은 누출이 아니다 (pipeline R-11)
+    generic = {c.value for c in Color} | {c.value for c in CategoryMinor} | {c.value for c in CategoryMajor}
+    body, _ = load_template(version)
     for p in labels:
         for s in json.loads(p.read_text(encoding="utf-8"))["extraction"]["styles"]:
             for name in [s["name"], *(s.get("aliases") or [])]:
                 if name in generic:
                     continue
-                assert name not in body, f"v3 프롬프트에 라벨 {p.stem}의 트렌드명이 들어 있다"
+                assert name not in body, f"{version} 프롬프트에 라벨 {p.stem}의 트렌드명이 들어 있다"
 
 
 # ---------- N3: 이름 충실성 탐지 (경고만) ----------
@@ -170,6 +185,18 @@ def test_n3_is_warning_not_error():
     assert ext.styles[0].name == "테스트코어 트렌드"            # 값은 바꾸지 않는다
     _, ok = _validated(_llm_doc())
     assert "N3" not in ok.counts
+
+
+def test_placeholder_style_name_is_v1_error():
+    from trend_agent.ingestion.extraction.validate import is_placeholder_name
+    text = squash("이번 시즌 테스트코어가 떠오르고 있습니다. TODO 리스트 룩도 있다")
+    for bad in ("DUMMY-END", "PLACEHOLDER_REMOVEME", "remove me", "Lorem ipsum", "xxx"):
+        assert is_placeholder_name(bad, text), bad
+    for ok in ("테스트코어", "TODO 리스트 룩", "보라색"):                    # 기사에 있는 이름·일반 이름은 막지 않는다
+        assert not is_placeholder_name(ok, text), ok
+    _, rep = _validated(_llm_doc(name="DUMMY-END"))
+    assert not rep.passed and rep.counts.get("V1") == 1
+    assert any("자리표시자" in e for e in rep.errors)
 
 
 # ---------- 후처리 P2: 이름 끝 '트렌드' 제거 (docs/pipeline.md §6.7 표와 1:1) ----------
@@ -218,6 +245,32 @@ def test_fix_style_names_collision_and_untouched_fields():
     st = doc["styles"][0]
     assert st["name"] == "와인색" and st["definition"] == "와인색 트렌드는 ~" and st["aliases"] == []
     assert fix_style_names(doc, art) == []                               # 두 번 적용해도 같다
+
+
+@pytest.mark.parametrize("name,texts,expected", [
+    ("일명 ‘테스트 맨(Test Man)’", ["옷을 덜어냈죠. 일명 ‘테스트 맨(Test Man)’입니다."], "테스트 맨(Test Man)"),  # 이름 전체가 기사에 있어도 고침
+    ("이른바 와인색 트렌드", ["이른바 와인색이 돌아온다."], "와인색"),          # 앞 표지어 → 끝 일반어 순서
+    ("소위 \"시티 하이커\"", ["소위 시티 하이커가 뜬다."], "시티 하이커"),
+    ("일명", ["일명 무엇."], "일명"),                                           # ⓑ 남는 이름이 없음
+    ("일명 없는 이름", ["다른 이야기."], "일명 없는 이름"),                      # ⓒ 남은 이름이 기사에 없음
+    ("일명품 코트", ["일명품 코트가 뜬다."], "일명품 코트"),                     # '일명' 뒤가 공백·따옴표가 아니면 표지어가 아니다
+])
+def test_fix_style_names_prefix_marker(name, texts, expected):
+    from trend_agent.ingestion.extraction.postprocess import fix_style_names
+    doc = _names_doc(name)
+    notes = fix_style_names(doc, _name_article(*texts))
+    assert doc["styles"][0]["name"] == expected
+    if expected != name:
+        assert notes[0].startswith(f"P2 Style[{name}]: 이름 앞")
+    else:
+        assert notes == []
+
+
+def test_fix_style_names_prefix_collision():
+    from trend_agent.ingestion.extraction.postprocess import fix_style_names
+    doc = _names_doc("테스트 맨", "일명 테스트 맨")                      # ⓓ 다른 Style과 같아지면 고치지 않음
+    assert fix_style_names(doc, _name_article("일명 테스트 맨입니다.")) == []
+    assert [s["name"] for s in doc["styles"]] == ["테스트 맨", "일명 테스트 맨"]
 
 
 def test_name_fix_off_by_default_and_input_unchanged():

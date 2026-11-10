@@ -2,7 +2,7 @@
 
 | 단계 | 판정 | 등급 |
 |---|---|---|
-| V1 | pydantic 구조(호출자) + 정책: `name_origin == "article"`, `aliases[]` ⊂ 제목·텍스트 블록 | 오류 |
+| V1 | pydantic 구조(호출자) + 정책: `name_origin == "article"`, `aliases[]` ⊂ 제목·텍스트 블록, 자리표시자 Style 이름 금지(D-39) | 오류 |
 | V2 | 모든 `quote` ⊂ 그 `block_idx` 텍스트 블록(문단·소제목), 공백을 지운 부분 문자열 | 오류 |
 | V3 | Item의 모든 `*_raw`·하위 `raw` ⊂ 그 Item 근거 블록들 | 오류 |
 | V4 | Item 근거 블록 ≥1, 서로 다른 블록 ≤ `max_blocks`(2), 텍스트 블록 순서 간격 ≤ `max_text_gap`(1) | 오류 |
@@ -112,6 +112,18 @@ def name_not_in_article(name: str, title_and_text_squashed: str) -> Optional[str
     return "일부를 바꾸거나 지어낸 이름일 수 있음"
 
 
+# V1 정책 — 자리표시자 이름 (D-39): 내용 없는 자리표시자. 대소문자·공백·기호를 무시하고 이름 안에 있으면 걸린다.
+PLACEHOLDER_NAME_TOKENS = ("dummy", "placeholder", "removeme", "todo", "tbd", "lorem", "xxx")
+
+
+def is_placeholder_name(name: str, title_and_text_squashed: str) -> bool:
+    """이름에 자리표시자 토큰이 있고, 그 이름이 제목·본문에 없으면 True (기사에 실제로 있는 이름은 막지 않는다)."""
+    flat = re.sub(r"[\W_]+", "", name or "").lower()
+    if not flat or not any(t in flat for t in PLACEHOLDER_NAME_TOKENS):
+        return False
+    return squash(name).lower() not in title_and_text_squashed.lower()
+
+
 def validate_extraction(ext: ArticleExtraction, article: dict, *, max_blocks: int = 2, max_text_gap: int = 1,
                         extra_errors: Optional[Iterable[str]] = None,
                         use_label_checks: bool = True) -> ValidationReport:
@@ -142,6 +154,8 @@ def validate_extraction(ext: ArticleExtraction, article: dict, *, max_blocks: in
         sw = f"Style[{s.name}]"
         if s.name_origin != "article":
             rep.err("V1", f"{sw}: name_origin은 article이어야 함")
+        if is_placeholder_name(s.name, title_and_text):
+            rep.err("V1", f"{sw}: 자리표시자 이름(DUMMY·PLACEHOLDER 등)이고 기사에 없음")
         hint = name_not_in_article(s.name, title_and_text)
         if hint is not None:
             rep.warnings.append(f"N3 {sw}: 이름이 제목·본문에 그대로 없음 ({hint})")

@@ -25,7 +25,7 @@ from ...schemas.vocabulary import MINOR_TO_MAJOR, CategoryMinor
 from ..normalization.alias_map import AliasMap
 
 __all__ = ["convert_image_links", "apply_alias_map", "apply_length_area", "merge_duplicates", "fix_style_names",
-           "postprocess", "get_alias_map", "LENGTH_AREA_FIX", "NAME_FIX_SUFFIXES"]
+           "postprocess", "get_alias_map", "LENGTH_AREA_FIX", "NAME_FIX_SUFFIXES", "NAME_FIX_PREFIXES"]
 
 # 영역별 기장 통일(선택, 기본 꺼짐): 사용자 결정 L-맥시(2026-11-08, 하의·원피스 롱 → 맥시)는 2026-11-10 폐기됐다
 # (pipeline D-38: 롱은 롱). 이전 실험 재현용으로만 남긴다. 켜면 `length_area:length_body:롱->맥시` 표시를 남긴다.
@@ -223,7 +223,10 @@ def merge_duplicates(doc: dict) -> list[str]:
 
 # P2 이름 후처리 (pipeline.md §6.7, D-28): 떼는 일반어 허용 목록. 늘리려면 사용자 승인이 필요하다.
 NAME_FIX_SUFFIXES = ("트렌드", "trend")
+# P2 앞 표지어 (D-39): 이름을 소개하는 말. 늘리려면 사용자 승인이 필요하다.
+NAME_FIX_PREFIXES = ("일명", "이른바", "소위")
 _NAME_TRAIL = " \t -–—·,.:;!?'\"‘’“”"
+_NAME_QUOTES = " \t'\"‘’“”「」『』"
 
 
 def _sq(s: str) -> str:
@@ -237,9 +240,22 @@ def _article_text(article: dict) -> str:
     return _sq((article.get("title") or "") + "".join(texts))
 
 
-def fix_style_names(doc: dict, article: dict) -> list[str]:
-    """제자리 수정. 아래 ①~⑤를 모두 만족할 때만 Style 이름 끝의 일반어를 한 번 뗀다. 기록(P2·N3 문구)을 돌려준다.
+def _strip_name_prefix(name: str) -> tuple[str, str] | None:
+    """이름이 표지어(`NAME_FIX_PREFIXES`)로 시작하면 (표지어, 표지어·감싼 따옴표를 뗀 이름). 아니면 None."""
+    head = name.lstrip(_NAME_QUOTES)
+    # 표지어는 낱말이어야 한다: 뒤에 공백·따옴표가 와야 한다("일명품 코트"는 표지어가 아니다)
+    pre = next((p for p in NAME_FIX_PREFIXES if head.startswith(p) and head[len(p):len(p) + 1] in tuple(_NAME_QUOTES)), None)
+    if pre is None:
+        return None
+    return pre, head[len(pre):].strip(_NAME_QUOTES)
 
+
+def fix_style_names(doc: dict, article: dict) -> list[str]:
+    """제자리 수정. Style 이름을 기사 원문 표현으로 되돌린다. 기록(P2·N3 문구)을 돌려준다.
+
+    앞 표지어 (D-39): 이름이 `NAME_FIX_PREFIXES`로 시작하면 표지어와 감싼 따옴표를 뗀다 — ⓑ 나머지 2글자 이상
+    ⓒ 나머지가 기사에 있다 ⓓ 다른 Style 이름과 겹치지 않는다. 이름 전체가 기사에 있어도 고친다(표지어는 이름이 아니다).
+    끝 일반어 (D-28): 고친 이름에 이어서, 아래 ①~⑤를 모두 만족할 때만 끝의 일반어를 한 번 뗀다.
     ① 이름 전체가 기사에 없다 ② 허용 목록(`NAME_FIX_SUFFIXES`)의 일반어로 끝난다 ③ 뗀 나머지가 2글자 이상이다
     ④ 뗀 나머지가 기사에 있다 ⑤ 뗀 이름이 같은 기사의 다른 Style 이름과 겹치지 않는다 (⑤에 걸리면 N3 문구만 남긴다)
     `definition`·`description`·`evidence`·`aliases`는 건드리지 않는다.
@@ -250,6 +266,18 @@ def fix_style_names(doc: dict, article: dict) -> list[str]:
     notes: list[str] = []
     for i, style in enumerate(styles):
         name = style.get("name") or ""
+        stripped = _strip_name_prefix(name)
+        if stripped is not None:
+            pre, new = stripped
+            others = {_sq(n) for j, n in enumerate(names) if j != i}
+            core = new.rstrip(_NAME_TRAIL)
+            suf = next((x for x in NAME_FIX_SUFFIXES if core.lower().endswith(x.lower())), None)
+            in_text = _sq(new) in text or (suf is not None and _sq(core[: len(core) - len(suf)]) in text)  # ⓒ (끝 일반어는 다음 단계가 뗀다)
+            if len(_sq(new)) >= 2 and in_text and _sq(new) not in others:              # ⓑ ⓒ ⓓ
+                style["name"] = new
+                names[i] = new
+                notes.append(f"P2 Style[{name}]: 이름 앞 '{pre}' 제거 → '{new}'")
+                name = new
         if not _sq(name) or _sq(name) in text:                                   # ①
             continue
         core = name.rstrip(_NAME_TRAIL)
