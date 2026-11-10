@@ -27,8 +27,8 @@ from ..normalization.alias_map import AliasMap
 __all__ = ["convert_image_links", "apply_alias_map", "apply_length_area", "merge_duplicates", "fix_style_names",
            "postprocess", "get_alias_map", "LENGTH_AREA_FIX", "NAME_FIX_SUFFIXES"]
 
-# 영역별 기장 통일(선택, 기본 꺼짐): vocabulary §6 하의·원피스 허용값에 '롱'이 없고 사용자 결정 L-맥시(2026-11-08)가
-# 하의·원피스의 긴/롱을 맥시로 통일했다. 켜면 `length_area:length_body:롱->맥시` 표시를 남긴다.
+# 영역별 기장 통일(선택, 기본 꺼짐): 사용자 결정 L-맥시(2026-11-08, 하의·원피스 롱 → 맥시)는 2026-11-10 폐기됐다
+# (pipeline D-38: 롱은 롱). 이전 실험 재현용으로만 남긴다. 켜면 `length_area:length_body:롱->맥시` 표시를 남긴다.
 LENGTH_AREA_FIX = {"하의": {"롱": "맥시"}, "원피스": {"롱": "맥시"}}
 
 # Item 스칼라 (raw 필드, 값 필드, 사전 속성)

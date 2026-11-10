@@ -86,7 +86,7 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 | 구분 | 출처 | 비고 |
 |---|---|---|
 | 트렌드 (기사) | Vogue Korea 패션 트렌드 기사 | 크롤러 구현 완료. 수집 150건(기존 20건 + 130건). 이미지는 URL만 저장. **원문은 git에 없고 팀 내부로 전달** |
-| 정답 라벨 | 위 기사 중 5건을 사람이 검수할 수 있게 `silver`로 라벨링 | Style 5개(절제된 맥시멀리즘·스커트·보라색·시럽코어·슬렌더 맨), Item 36개 + 지원 밖 5개. **방침상 평가 전용이다. 지금의 임시 그래프만 이 라벨로 만들었다. git에 없고 팀 내부로 전달** |
+| 정답 라벨 | 위 기사 중 5건을 Claude가 `silver`로 라벨링하고 사용자가 검수해 **gold**로 확정(2026-11-10, 이미지 연결 포함) | Style 5개(절제된 맥시멀리즘·스커트·보라색·시럽코어·슬렌더 맨), Item 34개 + 지원 밖 5개(gold 검수 뒤, 이미지 연결 51개). **방침상 평가 전용이다. 지금의 임시 그래프만 이 라벨로 만들었다. git에 없고 팀 내부로 전달** |
 | Product 02 | `hateslopacademy/otpensource_dataset` | 상품 카탈로그(8,827행, 상품명·이미지 URL 있음). 샘플링 없이 전체를 정규화 |
 | Product 03 | `disl/musinsa-snap-new` | 착장 사진 속 아이템 라벨(24,532 슬롯). 구매 가능한 상품이 아니라 `kind=snap_garment`로 구분, 색 정보 없음, 핏은 있음 |
 | 표준 어휘 | K-Fashion 가이드라인 (AI Hub, CC0) | 색 21, 카테고리 상분류 4 + 하분류 21, 소재 26, 패턴 19 등 |
@@ -111,7 +111,7 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 | 검색 과정·점수 사유 출력(trace) | 🔶 점수 분해·근거는 나오지만 "무엇이 왜 빠졌는지"는 아직. 추가 여부 확인 대기 |
 | 자동화 파이프라인(주 1회 수집 → 추출 → Style 해소 → 적재, 스케줄러) (WP-B) | ⬜ 설계 완료, 구현 전 |
 | 자동화 파이프라인 설계와 작업 계획 | ✅ [docs/pipeline.md](docs/pipeline.md) (결정, 설계, 작업 패키지, 확인 대기 질문) |
-| 평가셋 (기사 추출 정답 라벨링) | 🔶 150건 분류 완료, 라벨링 기준 v0.3 초안, **silver 라벨 검수 대기** (manifest에 23건, 이 PC에는 5건). [eval/README.md](eval/README.md), [spec §13.2](docs/spec.md) |
+| 평가셋 (기사 추출 정답 라벨링) | 🔶 150건 분류 완료, 라벨링 기준 v0.4 초안, **라벨 5건 gold**(2026-11-10). manifest에는 silver 18건이 더 적혀 있으나 파일은 이 PC에 없다(R-10). [eval/README.md](eval/README.md), [spec §13.2](docs/spec.md) |
 
 ## 폴더 구조
 
@@ -429,5 +429,5 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 - 평가 데이터셋·라벨링 기준: [eval/README.md](eval/README.md)
 - **한계와 향후 과제**: 전체 요약은 [docs/spec.md §15](docs/spec.md), 스키마별 상세는 각 스키마 문서 맨 아래 표에 있다. 주요 한계는 다음과 같다.
   - 크롤링 허용 여부(robots.txt·약관)와 Vogue 이미지 사용 권한을 검토하지 않았다.
-  - 정답 라벨이 5건(silver)뿐이고, 점수 식·가중치는 정답으로 검증하지 않은 임의 시작값이다. 정보가 적은 Product가 만점을 받고 하분류 보너스(α 0.1)가 작은 약점이 첫 실행에서 보였다 ([spec §15 K-9](docs/spec.md)).
+  - 정답 라벨이 5건(gold)뿐이고, 점수 식·가중치는 정답으로 검증하지 않은 임의 시작값이다. 정보가 적은 Product가 만점을 받고 하분류 보너스(α 0.1)가 작은 약점이 첫 실행에서 보였다 ([spec §15 K-9](docs/spec.md)).
   - 상품은 무신사 한 곳이고 브랜드·가격·URL이 없어 **구매 가능한 상품 추천이 아니라 기획 참고용**이다. 03은 착장 속 아이템이라 구매할 수 없다.

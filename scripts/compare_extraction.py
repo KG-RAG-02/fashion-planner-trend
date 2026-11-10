@@ -9,7 +9,7 @@
 - 예측 파일: <dir>/<aid>.json(검증 통과) · <dir>/_review/<aid>.json(검증 실패). 형식은 {"label_meta","extraction"} 또는 ArticleExtraction 단독.
   `_review`는 기본으로 "예측 없음(검토 대기)"으로 세고, --include-review면 함께 비교한다.
 - test 기사는 --confirm-test가 있어야 열린다. 열 때마다 eval/results/test_access.jsonl에 기록한다.
-- 기장 규칙(사용자 결정 L-맥시): 예측의 하의·원피스 length_body '롱' → '맥시'로 바꿔 비교하고 바꾼 건수를 센다(--no-length-rule로 끔).
+- 기장: '롱'은 롱으로 비교한다(D-38, 2026-11-10 L-맥시 폐기). --length-rule은 L-맥시(하의·원피스 롱 → 맥시)를 켜던 이전 보고서 재현용이다. --no-length-rule은 이제 기본과 같다(받기만 함).
 출력: <out>/report.md(행 = 지표, 열 = 백엔드) · details.jsonl(기사별 차이) · summary.json(건수·실행 메타).
 """
 from __future__ import annotations
@@ -184,7 +184,7 @@ def compare_item_attrs(g, p, c: Counter) -> dict:
 
 
 def apply_length_rule(ext: ArticleExtraction) -> int:
-    """사용자 결정 L-맥시: 하의·원피스의 length_body '롱' → '맥시'. 바꾼 건수."""
+    """폐기된 L-맥시(D-38) 재현용: 하의·원피스의 length_body '롱' → '맥시'. 바꾼 건수. 기본으로는 쓰지 않는다."""
     n = 0
     for s in ext.styles:
         for it in s.items:
@@ -352,7 +352,7 @@ def render_report(counts: dict[str, Counter], meta: dict) -> str:
          f"- split `{meta['split']}` · 기사 {len(meta['ids'])}건 · git `{meta['git_head']}` · {meta['ts']}",
          f"- 예측: " + " · ".join(f"`{k}` = {v}" for k, v in meta["pred"].items()),
          f"- 예측 메타: " + " / ".join(f"`{k}` " + ", ".join(f"{x} ×{n}" for x, n in sorted(v.items())) for k, v in meta["pred_meta"].items()),
-         f"- 기장 규칙(L-맥시): {'적용' if meta['length_rule'] else '끔'} · `_review`: {'비교 포함' if meta['include_review'] else '예측 없음으로 셈'}",
+         f"- 기장 규칙(L-맥시, D-38로 폐기 — 재현용): {'적용' if meta['length_rule'] else '끔(롱은 롱)'} · `_review`: {'비교 포함' if meta['include_review'] else '예측 없음으로 셈'}",
          "- 규칙: 비율이 아니라 건수다(eval/README). 한 칸 = '이름 건수'.", "",
          "| 지표 | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
     for g, cols in GROUPS:
@@ -380,7 +380,8 @@ def main(argv=None) -> int:
     ap.add_argument("--labels", type=Path, default=LABELS)
     ap.add_argument("--manifest", type=Path, default=MANIFEST)
     ap.add_argument("--include-review", action="store_true", help="_review/ 예측도 비교 (진단용)")
-    ap.add_argument("--no-length-rule", action="store_true", help="L-맥시 평가 쪽 보정을 끈다")
+    ap.add_argument("--length-rule", action="store_true", help="폐기된 L-맥시(롱→맥시) 보정을 켠다 — 2026-11-10 이전 보고서 재현용 (D-38)")
+    ap.add_argument("--no-length-rule", action="store_true", help=argparse.SUPPRESS)  # 예전 명령 호환. 이제 기본과 같다
     ap.add_argument("--confirm-test", action="store_true", help="test 기사를 연다 (열람 기록이 남는다)")
     ap.add_argument("--access-log", type=Path, default=ROOT / "eval" / "results" / "test_access.jsonl")
     ap.add_argument("--out", type=Path)
@@ -396,7 +397,7 @@ def main(argv=None) -> int:
     gold = load_gold(ids, a.labels)
     articles = VL.load_articles()
     texts = {i: VL.text_blocks(articles[i]) for i in ids if i in articles}
-    counts, details, metas = run(preds, ids, gold, a.include_review, not a.no_length_rule, texts)
+    counts, details, metas = run(preds, ids, gold, a.include_review, a.length_rule and not a.no_length_rule, texts)
     if test_ids:
         log_test_access(a.access_log, preds, test_ids, {k: dict(v) for k, v in metas.items()})
     ts = dt.datetime.now().astimezone()
@@ -404,7 +405,7 @@ def main(argv=None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     meta = {"ts": ts.isoformat(timespec="seconds"), "split": a.split if not a.ids else "ids", "ids": ids, "git_head": git_head(),
             "pred": {k: str(v) for k, v in preds.items()}, "pred_meta": {k: dict(v) for k, v in metas.items()},
-            "include_review": a.include_review, "length_rule": not a.no_length_rule, "labels": str(a.labels),
+            "include_review": a.include_review, "length_rule": a.length_rule and not a.no_length_rule, "labels": str(a.labels),
             "thresholds": {"strict_sim": STRICT_SIM, "relaxed_sim": RELAXED_SIM, "style_dice": STYLE_DICE}}
     (out / "report.md").write_text(render_report(counts, meta), encoding="utf-8")
     with (out / "details.jsonl").open("w", encoding="utf-8") as f:

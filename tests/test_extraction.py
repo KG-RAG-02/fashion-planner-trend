@@ -139,10 +139,15 @@ def test_v3_has_no_label_trend_names():
     labels = sorted((ROOT / "eval" / "datasets" / "article_extraction" / "labels").glob("*.json"))
     if not labels:
         pytest.skip("로컬 라벨 없음")
+    from trend_agent.schemas.vocabulary import Color
+
+    generic = {c.value for c in Color}  # 표준 색 이름 같은 일반어 Style 이름("화이트")은 누출이 아니다 (pipeline R-11)
     body, _ = load_template("extract-v3")
     for p in labels:
         for s in json.loads(p.read_text(encoding="utf-8"))["extraction"]["styles"]:
             for name in [s["name"], *(s.get("aliases") or [])]:
+                if name in generic:
+                    continue
                 assert name not in body, f"v3 프롬프트에 라벨 {p.stem}의 트렌드명이 들어 있다"
 
 
