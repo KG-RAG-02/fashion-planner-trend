@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import hmac
 import json
-import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,10 +13,9 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
-from neo4j import GraphDatabase  # noqa: E402
 from pydantic import ValidationError  # noqa: E402
 
-from trend_agent.config import neo4j_settings  # noqa: E402
+from trend_agent.config import load_env, neo4j_driver, neo4j_settings  # noqa: E402
 from trend_agent.graph.search import TrendSearcher  # noqa: E402
 from trend_agent.schemas.trend_analysis_result import SCHEMA_VERSION  # noqa: E402
 from trend_agent.schemas.trend_query import TrendQuery  # noqa: E402
@@ -83,7 +81,7 @@ def build_handler(searcher: TrendSearcher):
                 self._send_json(404, {"error": {"code": "not_found", "message": "Route not found."}})
 
         def _authorized(self) -> bool:
-            expected = os.environ.get("VOGUE_AGENT_SERVICE_BEARER_TOKEN", "")
+            expected = load_env().get("VOGUE_AGENT_SERVICE_BEARER_TOKEN", "")
             authorization = self.headers.get("Authorization", "")
             supplied = authorization[7:].strip() if authorization.startswith("Bearer ") else ""
             return bool(expected and supplied) and hmac.compare_digest(supplied, expected)
@@ -132,17 +130,20 @@ def build_handler(searcher: TrendSearcher):
 
 
 def serve(host: str | None = None, port: int | None = None) -> None:
-    host = host or os.environ.get("TREND_API_HOST", "127.0.0.1")
-    port = port if port is not None else int(os.environ.get("TREND_API_PORT", "8768"))
+    env = load_env()
+    host = host or env.get("TREND_API_HOST", "127.0.0.1")
+    port = port if port is not None else int(env.get("TREND_API_PORT", "8768"))
     if host not in {"127.0.0.1", "::1", "localhost"}:
         raise SystemExit("Trend API may bind only to loopback addresses.")
     settings = neo4j_settings()
-    driver = GraphDatabase.driver(settings.uri, auth=(settings.user, settings.password))
+    driver = neo4j_driver(settings)
     try:
         driver.verify_connectivity()
-    except Exception:
+    except Exception as exc:
         driver.close()
-        raise SystemExit("Cannot connect to Neo4j; check the local Neo4j service and NEO4J_* settings.") from None
+        raise SystemExit(
+            f"Cannot connect to Neo4j ({type(exc).__name__}); check Aura availability, network access, and NEO4J_* settings."
+        ) from None
     server = ThreadingHTTPServer((host, port), build_handler(TrendSearcher(driver)))
     print(f"Trend API listening on http://{host}:{port}{ROUTE}")
     try:
