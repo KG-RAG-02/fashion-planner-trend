@@ -20,9 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from neo4j import GraphDatabase  # noqa: E402
 
-from trend_agent.config import neo4j_settings  # noqa: E402
+from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
 from trend_agent.graph.search import TrendSearcher  # noqa: E402
 from trend_agent.schemas import vocabulary as V  # noqa: E402
 from trend_agent.schemas.trend_query import (  # noqa: E402
@@ -95,7 +94,7 @@ def main() -> int:
 
     q = build_query(a)
     s = neo4j_settings()
-    with GraphDatabase.driver(s.uri, auth=(s.user, s.password)) as driver:
+    with neo4j_driver(s) as driver:
         res = TrendSearcher(driver, top_k=a.top_k).search(q)
     path = Path(a.json) if a.json else ROOT / "data" / "processed" / "results" / f"{q.request_id}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
