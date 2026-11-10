@@ -134,7 +134,7 @@ trend-analysis-agent/
 │   ├── alias_map/             # 속성별 별칭 사전 (yaml)
 │   └── weights.yaml           # 유사도 가중치 기본값
 ├── scripts/                   # 실행 스크립트 (아래 "스크립트 한눈에")
-├── prompts/extraction/        # 기사 추출 프롬프트 (v1, v2 = 동결한 스크립트 기본값, v3 = 합성 예시+시즌 후보, v4 = v3에서 Item 규칙 완화. 기본값은 실험 뒤 결정)
+├── prompts/extraction/        # 기사 추출 프롬프트 (v1, v2 = 동결한 스크립트 기본값, v3 = 합성 예시+시즌 후보, v4 = v3에서 Item 규칙 완화, v5 = v4 + 라벨링 기준 0.4(D-39). 기본값은 실험 뒤 결정)
 ├── tests/                     # pytest 344개 (스키마·정규화·점수·LLM·추출·적재·비교·실험 등)
 ├── eval/                      # 평가 기준·정답 데이터 (라벨·검수 문서·결과는 git 제외)
 ├── docs/                      # spec.md(명세·결정·현재 상태), schemas/(데이터 계약·표준 어휘·별칭 사전·근거 자료)
@@ -260,7 +260,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 3. 테스트 (Neo4j 없이 도는 단위 테스트)
-python -m pytest -q                       # 366 passed, 12 skipped (Neo4j 테스트 인스턴스가 필요한 것과 symlink 권한이 필요한 것은 건너뜀)
+python -m pytest -q                       # 376 passed, 12 skipped (Neo4j 테스트 인스턴스가 필요한 것과 symlink 권한이 필요한 것은 건너뜀)
 
 # 4. Product 정규화: 공개 데이터를 내려받아 표준 어휘로 바꾼다 (처음에는 수 분 걸릴 수 있다)
 python scripts/build_otpensource.py       # 02 → data/processed/v2/otpensource_all.jsonl (8,819행)
