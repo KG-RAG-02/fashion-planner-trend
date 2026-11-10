@@ -195,7 +195,7 @@ trend-analysis-agent/
 
 ## Trend Agent HTTP API (Project_08 로컬 연결)
 
-Project_08의 agent HTTP `vogue-handoff/0.1` 계약을 제공하는 로컬 전용 API입니다. 요청 `input`은 `TrendQuery`로 검증한 뒤 현재 Neo4j 그래프를 대상으로 `TrendSearcher.search()`를 실행합니다. `no_results`는 HTTP 200과 결과 status로 반환됩니다. 서버는 기본적으로 `127.0.0.1`에만 바인딩합니다.
+Project_08의 agent HTTP `vogue-handoff/0.1` 계약을 제공하는 로컬 전용 API입니다. 요청 `input`은 `TrendQuery`로 검증한 뒤 현재 Neo4j 그래프를 대상으로 `TrendSearcher.search()`를 실행합니다. `no_results`는 HTTP 200과 결과 status로 반환됩니다. 서버는 기본적으로 `127.0.0.1`에만 바인딩하고, `/runs` 요청에서 `VOGUE_AGENT_SERVICE_BEARER_TOKEN`을 검증합니다.
 
 ```bash
 # 1. .env에 NEO4J_PASSWORD 및 필요한 Neo4j 접속값 설정
@@ -209,6 +209,8 @@ PYTHONPATH=src python -m trend_agent.api.server
 # Project_08의 project_08/.env 또는 실행 환경
 VOGUE_AGENT_HTTP_DEV_MODE=1
 VOGUE_TREND_AGENT_URL=http://127.0.0.1:8768
+# 이 agent의 .env에도 같은 이름과 토큰을 설정
+VOGUE_AGENT_SERVICE_BEARER_TOKEN=<local-secret>
 ```
 
 Project_08 `agent_http_v01` 통합 실행에는 trend 외 세 agent URL도 필요합니다. Project_08에 `trend_query`를 명시해 `POST /v1/orchestrations`에 전달해야 합니다. 최소 직접 호출 예시:
@@ -216,10 +218,11 @@ Project_08 `agent_http_v01` 통합 실행에는 trend 외 세 agent URL도 필�
 ```bash
 curl -sS http://127.0.0.1:8768/v1/agents/trend-analysis-agent/runs \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer ${VOGUE_AGENT_SERVICE_BEARER_TOKEN}" \
   -d '{"contract_version":"vogue-handoff/0.1","request_id":"local-check-001","input":{"request_id":"local-check-001","original_query":"2027 SS 시럽코어 상의","trend_terms":{"season":{"year":2027,"season":"SS","raw":"2027 SS","origin":"user_requested"},"style_names":[{"raw":"시럽코어","value":null}],"item_terms":[]},"requested":{"categories":{"include":[{"raw":"상의","major":"상의","minor":null}],"exclude":[]}},"unsupported":[],"missing_fields":[]}}'
 ```
 
-응답 envelope의 `contract_version`은 `vogue-handoff/0.1`, producer ID는 `trend-analysis-agent`, producer schema version은 `1.1`입니다. `result`는 `TrendAnalysisResult` 전체 JSON입니다. 잘못된 요청은 HTTP 400, Neo4j 연결 실패는 시작 단계에서 안내 메시지와 함께 종료, 검색 중 일시 오류는 안전한 HTTP 503으로 반환합니다. 테스트용 합성 API 테스트와 실제 Neo4j 통합 검증은 구분합니다. 아래 API 단위 테스트는 합성 `TrendSearcher` 결과만 사용하며 실제 DB를 요구하지 않습니다.
+응답 envelope의 `contract_version`은 `vogue-handoff/0.1`, producer ID는 `trend-analysis-agent`, producer schema version은 `1.1`입니다. `result`는 `TrendAnalysisResult` 전체 JSON입니다. 누락/불일치 bearer token은 HTTP 401, 잘못된 요청은 HTTP 400, Neo4j 연결 실패는 시작 단계에서 안내 메시지와 함께 종료, 검색 중 일시 오류는 안전한 HTTP 503으로 반환합니다. 테스트용 합성 API 테스트와 실제 Neo4j 통합 검증은 구분합니다. 아래 API 단위 테스트는 합성 `TrendSearcher` 결과만 사용하며 실제 DB를 요구하지 않습니다.
 
 ```bash
 PYTHONPATH=src python -m pytest -q tests/test_api_server.py

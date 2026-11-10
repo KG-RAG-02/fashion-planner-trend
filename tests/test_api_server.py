@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from http.server import ThreadingHTTPServer
 from threading import Thread
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -69,23 +71,36 @@ class FakeSearcher:
         return self.result
 
 
-def call_api(searcher, body, path=ROUTE):
+def call_api(searcher, body, path=ROUTE, token="test-agent-token"):
     server = ThreadingHTTPServer(("127.0.0.1", 0), build_handler(searcher))
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
         data = json.dumps(body).encode()
+        headers = {"Content-Type": "application/json"}
+        if token is not None:
+            headers["Authorization"] = f"Bearer {token}"
         req = Request(f"http://127.0.0.1:{server.server_address[1]}{path}", data=data,
-                      headers={"Content-Type": "application/json"}, method="POST")
+                      headers=headers, method="POST")
         try:
-            with urlopen(req, timeout=2) as response:
-                return response.status, json.loads(response.read())
+            with patch.dict(os.environ, {"VOGUE_AGENT_SERVICE_BEARER_TOKEN": "test-agent-token"}):
+                with urlopen(req, timeout=2) as response:
+                    return response.status, json.loads(response.read())
         except HTTPError as exc:
             return exc.code, json.loads(exc.read())
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_runs_requires_matching_shared_bearer_token():
+    status, response = call_api(FakeSearcher(), request_payload(), token=None)
+    assert status == 401
+    assert response["error"]["code"] == "unauthorized"
+    status, response = call_api(FakeSearcher(), request_payload(), token="wrong-token")
+    assert status == 401
+    assert response["error"]["code"] == "unauthorized"
 
 
 def test_success_response_preserves_result_and_envelope():

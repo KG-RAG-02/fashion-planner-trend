@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import os
 import sys
@@ -81,9 +82,18 @@ def build_handler(searcher: TrendSearcher):
             else:
                 self._send_json(404, {"error": {"code": "not_found", "message": "Route not found."}})
 
+        def _authorized(self) -> bool:
+            expected = os.environ.get("VOGUE_AGENT_SERVICE_BEARER_TOKEN", "")
+            authorization = self.headers.get("Authorization", "")
+            supplied = authorization[7:].strip() if authorization.startswith("Bearer ") else ""
+            return bool(expected and supplied) and hmac.compare_digest(supplied, expected)
+
         def do_POST(self) -> None:
             if urlparse(self.path).path != ROUTE:
                 self._send_json(404, {"error": {"code": "not_found", "message": "Route not found."}})
+                return
+            if not self._authorized():
+                self._send_json(401, {"error": {"code": "unauthorized", "message": "Bearer authentication required."}})
                 return
             try:
                 length = int(self.headers.get("Content-Length", "0"))
