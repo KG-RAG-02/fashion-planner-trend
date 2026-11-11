@@ -265,8 +265,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--prompt-version", required=True, help="예 extract-v4")
     ap.add_argument("--model", default=None, help="기본 env LLM_MODEL")
-    ap.add_argument("--reasoning-effort", default=None, choices=("minimal", "low", "medium", "high"),
-                    help="추론 모델만(gpt-5·o 계열). 주지 않으면 API 기본값. 폴더 이름에 붙는다 (docs/pipeline.md D-30)")
+    ap.add_argument("--reasoning-effort", default=None,
+                    help="추론 모델만. 허용 값은 모델별 등록표 configs/llm_models.yaml의 efforts(예 gpt-6-sol은 none 포함). "
+                         "주지 않으면 API 기본값. 폴더 이름에 붙는다 (docs/pipeline.md D-30)")
     ap.add_argument("--ids", default=None, help="쉼표로 구분한 article_id (기본: 로컬 라벨 기사 전부)")
     ap.add_argument("--note", default="", help="실험 목적·가설 (기록에 남는다)")
     ap.add_argument("--in", dest="input", type=Path, default=DEFAULT_IN)

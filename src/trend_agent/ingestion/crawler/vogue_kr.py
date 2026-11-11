@@ -49,28 +49,56 @@ SEASON_NORMALIZE = {
 }
 
 
+RETRIES = 3  # 요청 재시도 횟수 (D-45). 대기는 1·2·4초로 늘린다
+
+
+def _request(method: str, url: str, retries: int = RETRIES, **kwargs) -> requests.Response:
+    for attempt in range(retries):
+        try:
+            resp = requests.request(method, url, headers=HEADERS, timeout=20, **kwargs)
+            resp.raise_for_status()
+            return resp
+        except requests.RequestException:
+            if attempt == retries - 1:
+                raise
+            time.sleep(2 ** attempt)
+    raise RuntimeError("unreachable")
+
+
 def _get(url: str, **kwargs) -> requests.Response:
-    resp = requests.get(url, headers=HEADERS, timeout=20, **kwargs)
-    resp.raise_for_status()
-    return resp
+    return _request("GET", url, **kwargs)
 
 
-def fetch_article_list(limit: int = 20, delay: float = 1.0) -> list[dict]:
-    """목록 AJAX를 페이지 단위로 호출해 기사 메타(post_id, permalink, title, date 등)를 limit개까지 반환."""
+def list_date(item: dict) -> str:
+    """목록 항목의 post_date('2026.11.06') → '2026-11-06'. 없으면 ''."""
+    return (item.get("post_date") or "").strip().replace(".", "-")
+
+
+def fetch_article_list(limit: int | None = 20, delay: float = 1.0, since: str | None = None,
+                       max_pages: int = 200) -> list[dict]:
+    """목록 AJAX를 페이지 단위로 호출해 기사 메타(post_id, permalink, title, date 등)를 반환한다.
+
+    limit: 최대 개수(None = 제한 없음). since: 'YYYY-MM-DD' — 이 날짜 이상인 기사만 남긴다(D-45).
+    목록은 대체로 최신순이지만 조금 섞여 있어, 한 페이지 전체가 since보다 오래되면 한 페이지 더 보고 멈춘다.
+    """
     items: list[dict] = []
-    page = 1
-    while len(items) < limit:
-        resp = requests.post(
-            AJAX_URL, data={**LIST_PARAMS, "paged": page}, headers=HEADERS, timeout=20
-        )
-        resp.raise_for_status()
+    page, old_pages = 1, 0
+    while (limit is None or len(items) < limit) and page <= max_pages:
+        resp = _request("POST", AJAX_URL, data={**LIST_PARAMS, "paged": page})
         posts = (resp.json() or {}).get("current_posts") or []
         if not posts:
             break
-        items.extend(posts)
+        if since:
+            keep = [p for p in posts if list_date(p) >= since]
+            items.extend(keep)
+            old_pages = old_pages + 1 if not keep else 0
+            if old_pages >= 2:
+                break
+        else:
+            items.extend(posts)
         page += 1
         time.sleep(delay)
-    return items[:limit]
+    return items if limit is None else items[:limit]
 
 
 def normalize_season(year: str, season: str) -> str | None:
@@ -345,9 +373,26 @@ def parse_article(html: str, url: str) -> dict:
     }
 
 
-def crawl(limit: int = 20, delay: float = 1.0) -> list[dict]:
-    """목록 수집 → 기사별 파싱. 개별 기사 실패는 error 필드로 기록하고 계속 진행한다."""
-    listing = fetch_article_list(limit, delay)
+def existing_ids(paths: list[str]) -> set[str]:
+    """이미 받은 풀 파일들의 article_id (오류 레코드 제외)."""
+    ids: set[str] = set()
+    for p in paths:
+        with open(p, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    r = json.loads(line)
+                    if not r.get("error") and r.get("article_id"):
+                        ids.add(str(r["article_id"]))
+    return ids
+
+
+def crawl(limit: int | None = 20, delay: float = 1.0, since: str | None = None,
+          skip_ids: set[str] | None = None) -> list[dict]:
+    """목록 수집 → 기사별 파싱. 개별 기사 실패는 error 필드로 기록하고 계속 진행한다.
+    skip_ids에 있는 post_id(= article_id)는 받지 않는다(D-45)."""
+    listing = fetch_article_list(limit, delay, since=since)
+    skip_ids = skip_ids or set()
+    listing = [it for it in listing if str(it.get("post_id")) not in skip_ids]
     records = []
     for item in listing:
         url = urljoin(BASE_URL, item["permalink"])
@@ -365,6 +410,43 @@ def crawl(limit: int = 20, delay: float = 1.0) -> list[dict]:
 
 
 def save_jsonl(records: list[dict], path: str) -> None:
-    with open(path, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
         for r in records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+
+def published_since(records: list[dict], since: str | None) -> tuple[list[dict], list[dict]]:
+    """범위는 기사 발행일(published_at) 기준이다(D-45). → (범위 안, 발행일이 since보다 이른 것). 오류 레코드는 범위 안으로 둔다."""
+    if not since:
+        return list(records), []
+    keep, out = [], []
+    for r in records:
+        pub = (r.get("published_at") or "")[:10]
+        (out if (not r.get("error") and pub and pub < since) else keep).append(r)
+    return keep, out
+
+
+def merge_pools(existing: list[str], new_records: list[dict], out: str) -> dict[str, int]:
+    """기존 풀 파일의 줄을 **그대로** 복사하고(바이트 그대로), 오류 없고 아직 없는 새 기사만 덧붙인다 (D-45)."""
+    seen: set[str] = set()
+    kept = added = 0
+    with open(out, "wb") as w:
+        for p in existing:
+            with open(p, "rb") as f:
+                for raw in f:
+                    if not raw.strip():
+                        continue
+                    aid = str(json.loads(raw).get("article_id"))
+                    if aid in seen:
+                        continue
+                    seen.add(aid)
+                    w.write(raw if raw.endswith(b"\n") else raw + b"\n")
+                    kept += 1
+        for r in new_records:
+            aid = str(r.get("article_id"))
+            if r.get("error") or not r.get("article_id") or aid in seen:
+                continue
+            seen.add(aid)
+            w.write((json.dumps(r, ensure_ascii=False) + "\n").encode("utf-8"))
+            added += 1
+    return {"kept": kept, "added": added}

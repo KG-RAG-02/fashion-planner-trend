@@ -10,6 +10,7 @@
   `_review`는 기본으로 "예측 없음(검토 대기)"으로 세고, --include-review면 함께 비교한다.
 - test 기사는 --confirm-test가 있어야 열린다. 열 때마다 eval/results/test_access.jsonl에 기록한다.
 - 기장: '롱'은 롱으로 비교한다(D-38, 2026-11-10 L-맥시 폐기). --length-rule은 L-맥시(하의·원피스 롱 → 맥시)를 켜던 이전 보고서 재현용이다. --no-length-rule은 이제 기본과 같다(받기만 함).
+- 목록 속성(색·소재·패턴·디테일): 정답 표준 값을 예측이 표준 값 없이 같은 뜻의 원문(raw)으로만 냈으면 "원문 일치"로 센다(누락 아님, D-43).
 출력: <out>/report.md(행 = 지표, 열 = 백엔드) · details.jsonl(기사별 차이) · summary.json(건수·실행 메타).
 """
 from __future__ import annotations
@@ -62,7 +63,7 @@ GROUPS: list[tuple[str, tuple[str, ...]]] = [
     ("focus (속성, level)", ("일치", "level 다름", "누락", "오추출")),
     ("Item", ("strict 일치", "하분류 불일치 매칭", "누락(범위 내)", "누락(범위 밖)", "오추출(범위 내)", "오추출(범위 밖)")),
     *[(f"속성 {f}", ("일치", "불일치", "누락", "오추출", "둘 다 null")) for f in SCALARS],
-    *[(f"속성 {f}", ("일치", "누락", "오추출", "표준값 없음(정답)", "표준값 없음(예측)")) for f in LISTS],
+    *[(f"속성 {f}", ("일치", "원문 일치", "누락", "오추출", "표준값 없음(정답)", "표준값 없음(예측)")) for f in LISTS],
     ("예측 근거", ("V2 위반", "V3 위반")),
     ("평가 쪽 보정", ("기장 롱→맥시",)),
 ]
@@ -162,6 +163,45 @@ def _list_values(it, field):
     return {v for v in vals if v is not None}, sum(1 for v in vals if v is None)
 
 
+def _entries(it, field):
+    """목록 속성의 (표준 값 키, raw) 쌍. 표준 값 키는 _list_values와 같은 모양(details는 (type, value))."""
+    if field == "details":
+        return [((_v(d.type), d.value) if d.value is not None else None, d.raw or "") for d in it.details]
+    return [(_v(x.value), x.raw or "") for x in getattr(it, field)]
+
+
+def _value_name(key) -> str:
+    return str(key[1] if isinstance(key, tuple) else key)
+
+
+def raw_equivalent(gold_raw: str, gold_value: str, pred_raw: str) -> bool:
+    """D-43 원문 일치: 정답 raw ↔ 예측 raw가 (공백·기호 무시) 포함 관계이거나 2-gram Dice ≥ 0.5, 또는 예측 raw가 정답 표준 값 이름을 포함."""
+    a, b, v = VL.squash(gold_raw or "").lower(), VL.squash(pred_raw or "").lower(), VL.squash(gold_value or "").lower()
+    if not b:
+        return False
+    if a and (a in b or b in a or dice(gold_raw, pred_raw) >= 0.5):
+        return True
+    return bool(v) and v in b
+
+
+def raw_matches(g, p, field) -> list[tuple[str, str]]:
+    """정답에는 표준 값이 있는데 예측에는 없고, 예측이 표준 값 없이(value=null) 같은 뜻의 원문만 낸 경우 → [(정답 값, 예측 raw)].
+    예측 raw 하나는 정답 값 하나에만 쓴다."""
+    G = {k for k, _ in _entries(g, field) if k is not None}
+    P = {k for k, _ in _entries(p, field) if k is not None}
+    pred_raws = [r for k, r in _entries(p, field) if k is None and r]
+    out: list[tuple[str, str]] = []
+    for key, graw in _entries(g, field):
+        if key is None or key not in G - P:
+            continue
+        hit = next((r for r in pred_raws if raw_equivalent(graw, _value_name(key), r)), None)
+        if hit is not None:
+            pred_raws.remove(hit)
+            G.discard(key)
+            out.append((_value_name(key), hit))
+    return out
+
+
 def compare_item_attrs(g, p, c: Counter) -> dict:
     out = {}
     for f in SCALARS:
@@ -173,13 +213,19 @@ def compare_item_attrs(g, p, c: Counter) -> dict:
             out[f] = {"gold": gv, "pred": pv, "verdict": verdict}
     for f in LISTS:
         (G, gn), (P, pn) = _list_values(g, f), _list_values(p, f)
+        rm = raw_matches(g, p, f)  # D-43: 표준 값 없이 원문만 맞힌 것은 누락이 아니라 "원문 일치"
+        matched_names = {v for v, _ in rm}
+        missed = {k for k in G - P if _value_name(k) not in matched_names}
         c[f"속성 {f}|일치"] += len(G & P)
-        c[f"속성 {f}|누락"] += len(G - P)
+        c[f"속성 {f}|원문 일치"] += len(rm)
+        c[f"속성 {f}|누락"] += len(missed)
         c[f"속성 {f}|오추출"] += len(P - G)
         c[f"속성 {f}|표준값 없음(정답)"] += gn
-        c[f"속성 {f}|표준값 없음(예측)"] += pn
+        c[f"속성 {f}|표준값 없음(예측)"] += pn - len(rm)
         if G != P:
-            out[f] = {"누락": sorted(map(str, G - P)), "오추출": sorted(map(str, P - G))}
+            out[f] = {"누락": sorted(map(str, missed)), "오추출": sorted(map(str, P - G))}
+            if rm:
+                out[f]["원문 일치"] = [f"{v} ← {r}" for v, r in rm]
     return out
 
 

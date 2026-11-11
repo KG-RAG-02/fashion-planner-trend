@@ -20,3 +20,18 @@ models:
     efforts: [minimal, low, medium, high]
     checked_at: "2026-11-10"
     note: 합성 확인 통과 (scripts/check_llm_model.py, medium — temperature 없이 strict JSON 응답, 출력 233 중 추론 192 토큰)
+  gpt-6-sol:
+    profile: reasoning
+    efforts: [none, low, medium, high, xhigh, max]
+    checked_at: "2026-11-11"
+    note: 합성 확인 통과 (none 출력 32 토큰 · medium 출력 74 토큰). 현행 모델, 지식 기준 2026-04 (OpenAI 모델 문서)
+  gpt-5:
+    profile: reasoning
+    efforts: [minimal, low, medium, high]
+    checked_at: "2026-11-11"
+    note: 합성 확인 통과 (minimal, 출력 41 토큰 — 첫 시도는 120s 시간 초과, 재시도 1.8s). OpenAI 문서상 Deprecated
+  o3:
+    profile: reasoning
+    efforts: [low, medium, high]
+    checked_at: "2026-11-11"
+    note: 합성 확인 통과 (low, 출력 195 토큰). OpenAI 문서상 Deprecated(후속 gpt-5). efforts는 문서에 없어 low·medium·high로 둠

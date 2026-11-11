@@ -111,7 +111,7 @@ Style -[HAS_ITEM]-> Item -[HAS_COLOR / HAS_MATERIAL / HAS_PATTERN / HAS_DETAIL]-
 | 검색 과정·점수 사유 출력(trace) | 🔶 점수 분해·근거는 나오지만 "무엇이 왜 빠졌는지"는 아직. 추가 여부 확인 대기 |
 | 자동화 파이프라인(주 1회 수집 → 추출 → Style 해소 → 적재, 스케줄러) (WP-B) | ⬜ 설계 완료, 구현 전 |
 | 자동화 파이프라인 설계와 작업 계획 | ✅ [docs/pipeline.md](docs/pipeline.md) (결정, 설계, 작업 패키지, 확인 대기 질문) |
-| 평가셋 (기사 추출 정답 라벨링) | 🔶 150건 분류 완료, 라벨링 기준 v0.4 초안, **라벨 5건 gold**(2026-11-10). manifest에는 silver 18건이 더 적혀 있으나 파일은 이 PC에 없다(R-10). [eval/README.md](eval/README.md), [spec §13.2](docs/spec.md) |
+| 평가셋 (기사 추출 정답 라벨링) | 🔶 150건 분류 완료, 라벨링 기준 v0.5 초안, **라벨 23건 gold**(dev 8·test 15, 2026-11-11 사용자 검수 — 18건은 이미지 연결 전). 라벨 파일은 git에 넣지 않는다. [eval/README.md](eval/README.md), [spec §13.2](docs/spec.md) |
 
 ## 폴더 구조
 
@@ -158,7 +158,9 @@ trend-analysis-agent/
 |---|---|---|
 | `.env` | 비밀번호·API 키 | `.env.example`을 복사해 직접 입력 ([환경변수](#환경변수)) |
 | `data/raw/vogue_kr/articles_sample.jsonl` | 기사 원문 20건 (사용자가 검수 중이라 덮어쓰지 않는다) | 크롤러 또는 **팀 내부 전달** |
-| `data/raw/vogue_kr/articles_pool_150.jsonl` | 기사 원문 150건 | 크롤러(`--limit 150`) 또는 **팀 내부 전달** |
+| `data/raw/vogue_kr/articles_pool_150.jsonl` | 기사 원문 150건 (2026-03-16~11-06). 정답 라벨의 근거 번호가 여기에 묶여 있어 **다시 받지 않는다** | 크롤러(`--limit 150`) 또는 **팀 내부 전달** |
+| `data/raw/vogue_kr/articles_pool_2026.jsonl` | **2026년 발행 기사 193건** = 위 150건(그대로 복사) + 빠진 기사 43건 (pipeline D-45). 전체 추출의 입력 | 크롤러(`--since --skip-existing --merged-out`) |
+| `data/raw/vogue_kr/articles_new_20261111.jsonl` | 2026-11-11에 새로 받은 46건(발행일이 2025년인 3건 포함, 합친 풀에서는 뺐다) | 크롤러 |
 | `data/processed/v2/otpensource_all.jsonl` | 02 정규화 결과 v2 (ProductRecord. 원천 8,827행 → image_url 없는 빈 행 65 제외·세트 분해 후 8,819행) | `scripts/build_otpensource.py` |
 | `data/processed/v2/musinsa_snap_all.jsonl` | 03 정규화 결과 v2 24,532 슬롯 (`snap_id`·`image_ref`로 parquet 행의 사진에 연결) | `scripts/build_musinsa_snap.py` |
 | `data/processed/v2/musinsa_dataset_v2.jsonl` | **02·03 통합본** 33,351행 (같은 필드, 출처 `node.source`, 이미지 주소 `image_ref`). 그래프 적재의 기본 입력 | `scripts/build_musinsa_dataset.py` |
@@ -186,7 +188,8 @@ trend-analysis-agent/
 | `NEO4J_USER` | 선택 | 비워 두면 `neo4j`를 씁니다 (Docker Neo4j의 사용자는 항상 `neo4j`). Aura 접속 정보 파일에서는 이름이 **`NEO4J_USERNAME`** 이므로 그 값을 여기에 옮겨 적습니다 |
 | `NEO4J_PASSWORD` | ✅ | 로컬: `docker compose up -d`가 이 값으로 Neo4j 비밀번호를 정합니다. 8자 이상을 권장합니다 (compose가 최소 길이를 5자로 낮춰 두었음). Aura: 인스턴스를 만들 때 한 번만 보여 주는 비밀번호 |
 | `LLM_API_KEY` | 기사 추출에서 | OpenAI 키. `scripts/extract_articles.py`가 읽는다 (실행하면 기사 원문이 OpenAI로 전송된다) |
-| `LLM_MODEL` | 기사 추출에서 | 사용할 모델명. **코드에 기본값이 없어** 비어 있으면 오류다. `configs/llm_models.yaml`에 등록된 모델만 쓸 수 있다(기준선 `gpt-4o-mini`, 모델은 실험으로 고른다 — [pipeline §6.8, D-30](docs/pipeline.md)) |
+| `LLM_MODEL` | 기사 추출에서 | 사용할 모델명. **코드에 기본값이 없어** 비어 있으면 오류다. `configs/llm_models.yaml`에 등록된 모델만 쓸 수 있다. 현재 기본은 **`gpt-6-sol`**([pipeline D-40, §6.8](docs/pipeline.md), 모델은 실험으로 고른다) |
+| `LLM_REASONING_EFFORT` | 선택 | 기본 추론 강도(추론 모델만, 등록표의 `efforts` 중). `LLM_MODEL`을 쓸 때만 적용되고 `--model`을 주면 쓰지 않는다. 현재 기본 `none` (D-40) |
 | `LLM_TIMEOUT_S` | 선택 | 호출당 제한 시간(초). 기본 600 |
 | `LLM_CACHE_DIR`, `LLM_CALL_LOG` | 선택 | LLM 응답 캐시와 호출 기록의 위치. 기본 `data/processed/llm/` |
 | `HF_HOME` | 선택 | 임베딩 모델(`BAAI/bge-m3`) 캐시 위치. 기본은 Hugging Face 기본 위치 |
@@ -324,7 +327,7 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 - Neo4j 브라우저: http://localhost:7474 (Bolt `bolt://localhost:7687`).
 - **Aura(클라우드)를 쓸 때** ([D-35](docs/pipeline.md)): 5번의 `docker compose`는 건너뛰고 `.env`에 Aura 접속 정보(위 [환경변수](#환경변수))를 넣은 뒤 `check_neo4j.py`부터 같은 순서로 실행합니다. 콘솔·브라우저는 https://console.neo4j.io . 적재는 네트워크를 타므로 로컬보다 오래 걸립니다. **`pytest -m neo4j`는 그래프를 비우므로 Aura에 돌리지 않습니다** (로컬 7688 테스트 인스턴스만, `tests/conftest.py`가 막음). 접속은 모두 `trend_agent.config.neo4j_driver()`를 거치며, Aura 인증서를 운영체제 저장소와 certifi 묶음으로 함께 검증합니다 (Windows에서 `ServiceUnavailable: Unable to retrieve routing information`이 나던 원인, D-35 ⑦).
 - 중지는 `docker compose down`, **그래프 데이터까지 삭제**는 `docker compose down -v`입니다. 그래프만 비우고 다시 만들려면 `python scripts/load_graph.py --reset`.
-- 기사를 새로 수집하려면 `python scripts/crawl_vogue_sample.py --limit 20 --delay 1.0` (`--out`으로 저장 위치 지정, 기본 `data/raw/vogue_kr/articles_sample.jsonl`. **기존 파일을 덮어쓰니** 사용자가 검수 중인 파일은 `--out`을 바꿉니다).
+- 기사를 새로 수집하려면 `python scripts/crawl_vogue_sample.py --limit 20 --delay 1.0` (`--out`으로 저장 위치 지정, 기본 `data/raw/vogue_kr/articles_sample.jsonl`. **기존 파일을 덮어쓰니** 사용자가 검수 중인 파일은 `--out`을 바꿉니다). 빠진 기사만 더할 때(D-45): `python scripts/crawl_vogue_sample.py --since 2026-01-01 --skip-existing data/raw/vogue_kr/articles_pool_150.jsonl --out data/raw/vogue_kr/articles_new_<날짜>.jsonl --merged-out data/raw/vogue_kr/articles_pool_2026.jsonl` — 범위는 기사 발행일 기준이고, 합친 풀은 기존 줄을 그대로 복사한다.
 
 ### 코드를 고친 뒤 무엇을 다시 해야 하나
 
@@ -343,7 +346,7 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 
 | 스크립트 | 하는 일 | 입력 → 출력 | 선행 |
 |---|---|---|---|
-| `crawl_vogue_sample.py` | Vogue 기사 수집 (`--limit`, `--delay`, `--out`) | 웹 → `data/raw/vogue_kr/*.jsonl` | 인터넷 |
+| `crawl_vogue_sample.py` | Vogue 기사 수집 (`--limit`, `--delay`, `--out`, 증분 `--since`·`--skip-existing`·`--merged-out`, 요청 재시도 3회) | 웹 → `data/raw/vogue_kr/*.jsonl` | 인터넷 |
 | `build_otpensource.py` | 02를 표준 어휘로 정규화 (전체) | HuggingFace 02 → `data/processed/v2/otpensource_all.jsonl` + 리포트 | 인터넷(처음) |
 | `build_musinsa_snap.py` | 03을 같은 사전으로 정규화 (전체) | HuggingFace 03 → `data/processed/v2/musinsa_snap_all.jsonl` + 리포트 | 인터넷(처음) |
 | `build_musinsa_dataset.py` | 02·03 v2를 통합본 하나로 합침 (출처·id·필드 검사) | `v2/*_all.jsonl` → `data/processed/v2/musinsa_dataset_v2.jsonl` + 리포트 | 위 두 스크립트 |
@@ -429,5 +432,5 @@ python scripts/verify_graph_search.py     # (선택) 그래프 검색 = 전체 P
 - 평가 데이터셋·라벨링 기준: [eval/README.md](eval/README.md)
 - **한계와 향후 과제**: 전체 요약은 [docs/spec.md §15](docs/spec.md), 스키마별 상세는 각 스키마 문서 맨 아래 표에 있다. 주요 한계는 다음과 같다.
   - 크롤링 허용 여부(robots.txt·약관)와 Vogue 이미지 사용 권한을 검토하지 않았다.
-  - 정답 라벨이 5건(gold)뿐이고, 점수 식·가중치는 정답으로 검증하지 않은 임의 시작값이다. 정보가 적은 Product가 만점을 받고 하분류 보너스(α 0.1)가 작은 약점이 첫 실행에서 보였다 ([spec §15 K-9](docs/spec.md)).
+  - 정답 라벨이 23건(gold)뿐이고, 점수 식·가중치는 정답으로 검증하지 않은 임의 시작값이다. 정보가 적은 Product가 만점을 받고 하분류 보너스(α 0.1)가 작은 약점이 첫 실행에서 보였다 ([spec §15 K-9](docs/spec.md)).
   - 상품은 무신사 한 곳이고 브랜드·가격·URL이 없어 **구매 가능한 상품 추천이 아니라 기획 참고용**이다. 03은 착장 속 아이템이라 구매할 수 없다.
