@@ -104,7 +104,7 @@ class _FakeBackend:
 @pytest.fixture
 def isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(client, "load_env", lambda: {})
-    for k in ("LLM_MODEL", "LLM_API_KEY", "LLM_CACHE_DIR", "LLM_CALL_LOG"):
+    for k in ("LLM_MODEL", "LLM_REASONING_EFFORT", "LLM_API_KEY", "LLM_CACHE_DIR", "LLM_CALL_LOG"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("LLM_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("LLM_CALL_LOG", str(tmp_path / "calls.jsonl"))
@@ -159,6 +159,20 @@ def test_openai_is_the_only_backend_and_effort_rules(isolated):
         client.resolve_settings("codex_cli", "m", None, env={})  # Codex CLI 백엔드는 없다
     with pytest.raises(llm.LLMBackendError):
         client.resolve_settings("nope", "m", None, env={})
+
+
+def test_default_reasoning_effort_from_env_only_with_env_model(isolated):
+    """D-40: 기본 모델·추론 강도는 .env(LLM_MODEL·LLM_REASONING_EFFORT). 강도 기본값은 모델도 env에서 올 때만 쓴다."""
+    env = {"LLM_MODEL": "gpt-6-sol", "LLM_REASONING_EFFORT": "none"}
+    st = client.resolve_settings(None, None, None, env=env)
+    assert (st["model"], st["reasoning_effort"]) == ("gpt-6-sol", "none")
+    assert st["request_params"] == {"reasoning_effort": "none"}
+    assert client.resolve_settings(None, None, "medium", env=env)["reasoning_effort"] == "medium"  # 인자가 우선
+    st = client.resolve_settings(None, "gpt-4.1", None, env=env)   # 모델을 인자로 주면 env 강도를 섞지 않는다
+    assert (st["model"], st["reasoning_effort"]) == ("gpt-4.1", None)
+    assert client.resolve_settings(None, "gpt-5-mini", None, env=env)["reasoning_effort"] is None
+    with pytest.raises(llm.LLMBackendError, match="reasoning_effort"):  # env 강도도 등록표로 검사한다
+        client.resolve_settings(None, None, None, env={"LLM_MODEL": "gpt-5-mini", "LLM_REASONING_EFFORT": "none"})
 
 
 class _Tiny(BaseModel):

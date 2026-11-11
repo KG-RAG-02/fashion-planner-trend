@@ -68,7 +68,8 @@ MATCH (n:Product)-[:IN_CATEGORY]->(c:Category)
 WHERE n.id IN $ids
 RETURN n{{.*}} AS props, c.id AS major, {_EDGES}
 """
-STYLES_CYPHER = "MATCH (s:Style) RETURN s ORDER BY s.id"
+# has_items: Item(HAS_ITEM)이 하나라도 있는가. Item 0개 Style은 그래프에 있지만 검색 결과에서 뺀다 (pipeline D-42)
+STYLES_CYPHER = "MATCH (s:Style) RETURN s, EXISTS { (s)-[:HAS_ITEM]->(:Item) } AS has_items ORDER BY s.id"
 EVIDENCE_CYPHER = (
     "MATCH (n)-[e:EVIDENCED_BY]->(a:Article) WHERE n.id IN $ids "
     "RETURN n.id AS nid, e.block_idx AS b, e.quote AS q, e.about AS about, e.idx AS idx, "
@@ -222,7 +223,8 @@ class TrendSearcher:
 
     # ---------- 조립 ----------
     def styles(self) -> list[dict[str, Any]]:
-        return [dict(r["s"]) for r in self._q(STYLES_CYPHER)]
+        """Style 속성 + `_has_items`(Item이 있는가, D-42)."""
+        return [{**dict(r["s"]), "_has_items": bool(r["has_items"])} for r in self._q(STYLES_CYPHER)]
 
     def style_items(self, style_ids: list[str]) -> dict[str, list[ItemRecord]]:
         out: dict[str, list[ItemRecord]] = {}
@@ -302,8 +304,13 @@ class TrendSearcher:
         if terms and mismatch_season:
             limitations.append(f"이름은 일치하지만 {key} 시즌이 아닌 트렌드 {len(mismatch_season)}개를 제외했습니다: "
                                + ", ".join(f"{s['name']}({'·'.join(s['seasons'])})" for s in mismatch_season))
+        itemless = [s for s in matched if not s.get("_has_items", True)]
+        if itemless:  # D-42: 트렌드 정보는 그래프에 있지만 연결된 옷이 없어 상품을 찾을 수 없다
+            matched = [s for s in matched if s.get("_has_items", True)]
+            limitations.append(f"트렌드는 있지만 연결된 옷(Item)이 없어 상품 검색에서 뺀 트렌드 {len(itemless)}개: "
+                               + ", ".join(s["name"] for s in itemless))
         if not matched:
-            if not terms:
+            if not terms and not itemless:
                 limitations.append(f"{key}에 유행한 트렌드가 그래프에 없습니다.")
             return TrendAnalysisResult(request_id=query.request_id, status="no_results", applied_filters=applied, limitations=limitations)
 

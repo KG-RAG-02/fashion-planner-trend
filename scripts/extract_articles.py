@@ -33,8 +33,9 @@ EXTRACTIONS = ROOT / "data" / "processed" / "extractions"
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default=None, help="기본 env LLM_MODEL")
-    ap.add_argument("--reasoning-effort", default=None, choices=("minimal", "low", "medium", "high"),
-                    help="추론 모델만(gpt-5·o 계열). 주지 않으면 API 기본값 (docs/pipeline.md D-30)")
+    ap.add_argument("--reasoning-effort", default=None,
+                    help="추론 모델만. 허용 값은 모델별 등록표 configs/llm_models.yaml의 efforts. "
+                         "주지 않으면 API 기본값 (docs/pipeline.md D-30)")
     ap.add_argument("--prompt-version", default=DEFAULT_PROMPT_VERSION)
     ap.add_argument("--in", dest="input", type=Path, default=DEFAULT_IN)
     ap.add_argument("--out", type=Path, default=None, help="기본 data/processed/extractions/<prompt_version>/")

@@ -87,6 +87,30 @@ def test_compare_article_counts_styles_seasons_focus_items_attrs():
     assert det["styles"][0]["items"][0]["diff"]["colors"] == {"누락": [], "오추출": ["화이트"]}
 
 
+def test_raw_only_prediction_counts_as_raw_match():
+    """D-43: 정답 드롭웨이스트(raw '낮은 허리선') ↔ 예측 value=null raw '낮은 허리선' → 원문 일치, 누락 아님."""
+    gold = ax(st("비율", [it("드레스", "드레스", "드레스",
+                             details=[{"raw": "낮은 허리선", "type": "detail", "value": "드롭웨이스트"}],
+                             colors=[{"raw": "칠흑 같은 블랙", "value": "블랙"}, {"raw": "흰", "value": "화이트"}])]))
+    pred = ax(st("비율", [it("드레스", "드레스", "드레스",
+                             details=[{"raw": "낮은 허리선", "type": "detail", "value": None}],
+                             colors=[{"raw": "블랙 컬러", "value": None}, {"raw": "체크", "value": None}])]))
+    c = Counter()
+    det = ce.compare_article(gold, pred, c, None)
+    assert c["속성 details|원문 일치"] == 1 and c["속성 details|누락"] == 0 and c["속성 details|표준값 없음(예측)"] == 0
+    # 색: 블랙은 예측 raw가 표준 값 이름을 포함 → 원문 일치, 화이트는 맞는 raw가 없어 누락, '체크'는 표준값 없음(예측)으로 남음
+    assert (c["속성 colors|원문 일치"], c["속성 colors|누락"], c["속성 colors|표준값 없음(예측)"]) == (1, 1, 1)
+    diff = det["styles"][0]["items"][0]["diff"]
+    assert diff["details"]["원문 일치"] == ["드롭웨이스트 ← 낮은 허리선"] and diff["colors"]["누락"] == ["화이트"]
+
+
+def test_raw_equivalent_rules():
+    assert ce.raw_equivalent("얼룩진", "디스트로이드", "얼룩")          # 포함 관계
+    assert ce.raw_equivalent("허리선이 내려간", "드롭웨이스트", "드롭 웨이스트 라인")  # 표준 값 이름 포함
+    assert not ce.raw_equivalent("얼룩진", "디스트로이드", "주름")
+    assert not ce.raw_equivalent("레이스", "레이스", "")
+
+
 def test_negative_article_counts_invented_styles():
     c = Counter()
     ce.compare_article(ax(), ax(st("가짜1"), st("가짜2")), c, None)
