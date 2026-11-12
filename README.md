@@ -461,3 +461,24 @@ host publish는 `127.0.0.1:${TREND_API_PORT:-8768}:8768`이다. 같은 network�
 대조해야 하며, 현재 실제 컨테이너 간 호출 검증은 별도다. 기존 데이터 snapshot을
 현재 DB 상태로 판단하지 않는다. `docker/demo/build.sh`는 DB 중지·dump를 포함하므로
 API 이미지만 빌드할 때 실행하지 않는다.
+
+이 이미지는 uid/gid 10001, `HOME=/tmp`로 실행되고 `/app`에 쓰지 않는다. read-only root filesystem으로
+실행할 때는 `/tmp`에 tmpfs만 준다.
+
+## Stub 프로필: 합성 fixture 그래프 (오프라인 결정적 실행)
+
+통합 Docker 배포의 stub 프로필은 Vogue 데이터 대신 합성 그래프를 적재한 일회용 Neo4j(`neo4j-stub`)를 쓴다.
+
+- 데이터: `src/trend_agent/graph/fixture.py` — Neo4j 테스트 그래프(기사 900001·900002, 상품 7개)와 같은 데이터·적재 순서에
+  기사 900003 "발레코어"(2027SS)와 블라우스 상품 2개를 더했다. 모두 합성이며 Vogue 원문·상품 데이터는 없다.
+  `tests/conftest.py`·`tests/test_graph_neo4j.py`도 이 모듈의 데이터와 적재 함수를 쓴다.
+- 적재: `NEO4J_URI=… NEO4J_USER=… NEO4J_PASSWORD=… python scripts/seed_fixture_graph.py [--allow-wipe]`
+  - 접속값은 프로세스 환경변수에서만 읽는다(`.env`를 읽지 않는다). `NEO4J_URI`가 없거나 관리형 주소(`*.neo4j.io`)면 거부한다(exit 2).
+  - 그래프에 노드가 있으면 `--allow-wipe` 없이는 거부한다(exit 2). 적재 뒤 stub 질의를 실행해 요약을 출력하고, `ok`가 아니면 exit 1.
+  - 앱 이미지에도 들어 있다: `docker run --rm --read-only --tmpfs /tmp -e NEO4J_URI=bolt://neo4j-stub:7687 -e NEO4J_USER=neo4j -e NEO4J_PASSWORD=… vogue/trend:dev python scripts/seed_fixture_graph.py`
+- 요청: `examples/stub/trend-request.json` (`vogue-handoff/0.1`, `request_id` `stub-trend-001`). `input`은 Project_08
+  `VOGUE_QUERY_STRUCTURING_MODE=synthetic_fixture`가 "2027년 봄 발레코어에서 유행하는 핑크색 상의를 기획하고 싶어"로 만드는
+  TrendQuery와 같다(2027 SS, 트렌드명 발레코어, 상의, 색 핑크).
+- 기대 응답: `examples/stub/trend-response-summary.json` — HTTP 200, status `ok`, 트렌드 1개(`900003-s0` 발레코어,
+  `example_images` 2장, 블라우스 Item 1개), 근거 4개(`trend:900003:<block>:<sha8>`). bearer가 없거나 틀리면 401.
+  `pytest -m neo4j`(NEO4J_TEST_URI)가 실제로 적재한 그래프의 결과와 대조한다.

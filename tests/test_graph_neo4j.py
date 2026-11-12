@@ -2,13 +2,12 @@
 
 합성 데이터만 쓴다. **그래프를 비운다** — conftest가 7687을 거부한다.
 """
-import json
 from types import SimpleNamespace
 
 import pytest
 
-from conftest import synthetic_crawl, synthetic_label, synthetic_products
-from trend_agent.graph import loader
+from conftest import synthetic_products
+from trend_agent.graph import fixture, loader
 from trend_agent.graph.search import ITEMS_CYPHER, TrendSearcher, _record
 from trend_agent.schemas import vocabulary as V
 from trend_agent.schemas.graph_schema import ItemNode, ItemRecord
@@ -17,12 +16,8 @@ from trend_agent.schemas.trend_query import Requested, SeasonRequest, TermRef, T
 pytestmark = pytest.mark.neo4j
 
 def _load(d, tmp):
-    loader.ensure_schema(d)
-    loader.seed_vocabulary(d)
-    seen: set = set()
-    loader.load_products(d, synthetic_products(), seen=seen)
-    stats = loader.load_articles(d, tmp / "labels", tmp / "ext", tmp / "crawl.jsonl", prefer="labels")
-    return seen, stats
+    # stub 그래프 적재(scripts/seed_fixture_graph.py)와 같은 순서: 제약·인덱스 → 표준 값 → Product → 기사(라벨 우선)
+    return fixture.load_sources(d, tmp, synthetic_products())
 
 
 @pytest.fixture(scope="module")
@@ -30,13 +25,8 @@ def g(neo4j_test_driver, tmp_path_factory):
     d = neo4j_test_driver
     d.execute_query("MATCH (n) DETACH DELETE n")
     tmp = tmp_path_factory.mktemp("graph")
-    (tmp / "labels").mkdir()
-    (tmp / "ext").mkdir()
-    (tmp / "labels" / "900001.json").write_text(json.dumps(synthetic_label(), ensure_ascii=False), encoding="utf-8")
-    (tmp / "ext" / "900001.json").write_text(json.dumps(synthetic_label(status="auto"), ensure_ascii=False), encoding="utf-8")  # 라벨이 이긴다
-    (tmp / "ext" / "900002.json").write_text(json.dumps(
-        synthetic_label("900002", status="auto", color_raw="차콜 그레이", aliases=(), seasons=()), ensure_ascii=False), encoding="utf-8")
-    (tmp / "crawl.jsonl").write_text("\n".join(json.dumps(synthetic_crawl(a), ensure_ascii=False) for a in ("900001", "900002")), encoding="utf-8")
+    # labels/900001(silver) · ext/900001(auto, 라벨이 이긴다) · ext/900002(auto) · crawl.jsonl
+    fixture.write_sources(tmp, fixture.test_sources())
     seen, stats = _load(d, tmp)
     return SimpleNamespace(d=d, tmp=tmp, seen=seen, stats=stats)
 

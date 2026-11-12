@@ -11,6 +11,8 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
  && useradd --system --uid 10001 --gid 10001 --home-dir /tmp --no-create-home --shell /usr/sbin/nologin app
 COPY src /app/src
 COPY configs /app/configs
+# One-shot stub seeding: `python scripts/seed_fixture_graph.py` (synthetic data lives in src/trend_agent/graph/fixture.py)
+COPY scripts/seed_fixture_graph.py /app/scripts/seed_fixture_graph.py
 ENV HOME=/tmp
 USER 10001:10001
 EXPOSE 8768
