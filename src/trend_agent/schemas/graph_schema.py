@@ -97,6 +97,10 @@ class StyleNode(BaseModel):
     article_id: Optional[str] = None
     name_norm: Optional[str] = None
     aliases_norm: list[str] = Field(default_factory=list)
+    # D-48 — Style 예시 사진(Vogue URL, 최대 5장). 적재기가 크롤 기사로 계산한다(추출값 아님).
+    # basis[k]는 urls[k]를 고른 규칙: item_link(Item 연결) → section(Style 단독 섹션) → article(Style 1개 기사).
+    example_image_urls: list[str] = Field(default_factory=list)
+    example_image_basis: list[str] = Field(default_factory=list)
 
 
 class ItemNode(BaseModel):

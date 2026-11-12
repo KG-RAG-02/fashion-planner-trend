@@ -41,6 +41,7 @@ from trend_agent.schemas.trend_analysis_result import (
     DescriptionOut,
     DetailOut,
     EvidenceRecord,
+    ExampleImage,
     MatchResult,
     ProductMatch,
     Trend,
@@ -253,7 +254,9 @@ class TrendSearcher:
                          for n, t in enumerate(descs)],
             focus_core=s.get("focus_core", []), focus_supporting=s.get("focus_supporting", []),
             focus_evidence_ids=[e["id"] for e in evs if e["about"] == "focus"],
-            aliases=s.get("aliases", []), article_id=s.get("article_id"))
+            aliases=s.get("aliases", []), article_id=s.get("article_id"),
+            example_images=[ExampleImage(url=u, basis=b) for u, b in
+                            zip(s.get("example_image_urls") or [], s.get("example_image_basis") or [])])
 
     @staticmethod
     def trend_item(item: ItemRecord, ranked: list[ScoredProduct], evidence_ids: list[str],

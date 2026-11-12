@@ -10,6 +10,8 @@ v1.1 (계약 G1):
   `prefer`(기본 `extractions`)를 쓴다. Article에 `source`(label|extraction)·`labeler`·`prompt_version`·`extracted_at`.
 - Item `image_urls`: 크롤 기사 `images[]`의 `{image_idx: url}` 맵으로 채운다(D4: `ImageLink.image_idx` = 크롤러 순번).
   맵에 없는 idx는 버리고 `image_links_unmapped`로 센다.
+- Style `example_image_urls`·`example_image_basis` (D-48): 크롤 기사로 Style 예시 사진을 최대 5장 고른다
+  (`style_example_images`: Item 연결 → Style 단독 섹션 → Style 1개 기사 전체 순).
 - 자동 추출(auto)은 색·소재·패턴·디테일 raw를 AliasMap으로 다시 판정해 근사(approx) 매핑이면 관계 `approx=true`
   (라벨은 라벨러 값 유지 → 기준선 불변). 근사 값은 1차 점수·후보에 쓰지 않는다.
 - 범위 인덱스 `style_name_norm`, fulltext `style_names`·`product_names`(분석기 `cjk`가 있으면 cjk).
@@ -17,6 +19,7 @@ v1.1 (계약 G1):
 from __future__ import annotations
 
 import json
+from collections import Counter
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Optional
@@ -270,6 +273,7 @@ def load_label(driver: Driver, doc: dict[str, Any], image_map: Optional[dict[int
     auto = meta.get("status") == "auto"
     styles: list[dict[str, Any]] = []
     loaded = skipped = links = unmapped = approx_marked = 0
+    examples = style_example_images(ext.styles, crawl)
     for n, style in enumerate(ext.styles):
         sid = f"{aid}-s{n}"
         records: list[ItemRecord] = []
@@ -286,7 +290,9 @@ def load_label(driver: Driver, doc: dict[str, Any], image_map: Optional[dict[int
             records.append(rec)
             item_evidence += [{"item_id": rec.node.id, "block_idx": e.block_idx, "quote": e.quote} for e in it.evidence]
         node = style_node_from_extraction(style, sid, article_id=aid)
-        node = node.model_copy(update=compute_style_profile(records))
+        node = node.model_copy(update={**compute_style_profile(records),
+                                       "example_image_urls": [u for u, _ in examples[n]],
+                                       "example_image_basis": [b for _, b in examples[n]]})
         styles.append({"props": flatten(node), "items": [record_row(r) for r in records],
                        "evidence": _style_evidence_rows(style), "item_evidence": item_evidence})
         loaded += len(records)
@@ -316,6 +322,58 @@ def read_crawl(path: Optional[Path | str]) -> dict[str, dict[str, Any]]:
 def image_map_of(article: Optional[dict[str, Any]]) -> dict[int, str]:
     """크롤 기사 `images[]` → {image_idx: url} (D4)."""
     return {int(im["image_idx"]): im["url"] for im in (article or {}).get("images") or [] if im.get("url") is not None}
+
+
+EXAMPLE_IMAGE_LIMIT = 5
+
+
+def _style_blocks(style: Any) -> set[int]:
+    """Style 근거 블록 = Style·설명·초점·Item 근거의 block_idx."""
+    out = {e.block_idx for e in style.evidence}
+    out |= {e.block_idx for d in style.description for e in d.evidence}
+    out |= {e.block_idx for f in style.focus_attributes for e in f.evidence}
+    out |= {e.block_idx for it in style.items for e in it.evidence}
+    return out
+
+
+def style_example_images(styles: list[Any], crawl: Optional[dict[str, Any]],
+                         limit: int = EXAMPLE_IMAGE_LIMIT) -> list[list[tuple[str, str]]]:
+    """기사의 Style마다 예시 사진 [(url, basis)]를 최대 `limit`장 고른다 (D-48). 중복 사진은 한 번만 넣는다.
+
+    1. item_link — 그 Style의 Item `image_links`(지원 밖 Item 포함, Item·연결 순서)
+    2. section — Style 근거 블록이 있는 섹션 중 **같은 기사의 다른 Style이 쓰지 않는 섹션**의 사진(사진 순서)
+    3. article — 기사에 Style이 1개뿐이면 기사 사진 전체(사진 순서)
+    크롤 기사가 없으면 모두 빈 목록이다. 연결 정확도는 아직 검수하지 않았다(D-48).
+    """
+    if not crawl:
+        return [[] for _ in styles]
+    url_of = image_map_of(crawl)
+    images = sorted((im for im in crawl.get("images") or [] if im.get("url") is not None), key=lambda im: int(im["image_idx"]))
+    section_of = {b.get("idx"): b.get("section_idx") for b in crawl.get("blocks") or []}
+    sections = [{section_of.get(b) for b in _style_blocks(s)} - {None} for s in styles]
+    used = Counter(x for secs in sections for x in secs)
+    out: list[list[tuple[str, str]]] = []
+    for style, secs in zip(styles, sections):
+        picked: list[tuple[str, str]] = []
+        seen: set[str] = set()
+
+        def add(url: Optional[str], basis: str) -> None:
+            if url and url not in seen and len(picked) < limit:
+                seen.add(url)
+                picked.append((url, basis))
+
+        for it in style.items:
+            for link in it.image_links:
+                add(url_of.get(link.image_idx), "item_link")
+        own = {x for x in secs if used[x] == 1}
+        for im in images:
+            if im.get("section_idx") in own:
+                add(im["url"], "section")
+        if len(styles) == 1:
+            for im in images:
+                add(im["url"], "article")
+        out.append(picked)
+    return out
 
 
 def article_sources(label_dir: Optional[Path | str] = None, extraction_dir: Optional[Path | str] = None,
