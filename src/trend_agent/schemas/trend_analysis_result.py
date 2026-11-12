@@ -53,6 +53,12 @@ class DescriptionOut(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
 
+class ExampleImage(BaseModel):
+    """Style 예시 사진 (D-48). Vogue URL — 결과물 표현은 G-10(링크로만)을 따른다."""
+    url: str
+    basis: Literal["item_link", "section", "article"]
+
+
 class TrendStyle(BaseModel):
     id: str
     name: str
@@ -66,6 +72,8 @@ class TrendStyle(BaseModel):
     # v1.1
     aliases: list[str] = Field(default_factory=list)
     article_id: Optional[str] = None
+    # D-48 (추가 필드, 기본값 빈 목록 — schema_version은 1.1 유지)
+    example_images: list[ExampleImage] = Field(default_factory=list)
 
 
 class MatchResult(BaseModel):
