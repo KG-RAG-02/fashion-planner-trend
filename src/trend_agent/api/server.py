@@ -1,9 +1,10 @@
-"""Loopback HTTP API for the Trend Analysis Agent's v0.1 handoff route."""
+"""Trend v0.1 handoff API: local loopback or explicit authenticated service bind."""
 from __future__ import annotations
 
 import argparse
 import hmac
 import json
+import socket
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -15,7 +16,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from pydantic import ValidationError  # noqa: E402
 
-from trend_agent.config import load_env, neo4j_driver, neo4j_settings  # noqa: E402
+from trend_agent.config import api_settings, load_env, neo4j_driver, neo4j_settings  # noqa: E402
 from trend_agent.graph.search import TrendSearcher  # noqa: E402
 from trend_agent.schemas.trend_analysis_result import SCHEMA_VERSION  # noqa: E402
 from trend_agent.schemas.trend_query import TrendQuery  # noqa: E402
@@ -94,7 +95,10 @@ def build_handler(searcher: TrendSearcher):
                 self._send_json(401, {"error": {"code": "unauthorized", "message": "Bearer authentication required."}})
                 return
             try:
-                length = int(self.headers.get("Content-Length", "0"))
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                except (TypeError, ValueError):
+                    raise ApiError(400, "invalid_request", "Request body size is invalid.") from None
                 if length <= 0 or length > MAX_BODY_BYTES:
                     raise ApiError(400, "invalid_request", "Request body size is invalid.")
                 try:
@@ -129,13 +133,17 @@ def build_handler(searcher: TrendSearcher):
     return TrendHandler
 
 
-def serve(host: str | None = None, port: int | None = None) -> None:
+class _IPv6HTTPServer(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+
+def serve(host: str | None = None, port: int | None = None, mode: str | None = None) -> None:
     env = load_env()
-    host = host or env.get("TREND_API_HOST", "127.0.0.1")
-    port = port if port is not None else int(env.get("TREND_API_PORT", "8768"))
-    if host not in {"127.0.0.1", "::1", "localhost"}:
-        raise SystemExit("Trend API may bind only to loopback addresses.")
-    settings = neo4j_settings()
+    try:
+        api = api_settings(env, host=host, port=port, mode=mode)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
+    settings = neo4j_settings(env)
     driver = neo4j_driver(settings)
     try:
         driver.verify_connectivity()
@@ -144,23 +152,28 @@ def serve(host: str | None = None, port: int | None = None) -> None:
         raise SystemExit(
             f"Cannot connect to Neo4j ({type(exc).__name__}); check Aura availability, network access, and NEO4J_* settings."
         ) from None
-    server = ThreadingHTTPServer((host, port), build_handler(TrendSearcher(driver)))
-    print(f"Trend API listening on http://{host}:{port}{ROUTE}")
+    server = None
     try:
+        server_class = _IPv6HTTPServer if api.host == "::1" else ThreadingHTTPServer
+        server = server_class((api.host, api.port), build_handler(TrendSearcher(driver)))
+        print(f"Trend API listening on http://{api.host}:{api.port}{ROUTE}")
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        server.server_close()
+        if server is not None:
+            server.server_close()
         driver.close()
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default=None, help="Loopback address only (default: TREND_API_HOST or 127.0.0.1)")
+    parser.add_argument("--host", default=None, help="Loopback for local mode; explicit 0.0.0.0 for service mode")
     parser.add_argument("--port", type=int, default=None, help="Listen port (default: TREND_API_PORT or 8768)")
+    parser.add_argument("--mode", choices=("local", "service"), default=None,
+                        help="Bind mode (default: TREND_API_MODE or local)")
     args = parser.parse_args()
-    serve(args.host, args.port)
+    serve(args.host, args.port, args.mode)
     return 0
 
 

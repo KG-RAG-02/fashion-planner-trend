@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+.envrc*
+**/* 2.*
+**/__pycache__
+.pytest_cache
+data
+docker/demo/dump
+docker/demo/out
