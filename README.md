@@ -163,7 +163,8 @@ trend-analysis-agent/
 | `data/raw/vogue_kr/articles_new_20261111.jsonl` | 2026-11-11에 새로 받은 46건(발행일이 2025년인 3건 포함, 합친 풀에서는 뺐다) | 크롤러 |
 | `data/processed/v2/otpensource_all.jsonl` | 02 정규화 결과 v2 (ProductRecord. 원천 8,827행 → image_url 없는 빈 행 65 제외·세트 분해 후 8,819행) | `scripts/build_otpensource.py` |
 | `data/processed/v2/musinsa_snap_all.jsonl` | 03 정규화 결과 v2 24,532 슬롯 (`snap_id`·`image_ref`로 parquet 행의 사진에 연결) | `scripts/build_musinsa_snap.py` |
-| `data/processed/v2/musinsa_dataset_v2.jsonl` | **02·03 통합본** 33,351행 (같은 필드, 출처 `node.source`, 이미지 주소 `image_ref`). 그래프 적재의 기본 입력 | `scripts/build_musinsa_dataset.py` |
+| `data/processed/v2/musinsa_dataset_v2.jsonl` | **02·03 통합본** 33,351행 (같은 필드, 출처 `node.source`, 이미지 주소 `image_ref`). `load_graph.py`의 기본 입력 | `scripts/build_musinsa_dataset.py` |
+| `data/processed/v3/musinsa_dataset_v3.jsonl` | **v2를 사람이 직접 검수한 데이터셋** 32,360행(otpensource 7,857 · musinsa_snap 24,503). **지금 Aura 그래프의 Product**(2026-11-11, pipeline D-47, `--products`로 지정) | 사람 검수 (팀 내부 전달) |
 | `data/processed/v2/*_report.json`, `audit_v1_v2.md`, `product_coverage.txt` | 정규화·통합·v1↔v2 비교·커버리지 리포트 | 위 스크립트, `audit_products.py`, `check_product_coverage.py` |
 | `data/processed/v1/` | 이전 v1 산출물 보관 (빌드 스크립트가 쓰지 못한다) | — |
 | `data/processed/images_preview/` | 이미지 조회 확인용 jpg | `scripts/resolve_image.py` |
