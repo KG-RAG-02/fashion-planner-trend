@@ -1,0 +1,45 @@
+{
+  "contract_version": "vogue-handoff/0.1",
+  "request_id": "stub-trend-001",
+  "input": {
+    "request_id": "stub-trend-001",
+    "original_query": "2027년 봄 발레코어에서 유행하는 핑크색 상의를 기획하고 싶어",
+    "trend_terms": {
+      "season": {
+        "year": 2027,
+        "season": "SS",
+        "raw": "2027년 봄",
+        "origin": "user_requested"
+      },
+      "style_names": [
+        {
+          "raw": "발레코어",
+          "value": null
+        }
+      ],
+      "item_terms": []
+    },
+    "requested": {
+      "categories": {
+        "include": [
+          {
+            "raw": "상의",
+            "major": "상의",
+            "minor": null
+          }
+        ],
+        "exclude": []
+      },
+      "gender": null,
+      "attributes": [
+        {
+          "type": "color",
+          "raw": "핑크색",
+          "value": "핑크"
+        }
+      ]
+    },
+    "unsupported": [],
+    "missing_fields": []
+  }
+}

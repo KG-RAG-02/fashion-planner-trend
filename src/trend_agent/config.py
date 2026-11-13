@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
+SERVICE_ENV_KEYS = frozenset({
+    "VOGUE_AGENT_SERVICE_BEARER_TOKEN", "TREND_API_HOST", "TREND_API_PORT", "TREND_API_MODE",
+})
 
 
 def load_env(path: Path | str | None = None) -> dict[str, str]:
@@ -21,8 +24,46 @@ def load_env(path: Path | str | None = None) -> dict[str, str]:
                 continue
             k, v = line.split("=", 1)
             values[k.strip()] = v.strip().strip('"').strip("'")
-    values.update({k: v for k, v in os.environ.items() if k in values or k.startswith(("NEO4J_", "LLM_"))})
+    # An explicitly empty process value also overrides dotenv (e.g. to revoke a token).
+    values.update({k: v for k, v in os.environ.items()
+                   if k in values or k in SERVICE_ENV_KEYS or k.startswith(("NEO4J_", "LLM_"))})
     return values
+
+
+@dataclass(frozen=True)
+class ApiSettings:
+    host: str = "127.0.0.1"
+    port: int = 8768
+    mode: str = "local"
+
+
+def api_settings(env: dict[str, str] | None = None, *, host: str | None = None,
+                 port: int | None = None, mode: str | None = None) -> ApiSettings:
+    """CLI > process env > dotenv > defaults. Only explicit service mode permits wildcard bind.
+
+    Empty host/port/mode use defaults. An empty token disables authentication and cannot
+    start a service bind. Tokens never appear in the returned settings or errors.
+    """
+    env = env if env is not None else load_env()
+    selected_host = host if host is not None else (env.get("TREND_API_HOST") or "127.0.0.1")
+    selected_mode = mode if mode is not None else (env.get("TREND_API_MODE") or "local")
+    raw_port = port if port is not None else (env.get("TREND_API_PORT") or "8768")
+    if selected_mode not in {"local", "service"}:
+        raise ValueError("TREND_API_MODE must be local or service.")
+    allowed = {"127.0.0.1", "::1", "localhost"} if selected_mode == "local" else {"0.0.0.0"}
+    if selected_host not in allowed:
+        raise ValueError("Local mode requires loopback; service mode requires explicit 0.0.0.0 host.")
+    try:
+        if isinstance(raw_port, bool):
+            raise ValueError
+        selected_port = int(raw_port)
+        if str(selected_port) != str(raw_port).strip() or not 1 <= selected_port <= 65535:
+            raise ValueError
+    except (ValueError, TypeError):
+        raise ValueError("TREND_API_PORT must be an integer between 1 and 65535.") from None
+    if selected_mode == "service" and not env.get("VOGUE_AGENT_SERVICE_BEARER_TOKEN", "").strip():
+        raise ValueError("Service mode requires VOGUE_AGENT_SERVICE_BEARER_TOKEN.")
+    return ApiSettings(selected_host, selected_port, selected_mode)
 
 
 @dataclass(frozen=True)

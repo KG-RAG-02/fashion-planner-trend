@@ -56,3 +56,7 @@ docker/demo/out/
 
 # 라벨을 압축한 파일도 제외 (Vogue 인용 포함, 팀 내부 전달용)
 eval/datasets/**/*.zip
+
+# iCloud Drive conflict copies (e.g. "server 2.py"); never commit them.
+* [0-9]
+* [0-9].*

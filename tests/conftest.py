@@ -7,11 +7,18 @@
 from __future__ import annotations
 
 import os
-from typing import Any
 
 import pytest
 
-from trend_agent.schemas.graph_schema import AttrEdge, DetailEdge, ProductNode, ProductRecord
+# 합성 데이터 (Vogue 원문·상품 데이터 없이)는 stub 그래프 적재(scripts/seed_fixture_graph.py)와 같이 쓰려고
+# trend_agent.graph.fixture로 옮겼다. 테스트는 계속 `from conftest import ...`로 쓴다.
+from trend_agent.graph.fixture import (  # noqa: F401
+    ev,
+    product,
+    synthetic_crawl,
+    synthetic_label,
+    synthetic_products,
+)
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -58,65 +65,3 @@ def neo4j_test_driver():
     driver.verify_connectivity()
     yield driver
     driver.close()
-
-
-# ---------- 합성 데이터 (Vogue 원문·상품 데이터 없이) ----------
-def ev(b: int, q: str) -> dict[str, Any]:
-    return {"block_idx": b, "quote": q}
-
-
-def synthetic_label(article_id: str = "900001", status: str = "silver", aliases: tuple[str, ...] = ("콰이어트 럭셔리",),
-                    color_raw: str = "베이지", seasons: tuple[tuple[int, str], ...] = ((2027, "SS"),)) -> dict[str, Any]:
-    """라벨(또는 status=auto 자동 추출)과 같은 형식의 기사 1건: Style 1 (Item 2: 상의 셔츠, 하의 스커트)."""
-    return {
-        "label_meta": {"article_id": article_id, "title": "합성 기사", "url": f"https://example.invalid/{article_id}",
-                       "published": "2026-10-01", "status": status,
-                       **({"labeler": "llm:openai_api/test-model", "prompt_version": "extract-test", "extracted_at": "2026-11-08T21:00:00+09:00"}
-                          if status == "auto" else {})},
-        "extraction": {"article_id": article_id, "styles": [{
-            "name": "테스트 럭셔리", "name_origin": "article", "aliases": list(aliases),
-            "seasons": [{"year": y, "season": s} for y, s in seasons],
-            "definition": "합성 정의", "description": [{"text": "설명 하나", "evidence": [ev(1, "설명 인용")]}],
-            "focus_attributes": [{"attribute": "color", "level": "core", "evidence": [ev(2, "색 인용")]}],
-            "evidence": [ev(0, "이름 인용")],
-            "items": [
-                {"name": "베이지 셔츠", "raw_text": "베이지 셔츠", "category_minor": "셔츠",
-                 "colors": [{"raw": color_raw, "value": "베이지" if color_raw == "베이지" else "그레이"}],
-                 "materials": [{"raw": "면", "value": "면"}], "evidence": [ev(3, "셔츠 인용")],
-                 "image_links": [{"image_idx": 0, "basis": "adjacent"}, {"image_idx": 9, "basis": "order"}]},
-                {"name": "플리츠 스커트", "raw_text": "플리츠 스커트", "category_minor": "스커트",
-                 "details": [{"raw": "플리츠", "type": "detail", "value": "플리츠"}], "evidence": [ev(4, "스커트 인용")]},
-            ],
-        }]},
-    }
-
-
-def synthetic_crawl(article_id: str = "900001") -> dict[str, Any]:
-    return {"article_id": article_id, "title": "합성 기사", "url": f"https://example.invalid/{article_id}",
-            "published_at": "2026-10-01T00:00:00+00:00",
-            "blocks": [{"type": "paragraph", "idx": i, "text": f"블록 {i}"} for i in range(6)],
-            "images": [{"image_idx": 0, "url": "https://img.example.invalid/0.jpg", "block_idx": 2},
-                       {"image_idx": 1, "url": "https://img.example.invalid/1.jpg", "block_idx": 5}]}
-
-
-def product(pid: str, major: str, minor: str | None = None, colors=(), materials=(), details=(), fit=None,
-            source: str = "otpensource", **node: Any) -> ProductRecord:
-    kind = "snap_garment" if source == "musinsa_snap" else "catalog_item"
-    return ProductRecord(
-        node=ProductNode(id=pid, name=pid, source=source, kind=kind, category_minor=minor, fit=fit, source_row=pid, **node),
-        category_major=major, colors=[AttrEdge(value=c) for c in colors], materials=[AttrEdge(value=m) for m in materials],
-        details=[DetailEdge(type=t, value=v) for t, v in details])
-
-
-def synthetic_products() -> list[ProductRecord]:
-    return [
-        product("otpensource:a", "상의", "셔츠", colors=["베이지"], materials=["면"], image_url="https://x/a.jpg", image_status="ok"),
-        product("otpensource:b", "상의", "셔츠", colors=["화이트"], image_url="https://x/b.jpg", image_status="broken"),
-        product("otpensource:c", "상의", "티셔츠", colors=["베이지"], image_url="https://x/c.jpg"),
-        product("musinsa_snap:1", "상의", "셔츠", materials=["면"], source="musinsa_snap", snap_id=1, image_ref="hf://x#row=1",
-                image_status="ok", image_scope="full_snap"),
-        product("musinsa_snap:2", "하의", "스커트", details=[("detail", "플리츠")], source="musinsa_snap", snap_id=1,
-                image_ref="hf://x#row=1", image_status="ok", image_scope="full_snap"),
-        product("otpensource:d", "하의", "스커트", colors=["블랙"]),
-        product("otpensource:e", "하의", "팬츠", details=[("detail", "플리츠")]),
-    ]
