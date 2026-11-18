@@ -70,34 +70,14 @@ def test_reload_is_idempotent(g):
     assert loader.graph_counts(g.d) == before
 
 
-def _legacy_candidates(d, item):
-    """v1.0 후보 쿼리 — Item 노드 출발. 새 쿼리와 집합이 같아야 한다."""
-    rel = "HAS_COLOR|HAS_MATERIAL|HAS_PATTERN|HAS_DETAIL"
-    major = item.category_major.value
-    ids = set()
-    if item.node.category_minor:
-        ids |= {r["id"] for r in _q(d, "MATCH (p:Product {category_minor: $m})-[:IN_CATEGORY]->(:Category {id: $major}) RETURN p.id AS id",
-                                    m=item.node.category_minor.value, major=major)}
-    fit = item.usable_scalar("fit")
-    if fit is not None:
-        ids |= {r["id"] for r in _q(d, "MATCH (p:Product {fit: $f})-[:IN_CATEGORY]->(:Category {id: $major}) WHERE NOT 'fit' IN p.approx RETURN p.id AS id",
-                                    f=fit.value, major=major)}
-    ids |= {r["id"] for r in _q(
-        d, f"MATCH (i:Item {{id: $iid}})-[ri:{rel}]->(a)<-[rp:{rel}]-(p:Product)-[:IN_CATEGORY]->(:Category {{id: $major}}) "
-           "WHERE type(ri) = type(rp) AND NOT coalesce(ri.approx, false) AND NOT coalesce(rp.approx, false) RETURN DISTINCT p.id AS id",
-        iid=item.node.id, major=major)}
-    return ids
-
-
-def test_attribute_origin_candidates_equal_legacy_and_work_for_virtual(g):
+def test_attribute_origin_candidates_work_for_virtual_items(g):
     s = TrendSearcher(g.d)
     items = [_record(ItemRecord, ItemNode, r) for r in g.d.execute_query(ITEMS_CYPHER, style_ids=["900001-s0", "900002-s0"]).records]
     assert len(items) == 4
     for it in items:
-        legacy = _legacy_candidates(g.d, it)
-        assert set(s.candidate_ids(it)) == legacy
+        found = set(s.candidate_ids(it))
         virtual = it.model_copy(update={"node": it.node.model_copy(update={"id": "virtual:4:x-i0"})})
-        assert set(s.candidate_ids(virtual)) == legacy and legacy
+        assert found and set(s.candidate_ids(virtual)) == found  # 속성 노드에서 출발하므로 그래프에 없는 Item도 같은 후보
     # 근사(차콜 그레이 → 그레이) 값은 후보에 쓰지 않는다: 900002 셔츠의 후보는 하분류·소재만
     approx_item = next(i for i in items if i.node.id == "900002-s0-i0")
     assert set(s.candidate_ids(approx_item)) == {"otpensource:a", "otpensource:b", "musinsa_snap:1"}

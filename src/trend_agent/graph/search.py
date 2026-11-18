@@ -396,6 +396,3 @@ def product_match(sp: ScoredProduct) -> ProductMatch:
                         gender=n.gender, snap_id=n.snap_id, image_ref=n.image_ref, image_scope=n.image_scope,
                         image_status=n.image_status, parent_id=n.parent_id, multi_wearer_suspected=n.multi_wearer_suspected,
                         has_image=n.has_image, **attributes_out(sp.product))
-
-
-_product_match = product_match  # v1.0 이름 (호환)

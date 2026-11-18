@@ -407,12 +407,6 @@ def load_articles(driver: Driver, label_dir: Optional[Path | str] = None, extrac
     return out
 
 
-def load_labels(driver: Driver, label_dir: Path | str, article_ids: Optional[list[str]] = None,
-                crawl_path: Optional[Path | str] = None) -> dict[str, dict[str, int]]:
-    """v1.0 진입점 (라벨만). crawl_path를 주면 Item 이미지 맵을 채운다."""
-    return load_articles(driver, label_dir=label_dir, crawl_path=crawl_path, article_ids=article_ids)
-
-
 def prune_products(driver: Driver, keep_ids: set[str]) -> int:
     """이번 입력에 없는 Product를 지운다(products v2에서 id가 바뀐 경우 — 예: 세트 분해 구성품 `<원 id>#<k>`)."""
     rec = driver.execute_query("MATCH (p:Product) WHERE NOT p.id IN $ids WITH p LIMIT 100000 DETACH DELETE p RETURN count(*) AS c",
