@@ -6,11 +6,13 @@
 """
 from __future__ import annotations
 
+import ipaddress
 import os
+import socket
 
 import pytest
 
-# 합성 데이터 (Vogue 원문·상품 데이터 없이)는 stub 그래프 적재(scripts/seed_fixture_graph.py)와 같이 쓰려고
+# 합성 데이터 (기사 원문·상품 데이터 없이)는 stub 그래프 적재(scripts/seed_fixture_graph.py)와 같이 쓰려고
 # fashion_planner_trend.graph.fixture로 옮겼다. 테스트는 계속 `from conftest import ...`로 쓴다.
 from fashion_planner_trend.graph.fixture import (  # noqa: F401
     ev,
@@ -23,6 +25,65 @@ from fashion_planner_trend.graph.fixture import (  # noqa: F401
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "neo4j: Neo4j 테스트 인스턴스(7688)가 필요하다. NEO4J_TEST_URI 없으면 skip")
+    config.addinivalue_line("markers", "expects_network_block: 외부 네트워크 차단이 일어나는 것을 확인하는 테스트")
+
+
+# ---------- 외부 네트워크 차단 ----------
+# 테스트는 오프라인으로만 돈다. 이 프로세스 안의 이름 조회와 연결은 루프백(로컬 HTTP 서버 테스트, 로컬 Neo4j
+# 테스트 인스턴스)만 허용하고, 그 밖의 주소는 요청이 나가기 전에 실패시킨다. 대역을 빠뜨린 테스트가
+# 실제 사이트(예: robots.txt)나 API에 닿지 않게 하는 안전장치다.
+_LOOPBACK_NAMES = {"localhost", "localhost.localdomain"}
+
+
+class ExternalNetworkBlocked(RuntimeError):
+    pass
+
+
+def _is_loopback(host: object) -> bool:
+    if host is None:
+        return True  # 주소 없이 bind하는 경우
+    name = host.decode() if isinstance(host, bytes) else str(host)
+    if name in _LOOPBACK_NAMES:
+        return True
+    try:
+        return ipaddress.ip_address(name.split("%", 1)[0]).is_loopback
+    except ValueError:
+        return False
+
+
+@pytest.fixture(autouse=True)
+def _block_external_network(monkeypatch, request):
+    real_getaddrinfo, real_connect, real_connect_ex = socket.getaddrinfo, socket.socket.connect, socket.socket.connect_ex
+    attempts: list[str] = []
+
+    def _block(what: str):
+        attempts.append(what)
+        raise ExternalNetworkBlocked(f"테스트 중 외부 {what} 차단")
+
+    def getaddrinfo(host, *args, **kwargs):
+        if not _is_loopback(host):
+            _block(f"이름 조회: {host}")
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    def _check(sock, address):
+        if sock.family in (socket.AF_INET, socket.AF_INET6) and not _is_loopback(address[0]):
+            _block(f"연결: {address[0]}")
+
+    def connect(self, address):
+        _check(self, address)
+        return real_connect(self, address)
+
+    def connect_ex(self, address):
+        _check(self, address)
+        return real_connect_ex(self, address)
+
+    monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+    monkeypatch.setattr(socket.socket, "connect", connect)
+    monkeypatch.setattr(socket.socket, "connect_ex", connect_ex)
+    yield
+    # 코드가 예외를 삼켜도(넓은 except) 외부 접근 시도가 있었으면 그 테스트를 실패로 본다.
+    if attempts and request.node.get_closest_marker("expects_network_block") is None:
+        pytest.fail("외부 네트워크 접근 시도: " + "; ".join(attempts))
 
 
 # 테스트에서 가짜 백엔드와 함께 쓰는 모델 이름. 모델 등록표(configs/llm_models.yaml)는 실제 모델만 담으므로,
