@@ -1,0 +1,63 @@
+// 오프라인 파이프라인: 수집 → LLM 추출 → 정규화·별칭 → Neo4j 적재 → 검색·점수 → HTTP.
+// 색은 @TOKEN@ 자리표시자이고 scripts/render_diagrams.sh가 라이트·다크 팔레트로 바꾼다.
+// 모든 노드와 엣지의 근거는 docs/diagrams/CLAIMS.md에 있다.
+digraph pipeline {
+  graph [rankdir=TB, bgcolor="@BG@", fontname="Pretendard", fontcolor="@FG@", fontsize=13,
+         nodesep=0.4, ranksep=0.42, pad=0.3, newrank=true];
+  node  [fontname="Pretendard", fontsize=12, fontcolor="@FG@", color="@SVC_LINE@", fillcolor="@SVC_FILL@",
+         style="rounded,filled", shape=box, penwidth=1.4, margin="0.18,0.10"];
+  edge  [fontname="Pretendard", fontsize=10, fontcolor="@FG@", color="@FG@", penwidth=1.1, arrowsize=0.7];
+
+  // ---------- 외부 시스템 ----------
+  vogue   [label="Vogue Korea\n패션 트렌드 기사", style="rounded,dashed", color="@EXT@", fillcolor="@BG@"];
+  openai  [label="OpenAI API\n(JSON 스키마 출력)", style="rounded,dashed", color="@EXT@", fillcolor="@BG@"];
+  hf      [label="Hugging Face 데이터셋\notpensource_dataset\nmusinsa-snap-new", style="rounded,dashed", color="@EXT@", fillcolor="@BG@"];
+
+  // ---------- 기사 ----------
+  subgraph cluster_articles {
+    label="기사 (오프라인, scripts/)"; labeljust=l; style="rounded,dashed"; color="@EXT@"; fontsize=11;
+    crawl    [label="1  수집\ncrawl_vogue_sample.py"];
+    raw      [label="원문 기사 JSONL\n(텍스트 블록, 이미지 캡션)", shape=cylinder, style=filled, fillcolor="@BG@", color="@FG@"];
+    extract  [label="2  LLM 추출\nextract_articles.py\n프롬프트 + JSON 스키마"];
+    check    [label="후처리 + 검증\n별칭 재매핑 · V1–V6"];
+    extr     [label="extractions/\n<article_id>.json", shape=cylinder, style=filled, fillcolor="@BG@", color="@FG@"];
+    review   [label="_review/\n+ review_queue.jsonl", shape=cylinder, style="filled,dashed", fillcolor="@BG@", color="@ERR@", fontcolor="@ERR@"];
+  }
+
+  // ---------- 상품 ----------
+  subgraph cluster_products {
+    label="상품 (오프라인, scripts/)"; labeljust=l; style="rounded,dashed"; color="@EXT@"; fontsize=11;
+    norm     [label="3  정규화 + 별칭\nbuild_otpensource.py\nbuild_musinsa_snap.py\n세트 분해 · 통합"];
+    prod     [label="상품 데이터셋\nJSONL (ProductRecord)", shape=cylinder, style=filled, fillcolor="@BG@", color="@FG@"];
+  }
+
+  // ---------- 그래프와 서빙 ----------
+  load     [label="4  그래프 적재\nload_graph.py\n(다시 실행해도 같은 결과)"];
+  neo4j    [label="Neo4j 5\nArticle · Style · Item\nProduct · 어휘 노드", shape=cylinder, style="filled,dashed", fillcolor="@BG@", color="@EXT@"];
+  search   [label="5  검색 + 점수\nTrendSearcher\nrank_products"];
+  api      [label="6  HTTP API\nPOST @ROUTE@\nBearer 인증", penwidth=2];
+  orch     [label="orchestrator", style="rounded,dashed", color="@SVC_LINE@", fillcolor="@BG@"];
+
+  vogue   -> crawl   [label="HTML + 목록 API"];
+  crawl   -> raw;
+  raw     -> extract [label="텍스트 블록만"];
+  extract -> openai  [label="프롬프트", dir=both, arrowtail=normal];
+  extract -> check   [label="JSON"];
+  check   -> extract [label="오류 목록을 붙여\n1회 재시도", style=dashed, color="@ERR@", fontcolor="@ERR@", constraint=false];
+  check   -> extr    [label="통과"];
+  check   -> review  [label="재시도 후에도 실패", style=dashed, color="@ERR@", fontcolor="@ERR@"];
+
+  hf      -> norm    [xlabel="고정 리비전"];
+  norm    -> prod;
+
+  extr    -> load;
+  raw     -> load    [label="이미지 맵", style=dotted];
+  prod    -> load;
+  load    -> neo4j   [label="Cypher MERGE"];
+  neo4j   -> search  [label="Cypher 조회"];
+  search  -> api     [label="TrendAnalysisResult"];
+  orch    -> api     [label="TrendQuery", dir=both, arrowtail=normal];
+
+  {rank=same; vogue; hf}
+  {rank=same; extract; openai}
+}

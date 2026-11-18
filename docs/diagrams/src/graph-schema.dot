@@ -1,0 +1,50 @@
+// Neo4j 그래프 스키마. src/fashion_planner_trend/graph/loader.py가 쓰는 그대로다.
+// 색은 @TOKEN@ 자리표시자이고 scripts/render_diagrams.sh가 바꾼다. 근거는 docs/diagrams/CLAIMS.md.
+digraph graph_schema {
+  graph [rankdir=LR, bgcolor="@BG@", fontname="Pretendard", fontcolor="@FG@", nodesep=0.3, ranksep=1.0, pad=0.3];
+  node  [shape=plain, fontname="Pretendard", fontsize=12, fontcolor="@FG@"];
+  edge  [fontname="Pretendard", fontsize=10, fontcolor="@FG@", color="@FG@", penwidth=1.1, arrowsize=0.7];
+
+  Article [label=<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="@SVC_LINE@" BGCOLOR="@BG@">
+    <TR><TD BGCOLOR="@SVC_FILL@"><B>Article</B>  (기사)</TD></TR>
+    <TR><TD ALIGN="LEFT">id · title · url · published_at<BR ALIGN="LEFT"/>source (extraction | label)<BR ALIGN="LEFT"/>labeler · prompt_version · extracted_at<BR ALIGN="LEFT"/></TD></TR></TABLE>>];
+
+  Style [label=<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="@SVC_LINE@" BGCOLOR="@BG@">
+    <TR><TD BGCOLOR="@SVC_FILL@"><B>Style</B>  (트렌드)</TD></TR>
+    <TR><TD ALIGN="LEFT">id = &lt;article_id&gt;-s&lt;n&gt;<BR ALIGN="LEFT"/>name · name_norm · aliases<BR ALIGN="LEFT"/>seasons · definition · description[]<BR ALIGN="LEFT"/>focus_core · focus_supporting<BR ALIGN="LEFT"/>coverage_* · concentration_*<BR ALIGN="LEFT"/>example_image_urls (링크만 저장)<BR ALIGN="LEFT"/></TD></TR></TABLE>>];
+
+  Item [label=<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="@SVC_LINE@" BGCOLOR="@BG@">
+    <TR><TD BGCOLOR="@SVC_FILL@"><B>Item</B>  (트렌드를 대표하는 옷)</TD></TR>
+    <TR><TD ALIGN="LEFT">id = &lt;style_id&gt;-i&lt;m&gt;<BR ALIGN="LEFT"/>name · raw_text · article_id<BR ALIGN="LEFT"/>category_minor · fit · shape · gender<BR ALIGN="LEFT"/>length_body · length_sleeve<BR ALIGN="LEFT"/>*_raw (원문 표현) · approx[]<BR ALIGN="LEFT"/></TD></TR></TABLE>>];
+
+  Product [label=<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="@SVC_LINE@" BGCOLOR="@BG@">
+    <TR><TD BGCOLOR="@SVC_FILL@"><B>Product</B>  (상품)</TD></TR>
+    <TR><TD ALIGN="LEFT">id · name · source_row<BR ALIGN="LEFT"/>source: otpensource | musinsa_snap<BR ALIGN="LEFT"/>kind: catalog_item | snap_garment<BR ALIGN="LEFT"/>category_minor · fit · gender · season<BR ALIGN="LEFT"/>image_url · image_ref · snap_id · parent_id<BR ALIGN="LEFT"/></TD></TR></TABLE>>];
+
+  subgraph cluster_vocab {
+    label="공유 어휘 노드 (적재 전에 미리 생성)"; labeljust=l; fontsize=11; fontcolor="@FG@"; style="rounded,dashed"; color="@EXT@";
+    Category [label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" COLOR="@EXT@" BGCOLOR="@BG@"><TR><TD><B>Category</B>  4<BR/>상의 · 하의 · 아우터 · 원피스</TD></TR></TABLE>>];
+    Color    [label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" COLOR="@EXT@" BGCOLOR="@BG@"><TR><TD><B>Color</B>  21</TD></TR></TABLE>>];
+    Material [label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" COLOR="@EXT@" BGCOLOR="@BG@"><TR><TD><B>Material</B>  26</TD></TR></TABLE>>];
+    Pattern  [label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" COLOR="@EXT@" BGCOLOR="@BG@"><TR><TD><B>Pattern</B>  19</TD></TR></TABLE>>];
+    Detail   [label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" COLOR="@EXT@" BGCOLOR="@BG@"><TR><TD><B>Detail</B>  62<BR/>detail 40 · neckline 12 · collar 10</TD></TR></TABLE>>];
+  }
+  Brand [label=<<TABLE BORDER="1" CELLBORDER="0" CELLPADDING="4" COLOR="@EXT@" BGCOLOR="@BG@"><TR><TD><B>Brand</B>  1</TD></TR></TABLE>>];
+
+  Style -> Item     [label="HAS_ITEM", penwidth=2];
+  Style -> Article  [label="EVIDENCED_BY\n{block_idx, quote, about, idx}"];
+  Item  -> Article  [label="EVIDENCED_BY\n{block_idx, quote, about='item'}"];
+
+  Item -> Category  [label="IN_CATEGORY"];
+  Item -> Color     [label="HAS_COLOR {raw, approx}"];
+  Item -> Material  [label="HAS_MATERIAL {raw, approx}"];
+  Item -> Pattern   [label="HAS_PATTERN {raw, approx}"];
+  Item -> Detail    [label="HAS_DETAIL\n{raw, motif, placement, approx}"];
+
+  Category -> Product [dir=back, label="IN_CATEGORY"];
+  Color    -> Product [dir=back, label="HAS_COLOR"];
+  Material -> Product [dir=back, label="HAS_MATERIAL"];
+  Pattern  -> Product [dir=back, label="HAS_PATTERN"];
+  Detail   -> Product [dir=back, label="HAS_DETAIL"];
+  Product  -> Brand   [label="BELONGS_TO"];
+}
