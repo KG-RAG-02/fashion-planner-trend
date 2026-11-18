@@ -5,7 +5,7 @@
 
 사용:
   python scripts/crawl_vogue_sample.py --limit 5
-  # 빠진 기사만 추가 (D-45): 2026-01-01 이후, 기존 풀에 없는 기사만 받아 새 파일에 쓰고, 기존 풀 + 새 기사를 합친 풀을 만든다
+  # 빠진 기사만 추가: 2026-01-01 이후, 기존 풀에 없는 기사만 받아 새 파일에 쓰고, 기존 풀 + 새 기사를 합친 풀을 만든다
   python scripts/crawl_vogue_sample.py --since 2026-01-01 --skip-existing data/raw/articles.jsonl \
       --out data/raw/articles_new.jsonl --merged-out data/raw/articles_merged.jsonl
 기존 풀 파일은 고치지 않는다. 합친 풀은 기존 줄을 그대로 복사하고 오류 없는 새 기사만 덧붙인다.
@@ -32,7 +32,7 @@ from fashion_planner_trend.ingestion.crawler.vogue_kr import (  # noqa: E402
 def main() -> None:
     ap = argparse.ArgumentParser(epilog="robots.txt가 막는 주소면 멈춘다. 수집한 기사는 재배포하지 않는다.")
     ap.add_argument("--limit", type=int, default=None, help=f"최대 기사 수 (--since 없이 쓰면 기본 {DEFAULT_LIMIT})")
-    ap.add_argument("--since", help="YYYY-MM-DD 이상인 기사만 (목록 post_date 기준, D-45)")
+    ap.add_argument("--since", help="YYYY-MM-DD 이상인 기사만 (목록 post_date 기준)")
     ap.add_argument("--skip-existing", action="append", default=[], help="이미 받은 풀 파일 (여러 번 줄 수 있음)")
     ap.add_argument("--delay", type=float, default=1.0, help="요청 간 대기(초)")
     ap.add_argument("--out", default=str(ROOT / "data" / "raw" / "articles.jsonl"))
@@ -54,7 +54,7 @@ def main() -> None:
     ok = sum(1 for r in records if not r.get("error"))
     print(f"skip {len(skip)} existing · saved {len(records)} new records ({ok} ok, {len(records) - ok} error) -> {out}")
     if args.merged_out:
-        records, before = published_since(records, args.since)  # 범위는 발행일 기준(D-45)
+        records, before = published_since(records, args.since)  # 범위는 발행일 기준
         if before:
             print(f"excluded {len(before)} published before {args.since}: "
                   + ", ".join(f"{r.get('article_id')}({(r.get('published_at') or '')[:10]})" for r in before))

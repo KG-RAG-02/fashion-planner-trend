@@ -2,7 +2,7 @@
 
 실행:  NEO4J_TEST_URI=bolt://localhost:7688 NEO4J_TEST_PASSWORD=<로컬값> pytest -m neo4j
        (테스트 인스턴스: docker run -d --name trend-agent-neo4j-test -p 127.0.0.1:7688:7687 -e NEO4J_AUTH=neo4j/<로컬값> neo4j:5.26-community)
-- `NEO4J_TEST_URI`가 없으면 neo4j 테스트는 skip한다. 로컬 주소가 아니거나(Aura 등) 7687·`NEO4J_URI`(운영 그래프)를 가리키면 실패시킨다 — 테스트는 그래프를 비운다 (D-35).
+- `NEO4J_TEST_URI`가 없으면 neo4j 테스트는 skip한다. 로컬 주소가 아니거나(Aura 등) 7687·`NEO4J_URI`(운영 그래프)를 가리키면 실패시킨다 — 테스트는 그래프를 비운다.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 # 테스트에서 가짜 백엔드와 함께 쓰는 모델 이름. 모델 등록표(configs/llm_models.yaml)는 실제 모델만 담으므로,
-# 이 이름들은 프로세스 안에서만 임시 등록한다 (docs/pipeline.md §14.2 `register_model`). 등록표 파일은 바꾸지 않는다.
+# 이 이름들은 프로세스 안에서만 임시 등록한다 (`register_model`). 등록표 파일은 바꾸지 않는다.
 TEST_MODELS = {"m": "standard", "m-1": "standard", "m-test": "standard", "gpt-5-mini": "reasoning"}
 
 
@@ -58,7 +58,7 @@ def neo4j_test_driver():
     uri = os.environ["NEO4J_TEST_URI"]
     parts = urlsplit(uri)
     if parts.hostname not in ("localhost", "127.0.0.1"):
-        pytest.fail("NEO4J_TEST_URI가 로컬 주소가 아니다(Aura 등) — 테스트는 그래프를 비우므로 로컬 7688 테스트 인스턴스만 쓴다 (D-35)")
+        pytest.fail("NEO4J_TEST_URI가 로컬 주소가 아니다(Aura 등) — 테스트는 그래프를 비우므로 로컬 7688 테스트 인스턴스만 쓴다")
     if (parts.port or 7687) == 7687 or uri.rstrip("/") == neo4j_settings().uri.rstrip("/"):
         pytest.fail("NEO4J_TEST_URI가 7687 또는 NEO4J_URI(운영 그래프)와 같다 — 테스트는 그래프를 비우므로 7688 테스트 인스턴스만 쓴다")
     driver = neo4j_driver(Neo4jSettings(uri, os.environ.get("NEO4J_TEST_USER", "neo4j"), os.environ.get("NEO4J_TEST_PASSWORD", "")))

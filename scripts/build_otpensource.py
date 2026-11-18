@@ -4,7 +4,7 @@
        --snapshot-dir를 주지 않으면 HF 캐시(HF_HOME)의 고정 리비전 스냅샷을 쓴다(없으면 내려받는다).
 출력(--out):
   otpensource_all.jsonl                 ProductRecord 한 줄에 하나. 세트 분해 구성품 포함, 분해된 부모는 빠진다.
-                                        image_url이 없는 행(원천의 빈 행)은 저장하지 않는다(D-33). 그래프 적재는 통합본
+                                        image_url이 없는 행(원천의 빈 행)은 저장하지 않는다. 그래프 적재는 통합본
                                         musinsa_dataset.jsonl(build_musinsa_dataset.py)로 한다
   otpensource_normalization_report.json 매핑 결과 요약(+ 분해·팩·후보·빈 행·dup_of·이미지 상태)
   otpensource_split_parents.jsonl       분해된 부모 원본 레코드와 구성품 id
@@ -87,7 +87,7 @@ def build(snapshot_dir: Path, out: Path, image_index: Path | None, review_candid
                             "component_ids": [c.node.id for c in out_recs],
                             "accessories": d.accessories, "record": json.loads(rec.model_dump_json())})
         body.extend(out_recs)
-    body, drop_stats = drop_without_image(body)  # D-33: 이미지 URL 없는 행은 저장하지 않는다
+    body, drop_stats = drop_without_image(body)  # 이미지 URL 없는 행은 저장하지 않는다
 
     joiner = ImageJoiner(load_image_index(image_index) if image_index else None)
     for rec in body:

@@ -1,4 +1,4 @@
-"""일반(비추론) 모델 계열 — 예 gpt-4o-mini, gpt-4.1 (docs/pipeline.md D-30, §6.4).
+"""일반(비추론) 모델 계열 — 예 gpt-4o-mini, gpt-4.1 (docs/extraction.md).
 
 결정적 출력을 위해 `temperature = 0`을 보낸다. 추론 강도(`reasoning_effort`)는 받지 않는다 — 주면 조용히 무시하지 않고 오류다.
 """

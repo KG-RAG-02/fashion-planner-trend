@@ -1,6 +1,6 @@
 """LLM 응답 캐시와 호출 로그.
 
-- 캐시 키 = (입력 sha256, backend, model, reasoning_effort, prompt_version) — 계약 v1.1.
+- 캐시 키 = (입력 sha256, backend, model, reasoning_effort, prompt_version).
   입력 sha256 = sha256(prompt + "\\n" + schema_sha256). 경로:
   `<cache_dir>/<backend>/<model>/<effort>/<prompt_version>/<input_sha256>.json`
 - 캐시 파일 = {"request": {prompt, schema, …}, "response": dict, "meta": {...}} (로컬 산출물 — 커밋·Sync 금지)

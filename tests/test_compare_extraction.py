@@ -88,7 +88,7 @@ def test_compare_article_counts_styles_seasons_focus_items_attrs():
 
 
 def test_raw_only_prediction_counts_as_raw_match():
-    """D-43: 정답 드롭웨이스트(raw '낮은 허리선') ↔ 예측 value=null raw '낮은 허리선' → 원문 일치, 누락 아님."""
+    """원문 일치: 정답 드롭웨이스트(raw '낮은 허리선') ↔ 예측 value=null raw '낮은 허리선' → 원문 일치, 누락 아님."""
     gold = ax(st("비율", [it("드레스", "드레스", "드레스",
                              details=[{"raw": "낮은 허리선", "type": "detail", "value": "드롭웨이스트"}],
                              colors=[{"raw": "칠흑 같은 블랙", "value": "블랙"}, {"raw": "흰", "value": "화이트"}])]))
@@ -204,7 +204,7 @@ def test_main_writes_two_backend_report(repo, tmp_path, monkeypatch):
     assert A["기사|대상"] == 2 and A["Style|일치"] == 1 and A["음성 기사|낸 Style 수"] == 1 and A["Item|strict 일치"] == 1
     assert B["기사|예측 없음(검토 대기)"] == 1 and B["기사|예측 없음(파일 없음)"] == 1
     assert s["meta"]["pred_meta"]["backend_a"]["prompt_version=pv1"] == 2
-    assert s["meta"]["length_rule"] is False  # D-38: 롱은 롱 — L-맥시 보정은 기본 끔
+    assert s["meta"]["length_rule"] is False  # 롱은 롱 — L-맥시 보정은 기본 끔
     rep = (out / "report.md").read_text(encoding="utf-8")
     assert "| 지표 | backend_a | openai_api |" in rep and "| Style | 일치 1 · 유사 이름 0 · 누락 0 · 오추출 1 |" in rep
     rows = [json.loads(l) for l in (out / "details.jsonl").read_text(encoding="utf-8").splitlines()]

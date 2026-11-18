@@ -1,6 +1,6 @@
-"""트렌드 분석 최종 출력. 문서: docs/schemas/trend_analysis_result.md (계약 v1.1)
+"""트렌드 분석 최종 출력. 문서: docs/contracts.md
 
-v1.1: `schema_version`, 이미지 필드, Style `aliases`·`article_id`, 안정 evidence_id 규칙.
+`schema_version`, 이미지 필드, Style `aliases`·`article_id`, 안정 evidence_id 규칙을 담는다.
 추가 필드는 모두 기본값이라 v1.0 JSON은 그대로 읽힌다. `status`는 ok / no_results / error다.
 """
 from __future__ import annotations
@@ -54,7 +54,7 @@ class DescriptionOut(BaseModel):
 
 
 class ExampleImage(BaseModel):
-    """Style 예시 사진 (D-48). Vogue URL — 결과물 표현은 G-10(링크로만)을 따른다."""
+    """Style 예시 사진. 기사 이미지 URL이고, 결과를 쓰는 쪽은 링크로만 보여 준다(docs/data.md)."""
     url: str
     basis: Literal["item_link", "section", "article"]
 
@@ -72,7 +72,7 @@ class TrendStyle(BaseModel):
     # v1.1
     aliases: list[str] = Field(default_factory=list)
     article_id: Optional[str] = None
-    # D-48 (추가 필드, 기본값 빈 목록 — schema_version은 1.1 유지)
+    # 추가 필드(기본값 빈 목록)
     example_images: list[ExampleImage] = Field(default_factory=list)
 
 
@@ -86,15 +86,15 @@ class AttributeScore(BaseModel):
     weight: float  # 적용 가중치 = 기본 가중치 × 트렌드 배수
     base_weight: float
     level: Optional[Literal["core", "supporting"]] = None
-    ratio: float  # 일치 비율 0~1 — v1.1: 값 가중 재현율 Σ_{공통} w(v) ÷ Σ_{Item} w(v) (값 가중치가 없으면 |공통|/|Item|)
+    ratio: float  # 일치 비율 0~1 — 값 가중 재현율 Σ_{공통} w(v) ÷ Σ_{Item} w(v) (값 가중치가 없으면 |공통|/|Item|)
 
 
 class ScoreBreakdown(BaseModel):
     attributes: dict[str, AttributeScore] = Field(default_factory=dict)
-    base_score: float = 0.0  # v1.1: Σ w·r ÷ (Σ w + unknown_core_weight) — γ=0이면 v1.0 식과 같다
+    base_score: float = 0.0  # Σ w·r ÷ Σ w
     bonus: dict[str, float] = Field(default_factory=dict)  # {"category_minor": α}
-    unknown_core_weight: float = 0.0  # v1.1: γ × (미확인 core 속성의 적용 가중치 합)
-    value_weighted: bool = False      # v1.1: 값 가중치(primary/secondary)를 적용했는가
+    unknown_core_weight: float = 0.0  # 항상 0.0 (예전 감쇠 옵션의 자리. 계약 필드라 남겨 둔다)
+    value_weighted: bool = False      # 값 가중치를 적용했는가
 
 
 class DetailOut(BaseModel):
@@ -161,7 +161,7 @@ class Trend(BaseModel):
 
 
 class EvidenceRecord(BaseModel):
-    evidence_id: str  # v1.1: evidence_id(article_id, block_idx, quote)
+    evidence_id: str  # evidence_id(article_id, block_idx, quote)
     article_id: str
     title: Optional[str] = None
     url: Optional[str] = None

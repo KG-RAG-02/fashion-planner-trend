@@ -76,10 +76,10 @@ def test_image_join_inherits_status_and_parent_for_components():
     sn = SnapNormalizer()
     top = j.apply(sn.normalize_slot({"file_no": "1", "slot": "상의", "attrs": {"카테고리": "탑"}, "k": 0, "row": 3}))
     bottom = j.apply(sn.normalize_slot({"file_no": "1", "slot": "하의", "attrs": {"카테고리": "팬츠"}, "k": 0, "row": 3}))
-    assert top.node.image_ref == bottom.node.image_ref and top.node.image_scope == "full_snap"  # 같은 사진 1장(Q4)
+    assert top.node.image_ref == bottom.node.image_ref and top.node.image_scope == "full_snap"  # 같은 사진 1장(자르지 않음)
     assert top.node.multi_wearer_suspected is True and bottom.node.multi_wearer_suspected is None  # False는 올리지 않는다
     assert j.stats["joined_parent"] == 2 and j.stats["joined"] == 2 and not j.stats["snap_row_mismatch"]
-    # 인덱스의 리비전("@r")이 정규화가 만든 참조와 다르다 → 세고 인덱스 값을 쓴다 (D-33)
+    # 인덱스의 리비전("@r")이 정규화가 만든 참조와 다르다 → 세고 인덱스 값을 쓴다
     assert j.stats["image_ref_mismatch"] == 2 and top.node.image_ref.endswith("@r#row=3")
 
 

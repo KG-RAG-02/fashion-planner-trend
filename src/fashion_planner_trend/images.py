@@ -1,4 +1,4 @@
-"""`image_ref` → 실제 이미지 (D-33의 조회 함수, 간단한 로컬 버전).
+"""`image_ref` → 실제 이미지 (조회 함수, 간단한 로컬 버전).
 
 그래프·JSONL에는 주소(`image_ref`)만 두고, 이미지는 보여 줄 때 이 모듈로 꺼낸다.
 - 03 `hf://datasets/disl/musinsa-snap-new@<rev>#row=<n>` → JPEG **바이트**. 찾는 순서:

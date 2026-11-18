@@ -1,4 +1,4 @@
-"""표준 어휘 (K-Fashion 기반). 문서: docs/schemas/vocabulary.md
+"""표준 어휘 (K-Fashion 기반). 문서: docs/vocabulary.md
 
 Enum 값(한글)이 JSON에 들어가는 문자열이다. 멤버 이름은 문서의 표와 같다.
 """
@@ -287,7 +287,7 @@ class Gender(str, Enum):
     UNISEX = "공용"
 
 
-# 점수에 쓰이는 속성 (트렌드 핵심·보조 속성의 허용 값). 문서: spec.md §7.3
+# 점수에 쓰이는 속성 (트렌드 핵심·보조 속성의 허용 값). 문서: docs/architecture.md
 class ScoredAttribute(str, Enum):
     CATEGORY = "category"  # 하분류(category_minor) 보너스 α의 배수로 쓰인다 (가중치 속성은 아님)
     COLOR = "color"

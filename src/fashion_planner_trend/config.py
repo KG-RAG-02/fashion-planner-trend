@@ -86,7 +86,7 @@ def neo4j_settings(env: dict[str, str] | None = None) -> Neo4jSettings:
     )
 
 
-# 인증서를 검증하는 암호화 주소 → 같은 프로토콜의 일반 주소 (pipeline.md D-35 ⑦)
+# 인증서를 검증하는 암호화 주소 → 같은 프로토콜의 일반 주소 (docs/troubleshooting.md T-NEO4J-01)
 _VERIFIED_TLS_SCHEMES = {"neo4j+s": "neo4j", "bolt+s": "bolt"}
 
 
@@ -113,7 +113,7 @@ def neo4j_driver_args(settings: Neo4jSettings) -> tuple[str, dict[str, Any]]:
 
 
 def neo4j_driver(settings: Neo4jSettings | None = None, **kwargs: Any):
-    """Neo4j 드라이버를 연다. 접속 스크립트·테스트는 `GraphDatabase.driver` 대신 이것을 쓴다 (D-35 ⑦)."""
+    """Neo4j 드라이버를 연다. 접속 스크립트·테스트는 `GraphDatabase.driver` 대신 이것을 쓴다."""
     from neo4j import GraphDatabase
 
     s = settings or neo4j_settings()

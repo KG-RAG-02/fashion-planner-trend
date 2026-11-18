@@ -1,4 +1,4 @@
-"""추론 모델 계열 — 예 gpt-5 계열, o 계열 (docs/pipeline.md D-30, §6.4).
+"""추론 모델 계열 — 예 gpt-5 계열, o 계열 (docs/extraction.md).
 
 추론 모델은 기본값 외의 `temperature`를 거부하므로 보내지 않는다. 추론 강도(`reasoning_effort`)는 주면 요청에 넣고,
 주지 않으면 API 기본값을 쓴다. 허용 강도는 등록표의 `efforts`(없으면 `DEFAULT_EFFORTS`)다.

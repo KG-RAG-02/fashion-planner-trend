@@ -52,9 +52,9 @@ APPROVAL_GUIDE = [
 ]
 
 
-def render_t4_review(meta: dict) -> list[str]:
-    """label_meta.t4_review = [{target, opinion, basis}] → '1차 검수 의견' 표 + 승인 방법. (키 이름 `t4_review`는 이미 만들어진 라벨 파일에 있는 이름이라 그대로 읽는다.)"""
-    rows = meta.get("t4_review") or []
+def render_review_opinions(meta: dict) -> list[str]:
+    """label_meta.review_opinions = [{target, opinion, basis}] → '1차 검수 의견' 표 + 승인 방법."""
+    rows = meta.get("review_opinions") or []
     if not rows:
         return []
     L = ["## 1차 검수 의견", "", "| 대상 | 의견 | 근거 |", "|---|---|---|"]
@@ -65,8 +65,8 @@ def render_t4_review(meta: dict) -> list[str]:
 def render(doc: dict, art: dict) -> str:
     meta, ext = doc["label_meta"], doc["extraction"]
     L = [f"# 검수: {meta['title']}", ""]
-    L += [f"- **원본 링크**: {meta['url']}", f"- article_id `{meta['article_id']}` · 발행 {meta.get('published', '')} · 상태 **{meta['status']}** · 라벨러 {meta['labeler']} · 검토자 {meta['reviewer'] or '(미검수)'} · 기준 v{meta['guideline_version']}", ""]
-    L += render_t4_review(meta)
+    L += [f"- **원본 링크**: {meta['url']}", f"- article_id `{meta['article_id']}` · 발행 {meta.get('published', '')} · 상태 **{meta['status']}** · 라벨러 {meta['labeler']} · 검토자 {meta['reviewer'] or '(미검수)'}", ""]
+    L += render_review_opinions(meta)
     if not ext["styles"]:
         L += ["## 정답: Style 없음 (`styles = []`, 음성 대조군)", "", "제외 근거는 아래 라벨러 메모에 있습니다. 기사에 트렌드가 있다고 보시면 알려 주세요.", ""]
     if meta.get("review_questions"):

@@ -9,8 +9,8 @@
 - 예측 파일: <dir>/<aid>.json(검증 통과) · <dir>/_review/<aid>.json(검증 실패). 형식은 {"label_meta","extraction"} 또는 ArticleExtraction 단독.
   `_review`는 기본으로 "예측 없음(검토 대기)"으로 세고, --include-review면 함께 비교한다.
 - test 기사는 --confirm-test가 있어야 열린다. 열 때마다 data/eval/test_access.jsonl에 기록한다.
-- 기장: '롱'은 롱으로 비교한다(D-38, 2026-11-10 L-맥시 폐기). --length-rule은 L-맥시(하의·원피스 롱 → 맥시)를 켜던 이전 보고서 재현용이다. --no-length-rule은 이제 기본과 같다(받기만 함).
-- 목록 속성(색·소재·패턴·디테일): 정답 표준 값을 예측이 표준 값 없이 같은 뜻의 원문(raw)으로만 냈으면 "원문 일치"로 센다(누락 아님, D-43).
+- 기장: '롱'은 롱으로 비교한다. --length-rule은 L-맥시(하의·원피스 롱 → 맥시)를 켜던 이전 보고서 재현용이다. --no-length-rule은 이제 기본과 같다(받기만 함).
+- 목록 속성(색·소재·패턴·디테일): 정답 표준 값을 예측이 표준 값 없이 같은 뜻의 원문(raw)으로만 냈으면 "원문 일치"로 센다(누락 아님).
 출력: <out>/report.md(행 = 지표, 열 = 백엔드) · details.jsonl(기사별 차이) · summary.json(건수·실행 메타).
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from fashion_planner_trend.schemas.article_extraction import ArticleExtraction  # noqa: E402
 from fashion_planner_trend.schemas.graph_schema import normalize_term  # noqa: E402
 
-# 평가 비교용 느슨한 이름 키: 그래프의 normalize_term(결정 D-11, 엄격)에 더해 끝의 일반어를 1회 지운다.
+# 평가 비교용 느슨한 이름 키: 그래프의 normalize_term(엄격)에 더해 끝의 일반어를 1회 지운다.
 # 정답 라벨과 추출 결과의 Style 이름을 맞출 때만 쓰며, 그래프의 이름 일치 판정에는 쓰지 않는다.
 _LOOSE_SUFFIXES = ("fashion", "style", "trend", "look", "스타일", "트렌드", "패션", "코디", "룩")
 
@@ -74,7 +74,7 @@ _SEP = re.compile(r"[,·/]")
 
 
 def style_keys(name: str, aliases=()) -> set[str]:
-    """Style 비교 키 = norm(괄호 밖) ∪ norm(괄호 안 항목, ,·/ 분리) ∪ norm(aliases). norm = 계약 v1.1 normalize_term."""
+    """Style 비교 키 = norm(괄호 밖) ∪ norm(괄호 안 항목, ,·/ 분리) ∪ norm(aliases). norm = normalize_term."""
     parts = [_PAREN.sub(" ", name)] + [p for inner in _PAREN.findall(name) for p in _SEP.split(inner)] + list(aliases)
     return {k for k in (_norm(p) for p in parts) if k}
 
@@ -174,7 +174,7 @@ def _value_name(key) -> str:
 
 
 def raw_equivalent(gold_raw: str, gold_value: str, pred_raw: str) -> bool:
-    """D-43 원문 일치: 정답 raw ↔ 예측 raw가 (공백·기호 무시) 포함 관계이거나 2-gram Dice ≥ 0.5, 또는 예측 raw가 정답 표준 값 이름을 포함."""
+    """원문 일치: 정답 raw ↔ 예측 raw가 (공백·기호 무시) 포함 관계이거나 2-gram Dice ≥ 0.5, 또는 예측 raw가 정답 표준 값 이름을 포함."""
     a, b, v = VL.squash(gold_raw or "").lower(), VL.squash(pred_raw or "").lower(), VL.squash(gold_value or "").lower()
     if not b:
         return False
@@ -212,7 +212,7 @@ def compare_item_attrs(g, p, c: Counter) -> dict:
             out[f] = {"gold": gv, "pred": pv, "verdict": verdict}
     for f in LISTS:
         (G, gn), (P, pn) = _list_values(g, f), _list_values(p, f)
-        rm = raw_matches(g, p, f)  # D-43: 표준 값 없이 원문만 맞힌 것은 누락이 아니라 "원문 일치"
+        rm = raw_matches(g, p, f)  # 표준 값 없이 원문만 맞힌 것은 누락이 아니라 "원문 일치"
         matched_names = {v for v, _ in rm}
         missed = {k for k in G - P if _value_name(k) not in matched_names}
         c[f"속성 {f}|일치"] += len(G & P)
@@ -229,7 +229,7 @@ def compare_item_attrs(g, p, c: Counter) -> dict:
 
 
 def apply_length_rule(ext: ArticleExtraction) -> int:
-    """폐기된 L-맥시(D-38) 재현용: 하의·원피스의 length_body '롱' → '맥시'. 바꾼 건수. 기본으로는 쓰지 않는다."""
+    """폐기된 L-맥시 재현용: 하의·원피스의 length_body '롱' → '맥시'. 바꾼 건수. 기본으로는 쓰지 않는다."""
     n = 0
     for s in ext.styles:
         for it in s.items:
@@ -397,7 +397,7 @@ def render_report(counts: dict[str, Counter], meta: dict) -> str:
          f"- split `{meta['split']}` · 기사 {len(meta['ids'])}건 · git `{meta['git_head']}` · {meta['ts']}",
          f"- 예측: " + " · ".join(f"`{k}` = {v}" for k, v in meta["pred"].items()),
          f"- 예측 메타: " + " / ".join(f"`{k}` " + ", ".join(f"{x} ×{n}" for x, n in sorted(v.items())) for k, v in meta["pred_meta"].items()),
-         f"- 기장 규칙(L-맥시, D-38로 폐기 — 재현용): {'적용' if meta['length_rule'] else '끔(롱은 롱)'} · `_review`: {'비교 포함' if meta['include_review'] else '예측 없음으로 셈'}",
+         f"- 기장 규칙(L-맥시, 폐기됨 — 재현용): {'적용' if meta['length_rule'] else '끔(롱은 롱)'} · `_review`: {'비교 포함' if meta['include_review'] else '예측 없음으로 셈'}",
          "- 규칙: 비율이 아니라 건수다. 한 칸 = '이름 건수'.", "",
          "| 지표 | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
     for g, cols in GROUPS:
@@ -425,7 +425,7 @@ def main(argv=None) -> int:
     ap.add_argument("--labels", type=Path, default=LABELS)
     ap.add_argument("--manifest", type=Path, default=MANIFEST)
     ap.add_argument("--include-review", action="store_true", help="_review/ 예측도 비교 (진단용)")
-    ap.add_argument("--length-rule", action="store_true", help="폐기된 L-맥시(롱→맥시) 보정을 켠다 — 2026-11-10 이전 보고서 재현용 (D-38)")
+    ap.add_argument("--length-rule", action="store_true", help="폐기된 L-맥시(롱→맥시) 보정을 켠다 — 이전 보고서 재현용")
     ap.add_argument("--no-length-rule", action="store_true", help=argparse.SUPPRESS)  # 예전 명령 호환. 이제 기본과 같다
     ap.add_argument("--confirm-test", action="store_true", help="test 기사를 연다 (열람 기록이 남는다)")
     ap.add_argument("--access-log", type=Path, default=ROOT / "data" / "eval" / "test_access.jsonl")

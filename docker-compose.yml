@@ -15,14 +15,14 @@ name: trend-agent
 
 services:
   neo4j:
-    image: neo4j:5.26-community        # 5.x LTS. 버전을 바꾸면 spec §7.3과 같이 갱신한다
+    image: neo4j:5.26-community        # 5.x LTS. 버전을 바꾸면 docker/demo/Dockerfile.app의 드라이버 버전과 문서도 확인한다
     container_name: trend-agent-neo4j
     restart: unless-stopped
     ports:                              # 이 PC에서만 접속된다 (127.0.0.1)
       - "127.0.0.1:${NEO4J_HTTP_PORT:-7474}:7474"
       - "127.0.0.1:${NEO4J_BOLT_PORT:-7687}:7687"
     environment:
-      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:-}"   # 비어 있으면 컨테이너가 시작 직후 종료된다 (README "자주 막히는 곳")
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:-}"   # 비어 있으면 컨테이너가 시작 직후 종료된다 (docs/troubleshooting.md T-DOCKER-01)
       # Neo4j 기본은 8자 이상이다. 로컬 개발 편의로 최소 길이를 낮출 수 있게 열어 둔다. 공유 서버에서는 8자 이상을 쓴다.
       NEO4J_dbms_security_auth__minimum__password__length: "${NEO4J_MIN_PASSWORD_LENGTH:-5}"
       NEO4J_server_memory_heap_initial__size: "512m"

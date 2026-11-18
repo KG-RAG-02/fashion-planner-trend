@@ -4,7 +4,7 @@
 낸다. 여기서는 **전송과 JSON 파싱까지만** 하고, 스키마 일치·pydantic 검증은 `client`가 한다.
 **모델 규칙을 모른다**: temperature·reasoning_effort 같은 모델별 파라미터는 `client`가 모델 계열 모듈
 (`llm/models/standard.py`·`reasoning.py`)에서 받아 `request_params`로 넘기고, 백엔드는 요청 본문에 더할 뿐이다
-(docs/pipeline.md D-30, §14.2).
+(docs/extraction.md).
 """
 from __future__ import annotations
 

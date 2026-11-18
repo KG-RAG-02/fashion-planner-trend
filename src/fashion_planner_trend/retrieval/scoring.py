@@ -1,6 +1,6 @@
-"""Item과 Product의 일치도. 문서: docs/spec.md Step 8.3, Step 9, docs/schemas/trend_analysis_result.md
+"""Item과 Product의 일치도. 문서: docs/architecture.md("점수 계산"), docs/contracts.md
 
-점수 식 (spec Step 9):
+점수 식:
   base_score = Σ(속성의 적용 가중치 × 일치 비율) ÷ Σ(비교 가능한 속성의 적용 가중치)   (0~1)
   score      = base_score + 하분류 일치 보너스 (α × 트렌드 배수)
 - 상분류(category_major)가 같은 Product만 후보다 (점수가 아니라 조건).
@@ -151,7 +151,7 @@ def rank_products(
     return scored[:top_k] if top_k else scored
 
 
-# ---------- 요청 속성 필터 (spec Step 8.3) ----------
+# ---------- 요청 속성 필터 ----------
 def _requested_by_type(requested: Iterable[RequestedAttribute]) -> dict[str, set[str]]:
     out: dict[str, set[str]] = {}
     for r in requested:

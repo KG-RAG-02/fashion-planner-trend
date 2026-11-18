@@ -2,7 +2,7 @@
 
 각 Item에 대해 (02 전체 / 03 전체) Product 수를 센다:
   상분류 = 후보 조건(gate) / 하분류 일치 / 하분류+색 일치 / 하분류+속성(색·소재·패턴·디테일·핏) 1개 이상 일치
-approx 값과 값이 없는 속성은 일치로 세지 않는다 (spec Step 8~9와 같은 규칙). 지원 밖 Item(category_major=null)은 건너뛴다.
+approx 값과 값이 없는 속성은 일치로 세지 않는다 (검색·점수와 같은 규칙). 지원 밖 Item(category_major=null)은 건너뛴다.
 
 실행:  python scripts/check_product_coverage.py [article_id ...]
 입력:  data/labels/*.json, data/processed/musinsa_dataset.jsonl

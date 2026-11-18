@@ -1,4 +1,4 @@
-"""모델 등록표와 모델 계열 모듈 선택 (docs/pipeline.md D-30, §14.2).
+"""모델 등록표와 모델 계열 모듈 선택 (docs/extraction.md).
 
 - 등록표: `configs/llm_models.yaml` — 모델별 `profile`(계열), `efforts`, `checked_at`, `note`. 미등록 모델은 오류다.
 - 계열 모듈: `standard.py`(일반 모델), `reasoning.py`(추론 모델). 각 모듈은 같은 두 함수를 낸다:
@@ -78,7 +78,7 @@ def get_spec(model: str, *, registry_path: Optional[str] = None) -> ModelSpec:
     reg = load_registry(registry_path)
     if model not in reg:
         raise LLMBackendError(f"등록되지 않은 모델이다: {model!r} — configs/llm_models.yaml에 없다. 새 모델은 "
-                              "scripts/check_llm_model.py로 합성 확인한 뒤 등록한다 (docs/pipeline.md §14.2)")
+                              "scripts/check_llm_model.py로 합성 확인한 뒤 등록한다 (docs/extraction.md)")
     return reg[model]
 
 

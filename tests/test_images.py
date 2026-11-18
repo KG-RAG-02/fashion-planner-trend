@@ -1,4 +1,4 @@
-"""image_ref 조회 함수 (D-33). 합성 parquet로 확인한다(실제 데이터셋 불필요)."""
+"""image_ref 조회 함수. 합성 parquet로 확인한다(실제 데이터셋 불필요)."""
 import pytest
 
 from fashion_planner_trend.images import (

@@ -54,7 +54,7 @@ class BatchConfig:
     length_area: bool = False    # postprocess.LENGTH_AREA_FIX 적용
     file_prefix: str = ""        # 결과 파일 이름 앞에 붙임 (예 "v3_" → v3_<article_id>.json). 기본은 접두어 없음
     dedupe: bool = False         # postprocess.merge_duplicates (중복 focus_attributes·seasons 합치기, P1 경고)
-    name_fix: bool = False       # postprocess.fix_style_names (이름 끝 '트렌드' 제거, P2 경고) — pipeline.md §6.7
+    name_fix: bool = False       # postprocess.fix_style_names (이름 끝 '트렌드' 제거, P2 경고) — docs/extraction.md
 
 
 @dataclass

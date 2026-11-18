@@ -4,10 +4,10 @@
     python scripts/check_llm_model.py --model gpt-5-mini --profile reasoning --reasoning-effort medium
     python scripts/check_llm_model.py --model gpt-4.1                     # 이미 등록된 모델 다시 확인 (profile 생략)
 
-- 실제 OpenAI 호출 1회다. 보내는 것은 아래 합성 문장뿐이다(기사·인용 없음 → docs/pipeline.md D-1 범위).
+- 실제 OpenAI 호출 1회다. 보내는 것은 아래 합성 문장뿐이다(기사·인용 없음).
 - 캐시를 쓰지 않는다. 호출 기록은 data/processed/llm/calls.jsonl에 `purpose: model_check`로 남는다.
 - 등록표 파일은 바꾸지 않는다. 미등록 모델은 이 프로세스 안에서만 임시 등록해 호출한다(`models.register_model`).
-- 통과 기준 (docs/pipeline.md §14.2): HTTP 200 + strict 스키마 JSON 응답 + 응답이 스키마와 일치(client가 검사).
+- 통과 기준: HTTP 200 + strict 스키마 JSON 응답 + 응답이 스키마와 일치(client가 검사).
   통과하면 출력되는 블록을 configs/llm_models.yaml에 넣고 checked_at을 적는다(사용자에게 알린 뒤).
 - 종료 코드: 0 = 통과, 1 = 실패.
 """

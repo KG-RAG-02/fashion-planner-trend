@@ -1,8 +1,8 @@
-"""자동 추출(status "auto") 검증기 — 계약 v1.1 `docs/schemas/article_extraction.md` §5 판정 정의.
+"""자동 추출(status "auto") 검증기. 판정 정의는 docs/extraction.md에 있다.
 
 | 단계 | 판정 | 등급 |
 |---|---|---|
-| V1 | pydantic 구조(호출자) + 정책: `name_origin == "article"`, `aliases[]` ⊂ 제목·텍스트 블록, 자리표시자 Style 이름 금지(D-39) | 오류 |
+| V1 | pydantic 구조(호출자) + 정책: `name_origin == "article"`, `aliases[]` ⊂ 제목·텍스트 블록, 자리표시자 Style 이름 금지 | 오류 |
 | V2 | 모든 `quote` ⊂ 그 `block_idx` 텍스트 블록(문단·소제목), 공백을 지운 부분 문자열 | 오류 |
 | V3 | Item의 모든 `*_raw`·하위 `raw` ⊂ 그 Item 근거 블록들 | 오류 |
 | V4 | Item 근거 블록 ≥1, 서로 다른 블록 ≤ `max_blocks`(2), 텍스트 블록 순서 간격 ≤ `max_text_gap`(1) | 오류 |
@@ -112,7 +112,7 @@ def name_not_in_article(name: str, title_and_text_squashed: str) -> Optional[str
     return "일부를 바꾸거나 지어낸 이름일 수 있음"
 
 
-# V1 정책 — 자리표시자 이름 (D-39): 내용 없는 자리표시자. 대소문자·공백·기호를 무시하고 이름 안에 있으면 걸린다.
+# V1 정책 — 자리표시자 이름: 내용 없는 자리표시자. 대소문자·공백·기호를 무시하고 이름 안에 있으면 걸린다.
 PLACEHOLDER_NAME_TOKENS = ("dummy", "placeholder", "removeme", "todo", "tbd", "lorem", "xxx")
 
 

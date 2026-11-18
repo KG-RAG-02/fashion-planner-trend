@@ -1,4 +1,4 @@
-"""모델 등록표와 모델 계열 모듈 (docs/pipeline.md D-30, §14.2) — 실제 LLM 호출 없음."""
+"""모델 등록표와 모델 계열 모듈 — 실제 LLM 호출 없음."""
 from __future__ import annotations
 
 import importlib.util

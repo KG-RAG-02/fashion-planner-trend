@@ -4,7 +4,7 @@
   내용은 같다 (conftest가 다시 내보낸다).
 - 테스트 그래프 = `test_sources()` + `synthetic_products()` (tests/test_graph_neo4j.py의 `g`).
 - stub 그래프 = 테스트 그래프 + 기사 900003 "발레코어"(`stub_label`) + 블라우스 상품 2개(`stub_products`).
-  900003은 Project_08 오프라인 질의 fixture("2027년 봄 발레코어에서 유행하는 핑크색 상의를 기획하고 싶어")가
+  900003은 orchestrator의 오프라인 질의 fixture("2027년 봄 발레코어에서 유행하는 핑크색 상의를 기획하고 싶어")가
   보내는 TrendQuery(`STUB_QUERY`)에 status ok · trends · evidence가 나오도록 맞췄다.
 - 적재 순서는 테스트와 같다(`write_sources` → `load_sources`). `seed_stub_graph`는 비어 있지 않은 그래프를
   `allow_wipe` 없이 거부한다. 실행 진입점: scripts/seed_fixture_graph.py.
@@ -88,7 +88,7 @@ def synthetic_products() -> list[ProductRecord]:
 CONTRACT_VERSION = "vogue-handoff/0.1"
 STUB_ARTICLE_ID = "900003"
 STUB_REQUEST_ID = "stub-trend-001"
-# Project_08 `VOGUE_QUERY_STRUCTURING_MODE=synthetic_fixture`가 위 질의로 만드는 TrendQuery와 같다 (request_id만 고정)
+# orchestrator의 합성 질의 구조화 모드가 위 질의로 만드는 TrendQuery와 같다 (request_id만 고정)
 STUB_QUERY: dict[str, Any] = {
     "request_id": STUB_REQUEST_ID,
     "original_query": "2027년 봄 발레코어에서 유행하는 핑크색 상의를 기획하고 싶어",

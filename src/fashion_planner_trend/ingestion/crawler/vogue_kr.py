@@ -58,7 +58,7 @@ SEASON_NORMALIZE = {
 }
 
 
-RETRIES = 3  # 요청 재시도 횟수 (D-45). 대기는 1·2·4초로 늘린다
+RETRIES = 3  # 요청 재시도 횟수. 대기는 1·2·4초로 늘린다
 
 
 def _request(method: str, url: str, retries: int = RETRIES, **kwargs) -> requests.Response:
@@ -118,7 +118,7 @@ def fetch_article_list(limit: int | None = DEFAULT_LIMIT, delay: float = 1.0, si
                        max_pages: int = 200, robots: RobotFileParser | None = None) -> list[dict]:
     """목록 AJAX를 페이지 단위로 호출해 기사 메타(post_id, permalink, title, date 등)를 반환한다.
 
-    limit: 최대 개수(None = 제한 없음). since: 'YYYY-MM-DD' — 이 날짜 이상인 기사만 남긴다(D-45).
+    limit: 최대 개수(None = 제한 없음). since: 'YYYY-MM-DD' — 이 날짜 이상인 기사만 남긴다.
     목록은 대체로 최신순이지만 조금 섞여 있어, 한 페이지 전체가 since보다 오래되면 한 페이지 더 보고 멈춘다.
     robots: 미리 읽은 robots.txt(없으면 여기서 받는다). 목록 주소가 금지면 `RobotsDisallowed`.
     """
@@ -432,7 +432,7 @@ def existing_ids(paths: list[str]) -> set[str]:
 def crawl(limit: int | None = DEFAULT_LIMIT, delay: float = 1.0, since: str | None = None,
           skip_ids: set[str] | None = None, robots: RobotFileParser | None = None) -> list[dict]:
     """목록 수집 → 기사별 파싱. 개별 기사 실패는 error 필드로 기록하고 계속 진행한다.
-    skip_ids에 있는 post_id(= article_id)는 받지 않는다(D-45).
+    skip_ids에 있는 post_id(= article_id)는 받지 않는다.
     robots.txt가 막는 주소를 만나면 기록하지 않고 `RobotsDisallowed`로 멈춘다."""
     robots = robots or robots_parser()
     listing = fetch_article_list(limit, delay, since=since, robots=robots)
@@ -462,7 +462,7 @@ def save_jsonl(records: list[dict], path: str) -> None:
 
 
 def published_since(records: list[dict], since: str | None) -> tuple[list[dict], list[dict]]:
-    """범위는 기사 발행일(published_at) 기준이다(D-45). → (범위 안, 발행일이 since보다 이른 것). 오류 레코드는 범위 안으로 둔다."""
+    """범위는 기사 발행일(published_at) 기준이다. → (범위 안, 발행일이 since보다 이른 것). 오류 레코드는 범위 안으로 둔다."""
     if not since:
         return list(records), []
     keep, out = [], []
@@ -473,7 +473,7 @@ def published_since(records: list[dict], since: str | None) -> tuple[list[dict],
 
 
 def merge_pools(existing: list[str], new_records: list[dict], out: str) -> dict[str, int]:
-    """기존 풀 파일의 줄을 **그대로** 복사하고(바이트 그대로), 오류 없고 아직 없는 새 기사만 덧붙인다 (D-45)."""
+    """기존 풀 파일의 줄을 **그대로** 복사하고(바이트 그대로), 오류 없고 아직 없는 새 기사만 덧붙인다(다시 받으면 블록 번호가 바뀔 수 있다)."""
     seen: set[str] = set()
     kept = added = 0
     with open(out, "wb") as w:

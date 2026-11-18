@@ -1,4 +1,4 @@
-"""Product id 또는 image_ref로 이미지를 꺼낸다 (D-33 조회 함수 확인용).
+"""Product id 또는 image_ref로 이미지를 꺼낸다 (조회 함수 확인용).
 
 실행:  python scripts/resolve_image.py musinsa_snap:9665:하의            # 통합본에서 id로 image_ref를 찾아 푼다
        python scripts/resolve_image.py "hf://datasets/disl/musinsa-snap-new@<rev>#row=9665"

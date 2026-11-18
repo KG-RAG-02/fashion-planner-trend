@@ -1,4 +1,4 @@
-"""`config.neo4j_driver_args`: Aura(`+s`) 주소는 인증서 묶음을 더한 ssl_context로 바꿔 연다 (pipeline.md D-35 ⑦). Neo4j 없이 돈다."""
+"""`config.neo4j_driver_args`: Aura(`+s`) 주소는 인증서 묶음을 더한 ssl_context로 바꿔 연다. Neo4j 없이 돈다."""
 from __future__ import annotations
 
 import ssl

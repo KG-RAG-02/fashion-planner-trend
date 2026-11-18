@@ -1,4 +1,4 @@
-"""D-48: Style 예시 사진(최대 5장) — Item 연결 → Style 단독 섹션 → Style 1개 기사 전체 순 (Neo4j 없이, 합성 기사)."""
+"""Style 예시 사진(최대 5장) — Item 연결 → Style 단독 섹션 → Style 1개 기사 전체 순 (Neo4j 없이, 합성 기사)."""
 import copy
 
 from conftest import synthetic_crawl, synthetic_label

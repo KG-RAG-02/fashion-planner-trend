@@ -1,4 +1,4 @@
-"""기사 추출 LLM 출력. 문서: docs/schemas/article_extraction.md
+"""기사 추출 LLM 출력. 문서: docs/extraction.md
 
 필드 이름은 문서와 같고, Item의 스칼라 필드는 graph_schema의 Item 속성과 같다.
 `review_flags`는 LLM이 채우지 않고 코드(검증기)가 채운다.
@@ -80,7 +80,7 @@ class ExtractedDetail(BaseModel):
 
 
 class ImageLink(BaseModel):
-    image_idx: int  # v1.1: 크롤러 images[].image_idx (기사 안 이미지 순번, 0부터). block idx가 아니다
+    image_idx: int  # 크롤러 images[].image_idx (기사 안 이미지 순번, 0부터). block idx가 아니다
     basis: Literal["caption_brand", "adjacent", "order"]
 
 
@@ -138,7 +138,7 @@ class ExtractedItem(BaseModel):
 class ExtractedStyle(BaseModel):
     name: str
     name_origin: Literal["article", "analyst"]
-    aliases: list[str] = Field(default_factory=list)  # v1.1: 기사 안의 다른 이름(영문 병기·번역·약칭), 원문 그대로. 없으면 []
+    aliases: list[str] = Field(default_factory=list)  # 기사 안의 다른 이름(영문 병기·번역·약칭), 원문 그대로. 없으면 []
     seasons: list[SeasonRef] = Field(default_factory=list)  # 기사가 그 트렌드가 유행했다고 말한 시즌 (명시된 것만)
     definition: str
     description: list[DescriptionEntry] = Field(default_factory=list)

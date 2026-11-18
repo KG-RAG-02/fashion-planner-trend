@@ -1,12 +1,12 @@
-"""질의 → Style·Item 검색 → Product 후보 탐색·순위 → `TrendAnalysisResult`. 문서: docs/spec.md Step 8~10
+"""질의 → Style·Item 검색 → Product 후보 탐색·순위 → `TrendAnalysisResult`. 문서: docs/architecture.md
 
 - Style: 요청 시즌이 `Style.seasons`에 포함된 것 (시즌 미확인 Style은 보류하고 limitations에 알린다).
 - Item: 카테고리 필터(상분류·하분류 include/exclude) → 요청 속성 필터 (명시적으로 다르면 제거, 미확인은 통과).
 - Product 후보: **상분류가 같고** 하분류·핏·공유 속성 노드(색·소재·패턴·디테일) 중 하나가 같은 Product를 그래프에서 모으고,
   점수는 `retrieval/scoring.py`가 계산한다 (DB 없이도 같은 점수를 낼 수 있다).
 
-v1.1: 후보 탐색은 **속성 노드에서 출발**한다.
-사용 가능 값(approx 제외)마다 `(:Color {id})<-[:HAS_COLOR]-(p)`를 찾으므로 v1.0의 Item 출발 쿼리와 같은 집합이다.
+후보 탐색은 **속성 노드에서 출발**한다.
+사용 가능 값(approx 제외)마다 `(:Color {id})<-[:HAS_COLOR]-(p)`를 찾으므로 Item 노드에서 출발하는 쿼리와 같은 집합이다.
 근거 id는 안정 규칙 `evidence_id()`, 이름 질의의 실패 사유(이름 없음·시즌 불일치·시즌 미확인)는 서로 다른 문장으로 남긴다.
 """
 from __future__ import annotations
@@ -69,7 +69,7 @@ MATCH (n:Product)-[:IN_CATEGORY]->(c:Category)
 WHERE n.id IN $ids
 RETURN n{{.*}} AS props, c.id AS major, {_EDGES}
 """
-# has_items: Item(HAS_ITEM)이 하나라도 있는가. Item 0개 Style은 그래프에 있지만 검색 결과에서 뺀다 (pipeline D-42)
+# has_items: Item(HAS_ITEM)이 하나라도 있는가. Item 0개 Style은 그래프에 있지만 검색 결과에서 뺀다
 STYLES_CYPHER = "MATCH (s:Style) RETURN s, EXISTS { (s)-[:HAS_ITEM]->(:Item) } AS has_items ORDER BY s.id"
 EVIDENCE_CYPHER = (
     "MATCH (n)-[e:EVIDENCED_BY]->(a:Article) WHERE n.id IN $ids "
@@ -216,7 +216,7 @@ class TrendSearcher:
 
     # ---------- 조립 ----------
     def styles(self) -> list[dict[str, Any]]:
-        """Style 속성 + `_has_items`(Item이 있는가, D-42)."""
+        """Style 속성 + `_has_items`(Item이 있는가)."""
         return [{**dict(r["s"]), "_has_items": bool(r["has_items"])} for r in self._q(STYLES_CYPHER)]
 
     def style_items(self, style_ids: list[str]) -> dict[str, list[ItemRecord]]:
@@ -280,7 +280,7 @@ class TrendSearcher:
             limitations.append("요청한 카테고리가 모두 지원 범위(상의·하의·아우터·원피스) 밖입니다.")
             return TrendAnalysisResult(request_id=query.request_id, status="no_results", applied_filters=applied, limitations=limitations)
 
-        # 1. Style (시즌, 이름) — 시즌만 주는 질의는 strict(v1.0). 실패 사유는 이름 없음·시즌 불일치·시즌 미확인을 구분한다.
+        # 1. Style (시즌, 이름) — 시즌은 기사에 적힌 것만 맞춘다(strict). 실패 사유는 이름 없음·시즌 불일치·시즌 미확인을 구분한다.
         styles = self.styles()
         terms = [_norm(t.raw) for t in query.trend_terms.style_names]
         pool = styles
@@ -300,7 +300,7 @@ class TrendSearcher:
             limitations.append(f"이름은 일치하지만 {key} 시즌이 아닌 트렌드 {len(mismatch_season)}개를 제외했습니다: "
                                + ", ".join(f"{s['name']}({'·'.join(s['seasons'])})" for s in mismatch_season))
         itemless = [s for s in matched if not s.get("_has_items", True)]
-        if itemless:  # D-42: 트렌드 정보는 그래프에 있지만 연결된 옷이 없어 상품을 찾을 수 없다
+        if itemless:  # 트렌드 정보는 그래프에 있지만 연결된 옷이 없어 상품을 찾을 수 없다
             matched = [s for s in matched if s.get("_has_items", True)]
             limitations.append(f"트렌드는 있지만 연결된 옷(Item)이 없어 상품 검색에서 뺀 트렌드 {len(itemless)}개: "
                                + ", ".join(s["name"] for s in itemless))

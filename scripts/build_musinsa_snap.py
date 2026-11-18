@@ -4,7 +4,7 @@
        --parquet을 주지 않으면 HF 캐시(HF_HOME)의 고정 리비전을 쓴다(없으면 내려받는다)
 출력(--out):
   musinsa_snap_all.jsonl                 ProductRecord, 라벨 슬롯 하나당 한 줄(슬롯 수·id는 v1과 같다).
-                                         snap_id(parquet 행)와 image_ref(hf://…#row=<snap_id>)로 이미지에 연결된다(D-33)
+                                         snap_id(parquet 행)와 image_ref(hf://…#row=<snap_id>)로 이미지에 연결된다
   musinsa_snap_normalization_report.json
   BUILD_INFO.json                        입력 sha256·리비전·커밋
 v1 폴더와 심볼릭 링크 대상에는 쓰지 않는다. 이미지 바이트는 읽지 않는다(label 열만).

@@ -1,7 +1,7 @@
 """기사 추출용 LLM 스키마 — `ArticleExtraction`의 strict 변환 + 추출 전용 변형 2개.
 
 1. `ImageLink` → `{image_block_idx, basis}`: LLM은 프롬프트의 블록 번호 하나만 쓴다. 코드가
-   `blocks[image_block_idx].image_idx`(= 크롤러 `images[].image_idx`, 계약 v1.1)로 바꿔 저장한다.
+   `blocks[image_block_idx].image_idx`(= 크롤러 `images[].image_idx`)로 바꿔 저장한다.
    크롤러 이미지 순번 ≠ block idx가 1,967장 중 1,940장이라 두 번호 체계를 LLM에 섞어 보이지 않는다.
 2. `ExtractedDetail` → detail·neckline·collar 3변형 anyOf: `type`↔`value` enum 대응을 스키마가 강제한다.
 

@@ -1,4 +1,4 @@
-"""데이터 계약. 문서(docs/schemas/<이름>.md)와 모듈 이름이 같다.
+"""데이터 계약. 문서: docs/contracts.md, docs/graph-schema.md, docs/extraction.md, docs/vocabulary.md
 
 vocabulary · trend_query · article_extraction · graph_schema · trend_analysis_result
 """

@@ -149,7 +149,7 @@ def test_call_schema_mismatch_not_cached(isolated):
 def test_openai_is_the_only_backend_and_effort_rules(isolated):
     st = client.resolve_settings(None, "gpt-4o-mini", None, env={})
     assert st["backend"] == "openai_api" and st["reasoning_effort"] is None
-    with pytest.raises(llm.LLMBackendError, match="일반 모델"):            # D-30: 일반 모델에 추론 강도 → 오류
+    with pytest.raises(llm.LLMBackendError, match="일반 모델"):            # 일반 모델에 추론 강도 → 오류
         client.resolve_settings(None, "gpt-4.1", "low", env={})
     assert client.resolve_settings(None, "gpt-5-mini", "medium", env={})["reasoning_effort"] == "medium"
     assert client.resolve_settings(None, "gpt-5-mini", None, env={})["reasoning_effort"] is None  # API 기본값
@@ -162,7 +162,7 @@ def test_openai_is_the_only_backend_and_effort_rules(isolated):
 
 
 def test_default_reasoning_effort_from_env_only_with_env_model(isolated):
-    """D-40: 기본 모델·추론 강도는 .env(LLM_MODEL·LLM_REASONING_EFFORT). 강도 기본값은 모델도 env에서 올 때만 쓴다."""
+    """기본 모델·추론 강도는 .env(LLM_MODEL·LLM_REASONING_EFFORT). 강도 기본값은 모델도 env에서 올 때만 쓴다."""
     env = {"LLM_MODEL": "gpt-6-sol", "LLM_REASONING_EFFORT": "none"}
     st = client.resolve_settings(None, None, None, env=env)
     assert (st["model"], st["reasoning_effort"]) == ("gpt-6-sol", "none")
@@ -211,7 +211,7 @@ class _Session:
 
 
 def test_openai_backend_request_shape():
-    """백엔드는 모델 규칙을 모른다: request_params(계열 모듈이 만든 것)를 요청 본문에 더할 뿐이다 (D-30)."""
+    """백엔드는 모델 규칙을 모른다: request_params(계열 모듈이 만든 것)를 요청 본문에 더할 뿐이다."""
     pytest.importorskip("requests")  # 데모 이미지에는 requests가 없다
     sess = _Session(_Resp(200, {"id": "chatcmpl-1", "usage": {"prompt_tokens": 5},
                                 "choices": [{"message": {"content": '{"color":null,"items":[]}'}, "finish_reason": "stop"}]}))

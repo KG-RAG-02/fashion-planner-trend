@@ -27,7 +27,7 @@ BASE = {"source": "otpensource", "kind": "catalog_item", "source_row": "r"}
     "raw,expected",
     [
         ("‘절제된 맥시멀리즘’", "절제된맥시멀리즘"),
-        ("발레코어 룩", "발레코어룩"),            # 끝의 일반어는 지우지 않는다 (결정 D-11)
+        ("발레코어 룩", "발레코어룩"),            # 끝의 일반어는 지우지 않는다
         ("Quiet Luxury", "quietluxury"),
         ("Quiet Luxury Style", "quietluxurystyle"),
         ("Y2K 룩", "y2k룩"),

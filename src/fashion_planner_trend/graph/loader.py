@@ -1,16 +1,15 @@
-"""Neo4j 적재. 문서: docs/schemas/graph_schema.md §2~§4, docs/spec.md Step 5
+"""Neo4j 적재. 문서: docs/graph-schema.md
 
 - 입력: 정답 라벨 JSON(`{"label_meta", "extraction"}`) → Style·Item·Article, 정규화된 Product(`ProductRecord` JSONL).
 - **다시 실행해도 같은 그래프**가 나온다: 노드는 `MERGE`, Product는 관계를 지우고 다시 만들고, 기사는 그 기사의 Style·Item을 지우고 한 트랜잭션에서 다시 쓴다.
-- `category_major`가 없는 Item·Product(지원 밖)는 적재하지 않는다 (spec §8.2).
+- `category_major`가 없는 Item·Product(지원 밖)는 적재하지 않는다.
 
-v1.1 (계약 G1):
 - 기사 입력 = 자동 추출 파일(`label_meta.status` = `auto`). 정답 라벨(silver|gold, 같은 형식)은 `label_dir`를 **명시적으로**
-  줄 때만 적재한다(스키마 확인·평가용이며 실제 GraphRAG 데이터가 아니다, 결정 D-6). 같은 기사가 둘 다 있으면
+  줄 때만 적재한다(스키마 확인·평가용이며 실제 GraphRAG 데이터가 아니다, docs/decisions/0006). 같은 기사가 둘 다 있으면
   `prefer`(기본 `extractions`)를 쓴다. Article에 `source`(label|extraction)·`labeler`·`prompt_version`·`extracted_at`.
 - Item `image_urls`: 크롤 기사 `images[]`의 `{image_idx: url}` 맵으로 채운다(D4: `ImageLink.image_idx` = 크롤러 순번).
   맵에 없는 idx는 버리고 `image_links_unmapped`로 센다.
-- Style `example_image_urls`·`example_image_basis` (D-48): 크롤 기사로 Style 예시 사진을 최대 5장 고른다
+- Style `example_image_urls`·`example_image_basis`: 크롤 기사로 Style 예시 사진을 최대 5장 고른다
   (`style_example_images`: Item 연결 → Style 단독 섹션 → Style 1개 기사 전체 순).
 - 자동 추출(auto)은 색·소재·패턴·디테일 raw를 AliasMap으로 다시 판정해 근사(approx) 매핑이면 관계 `approx=true`
   (라벨은 라벨러 값 유지 → 기준선 불변). 근사 값은 1차 점수·후보에 쓰지 않는다.
@@ -46,7 +45,7 @@ INDEXES = [
     "CREATE INDEX product_fit IF NOT EXISTS FOR (p:Product) ON (p.fit)",
     "CREATE INDEX product_source IF NOT EXISTS FOR (p:Product) ON (p.source)",
     "CREATE INDEX item_article IF NOT EXISTS FOR (i:Item) ON (i.article_id)",
-    "CREATE INDEX style_name_norm IF NOT EXISTS FOR (s:Style) ON (s.name_norm)",  # v1.1 Style 이름 일치(D-11)
+    "CREATE INDEX style_name_norm IF NOT EXISTS FOR (s:Style) ON (s.name_norm)",  # 정규화한 Style 이름
 ]
 # v1.1 fulltext (후보·제안용 — 이름 일치 판정은 name_norm 정확 일치)
 FULLTEXT = [("style_names", "Style", ["name", "aliases"]), ("product_names", "Product", ["name"])]
@@ -100,7 +99,7 @@ def _alias() -> AliasMap:
 def mark_auto_approx(rec: ItemRecord) -> int:
     """자동 추출 Item: 색·소재·패턴·디테일 raw를 AliasMap으로 다시 판정해, 같은 값이 근사 매핑으로만 나오면 approx=true.
 
-    T1 추출 스키마에는 관계별 approx 필드가 없어(`review_flags` 문자열뿐) 적재기가 판정한다. 반환: 표시한 관계 수.
+    추출 스키마에는 관계별 approx 필드가 없어(`review_flags` 문자열뿐) 적재기가 판정한다. 반환: 표시한 관계 수.
     """
     alias = _alias()
     n = 0
@@ -338,12 +337,12 @@ def _style_blocks(style: Any) -> set[int]:
 
 def style_example_images(styles: list[Any], crawl: Optional[dict[str, Any]],
                          limit: int = EXAMPLE_IMAGE_LIMIT) -> list[list[tuple[str, str]]]:
-    """기사의 Style마다 예시 사진 [(url, basis)]를 최대 `limit`장 고른다 (D-48). 중복 사진은 한 번만 넣는다.
+    """기사의 Style마다 예시 사진 [(url, basis)]를 최대 `limit`장 고른다. 중복 사진은 한 번만 넣는다.
 
     1. item_link — 그 Style의 Item `image_links`(지원 밖 Item 포함, Item·연결 순서)
     2. section — Style 근거 블록이 있는 섹션 중 **같은 기사의 다른 Style이 쓰지 않는 섹션**의 사진(사진 순서)
     3. article — 기사에 Style이 1개뿐이면 기사 사진 전체(사진 순서)
-    크롤 기사가 없으면 모두 빈 목록이다. 연결 정확도는 아직 검수하지 않았다(D-48).
+    크롤 기사가 없으면 모두 빈 목록이다. 연결 정확도는 아직 검수하지 않았다.
     """
     if not crawl:
         return [[] for _ in styles]

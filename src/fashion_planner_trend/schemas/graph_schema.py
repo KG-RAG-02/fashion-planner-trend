@@ -1,9 +1,9 @@
-"""Neo4j에 저장되는 노드·관계 속성. 문서: docs/schemas/graph_schema.md (계약 v1.1)
+"""Neo4j에 저장되는 노드·관계 속성. 문서: docs/graph-schema.md
 
 Neo4j 속성은 원시 값과 그 배열만 가질 수 있다. 이 모듈의 *Node 모델은 평탄한 속성만 갖고,
 탐색 경로로 쓰는 값(색·소재·패턴·디테일·상분류)은 *Record의 관계 목록에 둔다.
 
-v1.1: Product 이미지·정제 필드, Style `aliases`·`name_norm`, 이름 정규화 `normalize_term()`(Style 이름 일치 비교 키,
+Product 이미지·정제 필드, Style `aliases`·`name_norm`, 이름 정규화 `normalize_term()`(Style 이름 비교 키,
 코드 1곳). 추가 필드는 모두 Optional/기본값이라 v1.0 데이터는 그대로 유효하다.
 """
 from __future__ import annotations
@@ -34,10 +34,10 @@ from .vocabulary import (
 SCORED_ATTRIBUTES = ("color", "material", "pattern", "detail", "fit")
 
 # ---------- v1.1 공통 어휘 ----------
-ImageScope = Literal["catalog", "full_snap", "full_set"]  # 상품 컷 / 착장 원본 1장(Q4, 크롭 없음) / 세트 부모 이미지 공유
+ImageScope = Literal["catalog", "full_snap", "full_set"]  # 상품 컷 / 착장 원본 1장(크롭 없음) / 세트 부모 이미지 공유
 ImageStatus = Literal["ok", "broken", "unchecked"]        # 02는 스트리밍 GET, 03은 원본 디코드로만 정한다(HEAD 금지)
 
-# 이름 정규화 (graph_schema.md §1.1, 결정 D-11). Style 이름이 "온전히 같다"는 것은 이 키가 같다는 뜻이다.
+# 이름 정규화. Style 이름이 "온전히 같다"는 것은 이 키가 같다는 뜻이다(docs/graph-schema.md).
 # 바꾸면 Style name_norm이 모두 바뀌므로 계약 변경이다.
 _NORM_DROP = re.compile(r"[\s\-_·•'\"‘’“”`.,()\[\]{}:;/!?]+")
 
@@ -92,12 +92,12 @@ class StyleNode(BaseModel):
     concentration_pattern: Optional[float] = None
     concentration_detail: Optional[float] = None
     concentration_fit: Optional[float] = None
-    # v1.1 — Style 이름 일치(D-11)용. name_norm·aliases_norm은 코드가 normalize_term()으로 계산한다.
+    # 정규화한 이름 키. name_norm·aliases_norm은 코드가 normalize_term()으로 계산해 저장한다(검색은 아직 쓰지 않는다).
     aliases: list[str] = Field(default_factory=list)  # 기사 안의 다른 이름(원문 그대로). 원천: 추출 styles[].aliases
     article_id: Optional[str] = None
     name_norm: Optional[str] = None
     aliases_norm: list[str] = Field(default_factory=list)
-    # D-48 — Style 예시 사진(Vogue URL, 최대 5장). 적재기가 크롤 기사로 계산한다(추출값 아님).
+    # Style 예시 사진(기사 이미지 URL, 최대 5장, 링크만). 적재기가 크롤 기사로 계산한다(추출값 아님).
     # basis[k]는 urls[k]를 고른 규칙: item_link(Item 연결) → section(Style 단독 섹션) → article(Style 1개 기사).
     example_image_urls: list[str] = Field(default_factory=list)
     example_image_basis: list[str] = Field(default_factory=list)
@@ -151,7 +151,7 @@ class ProductNode(BaseModel):
     price: None = None
     source_row: str
     approx: list[str] = Field(default_factory=list)  # 근사 매핑으로 채운 스칼라 필드 이름 (예: "fit")
-    # v1.1 — 이미지(원천: C2 이미지 인덱스)와 정제 표시(원천: T2). 모두 Optional이고 None이면 flatten()이
+    # 이미지(원천: 이미지 인덱스)와 정제 표시(원천: 정규화). 모두 Optional이고 None이면 flatten()이
     # 속성을 만들지 않으므로 v1 데이터는 v1.0 그래프와 같다. bool은 해당할 때만 True로 채운다.
     snap_id: Optional[int] = None                      # 03 스냅 사진 = HF parquet 0-based row (같은 사진의 의류는 같은 값)
     image_ref: Optional[str] = None                    # 03 "hf://datasets/disl/musinsa-snap-new@<rev>#row=<row>" · 02 image_url
@@ -159,7 +159,7 @@ class ProductNode(BaseModel):
     image_status: Optional[ImageStatus] = None         # 이미지 참조가 없으면 None
     multi_wearer_suspected: Optional[bool] = None
     parent_id: Optional[str] = None                    # 02 세트 분해 구성품의 원 상품 id (구성품 id = "<원 id>#<k>")
-    split_from: Optional[Literal["name_rule", "review"]] = None   # 분해 근거: name_rule = 상품명 규칙, review = 사용자가 채택한 검수 분해 (v1.3)
+    split_from: Optional[Literal["name_rule", "review"]] = None   # 분해 근거: name_rule = 상품명 규칙, review = 사람이 채택한 검수 분해
     dup_of: Optional[str] = None                       # 같은 내용으로 의심되는 먼저 나온 Product id (표시만, 지우지 않는다)
     multipack: Optional[bool] = None                   # 같은 종류 N개 묶음 (분해하지 않음)
     split_candidate: Optional[bool] = None             # 세트 표지는 있으나 근거 부족으로 분해하지 않은 행 (사람 검토)
@@ -207,7 +207,7 @@ class ProductRecord(_Record):
 
 # ---------- 변환 ----------
 def style_node_from_extraction(style: ExtractedStyle, style_id: str, article_id: Optional[str] = None) -> StyleNode:
-    """ExtractedStyle → StyleNode. `name_norm`·`aliases_norm`은 normalize_term()으로 계산한다 (v1.1).
+    """ExtractedStyle → StyleNode. `name_norm`·`aliases_norm`은 normalize_term()으로 계산한다.
 
     article_id를 주지 않으면 Style id 규칙(`<article_id>-s<n>`)에서 읽는다.
     """

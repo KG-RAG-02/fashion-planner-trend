@@ -1,4 +1,4 @@
-"""별칭 사전 적용. 문서: docs/schemas/sources/alias_map.md, 사전 데이터: configs/alias_map/*.yaml
+"""별칭 사전 적용. 문서: docs/vocabulary.md, 사전 데이터: configs/alias_map/*.yaml
 
 변환 순서: 표준과 일치 → 별칭 → 근사 별칭(approx) → 속성 간 이동(route) → 힌트(hint) → 값 없음 → 매핑 불가.
 표준 밖 값은 억지로 가장 비슷한 값에 넣지 않는다 (근사 별칭으로 명시한 것만 예외).

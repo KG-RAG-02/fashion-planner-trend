@@ -176,7 +176,7 @@ def test_h_empty_row_kept_but_out_of_graph_scope(otp):
     row = orow(sub_category="", product_name="", image_url="", big_category="상의", season="정보 없음")
     assert is_empty_row(row)
     r = otp.normalize_row(row)
-    assert r.category_major is None and not r.in_graph_scope  # 정규화는 행을 남기고 적재에서만 뺀다((h)). v2 빌드는 drop_without_image로 저장하지 않는다(D-33)
+    assert r.category_major is None and not r.in_graph_scope  # 정규화는 행을 남기고 적재에서만 뺀다((h)). 빌드는 drop_without_image로 저장하지 않는다
 
 
 def test_h_exact_duplicates_marked_not_removed(otp):
@@ -187,7 +187,7 @@ def test_h_exact_duplicates_marked_not_removed(otp):
     assert [r.node.dup_of for r in recs] == [None, "otpensource:f/x.json:0", None, None, None]  # 빈 행끼리는 중복 표시 안 함
 
 
-# ---------- (i) 한국어 기본색 별칭 (T3 #27) ----------
+# ---------- (i) 한국어 기본색 별칭 ----------
 @pytest.mark.parametrize("raw,value", [("보라", "퍼플"), ("보라색", "퍼플"), ("violet", "퍼플"), ("빨강", "레드"),
                                        ("빨간색", "레드"), ("분홍", "핑크"), ("분홍색", "핑크"), ("주황", "오렌지"),
                                        ("주황색", "오렌지"), ("노랑", "옐로우"), ("노란색", "옐로우"), ("초록", "그린"),

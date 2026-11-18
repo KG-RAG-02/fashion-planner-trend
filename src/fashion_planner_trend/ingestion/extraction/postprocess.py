@@ -12,7 +12,7 @@
 3. `category_major`는 pydantic(`ExtractedItem._derive_major`)이 `category_minor`에서 도출하고 불일치를 표시한다.
 4. (선택, 기본 꺼짐) `dedupe`: Style 안의 중복 `focus_attributes`·`seasons`를 합친다(`merge_duplicates`, P1 경고).
 5. (선택, 기본 꺼짐) `name_fix`: Style 이름 끝에 LLM이 덧붙인 '트렌드'를 떼어 기사 원문 표현으로 되돌린다
-   (`fix_style_names`, P2 경고). 규칙의 기준 문서는 docs/pipeline.md §6.7(D-27·D-28)이다.
+   (`fix_style_names`, P2 경고). 규칙 설명은 docs/extraction.md에 있다.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ __all__ = ["convert_image_links", "apply_alias_map", "apply_length_area", "merge
            "postprocess", "get_alias_map", "LENGTH_AREA_FIX", "NAME_FIX_SUFFIXES", "NAME_FIX_PREFIXES"]
 
 # 영역별 기장 통일(선택, 기본 꺼짐): 사용자 결정 L-맥시(2026-11-08, 하의·원피스 롱 → 맥시)는 2026-11-10 폐기됐다
-# (pipeline D-38: 롱은 롱). 이전 실험 재현용으로만 남긴다. 켜면 `length_area:length_body:롱->맥시` 표시를 남긴다.
+# (지금 규칙: 롱은 롱). 이전 실험 재현용으로만 남긴다. 켜면 `length_area:length_body:롱->맥시` 표시를 남긴다.
 LENGTH_AREA_FIX = {"하의": {"롱": "맥시"}, "원피스": {"롱": "맥시"}}
 
 # Item 스칼라 (raw 필드, 값 필드, 사전 속성)
@@ -184,7 +184,7 @@ def merge_duplicates(doc: dict) -> list[str]:
     """제자리 수정. Style 안의 중복을 하나로 합치고 무엇을 합쳤는지(P1 경고 문구)를 돌려준다. 모델과 무관한 코드 규칙.
 
     - `focus_attributes`: 같은 `attribute`가 여럿이면 처음 나온 자리에 하나만 남긴다. level은 core가 supporting보다 우선
-      (pipeline §7.2 병합 규칙과 같다), evidence는 (block_idx, quote) 기준 합집합(순서 보존).
+      evidence는 (block_idx, quote) 기준 합집합(순서 보존).
     - `seasons`: 같은 {year, season}이 여럿이면 하나만 남긴다.
     core가 3개를 넘는 경우는 어느 것을 낮출지 근거가 없어 고치지 않는다(V1 오류로 남는다).
     """
@@ -221,9 +221,9 @@ def merge_duplicates(doc: dict) -> list[str]:
     return notes
 
 
-# P2 이름 후처리 (pipeline.md §6.7, D-28): 떼는 일반어 허용 목록. 늘리려면 사용자 승인이 필요하다.
+# P2 이름 후처리: 떼는 일반어 허용 목록. 늘리면 오탐 위험이 있으니 테스트를 함께 더한다.
 NAME_FIX_SUFFIXES = ("트렌드", "trend")
-# P2 앞 표지어 (D-39): 이름을 소개하는 말. 늘리려면 사용자 승인이 필요하다.
+# P2 앞 표지어: 이름을 소개하는 말. 늘리면 오탐 위험이 있으니 테스트를 함께 더한다.
 NAME_FIX_PREFIXES = ("일명", "이른바", "소위")
 _NAME_TRAIL = " \t -–—·,.:;!?'\"‘’“”"
 _NAME_QUOTES = " \t'\"‘’“”「」『』"
@@ -253,9 +253,9 @@ def _strip_name_prefix(name: str) -> tuple[str, str] | None:
 def fix_style_names(doc: dict, article: dict) -> list[str]:
     """제자리 수정. Style 이름을 기사 원문 표현으로 되돌린다. 기록(P2·N3 문구)을 돌려준다.
 
-    앞 표지어 (D-39): 이름이 `NAME_FIX_PREFIXES`로 시작하면 표지어와 감싼 따옴표를 뗀다 — ⓑ 나머지 2글자 이상
+    앞 표지어: 이름이 `NAME_FIX_PREFIXES`로 시작하면 표지어와 감싼 따옴표를 뗀다 — ⓑ 나머지 2글자 이상
     ⓒ 나머지가 기사에 있다 ⓓ 다른 Style 이름과 겹치지 않는다. 이름 전체가 기사에 있어도 고친다(표지어는 이름이 아니다).
-    끝 일반어 (D-28): 고친 이름에 이어서, 아래 ①~⑤를 모두 만족할 때만 끝의 일반어를 한 번 뗀다.
+    끝 일반어: 고친 이름에 이어서, 아래 ①~⑤를 모두 만족할 때만 끝의 일반어를 한 번 뗀다.
     ① 이름 전체가 기사에 없다 ② 허용 목록(`NAME_FIX_SUFFIXES`)의 일반어로 끝난다 ③ 뗀 나머지가 2글자 이상이다
     ④ 뗀 나머지가 기사에 있다 ⑤ 뗀 이름이 같은 기사의 다른 Style 이름과 겹치지 않는다 (⑤에 걸리면 N3 문구만 남긴다)
     `definition`·`description`·`evidence`·`aliases`는 건드리지 않는다.
@@ -301,7 +301,7 @@ def postprocess(raw_doc: dict, article: dict, *, am: Optional[AliasMap] = None, 
                 notes: Optional[list[str]] = None) -> tuple[dict, list[str]]:
     """(pydantic 입력 dict, V6 오류). 원본 dict는 바꾸지 않는다.
 
-    선택 후처리(라이브러리 기본값은 꺼짐. P1·P2는 채택돼 실행 스크립트가 기본으로 켠다 — pipeline.md D-27, §6.7): `dedupe=True`면 P1 `merge_duplicates`,
+    선택 후처리(라이브러리 기본값은 꺼짐. P1·P2는 실행 스크립트가 기본으로 켠다): `dedupe=True`면 P1 `merge_duplicates`,
     `name_fix=True`면 P2 `fix_style_names`를 이 순서로 적용하고 기록을 `notes`(주면)에 덧붙인다.
     """
     doc = copy.deepcopy(raw_doc)

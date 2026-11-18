@@ -1,4 +1,4 @@
-"""유사도 가중치 설정. 문서: docs/spec.md Step 9, §7.3. 기본값 파일: configs/weights.yaml"""
+"""유사도 가중치 설정. 문서: docs/architecture.md("점수 계산"). 기본값 파일: configs/weights.yaml"""
 from __future__ import annotations
 
 import hashlib

@@ -1,4 +1,4 @@
-"""02·03 v2 Product를 하나의 통합본으로 합친다 (D-33). 그래프 적재(load_graph.py)의 기본 입력이다.
+"""02·03 Product를 하나의 통합본으로 합친다. 그래프 적재(load_graph.py)의 기본 입력이다.
 
 실행 순서:
   python scripts/build_otpensource.py      # → data/processed/otpensource_all.jsonl (image_url 없는 행 제외)

@@ -1,4 +1,4 @@
-"""점수 계산 (합성 데이터). 규칙: docs/spec.md Step 8.3, Step 9"""
+"""점수 계산 (합성 데이터). 규칙: docs/architecture.md("점수 계산")"""
 import pytest
 
 from fashion_planner_trend.retrieval.scoring import (

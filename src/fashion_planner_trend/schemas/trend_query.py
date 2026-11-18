@@ -1,4 +1,4 @@
-"""검색 조건(검색의 입력). 문서: docs/schemas/trend_query.md"""
+"""검색 조건(검색의 입력). 문서: docs/contracts.md"""
 from __future__ import annotations
 
 from datetime import date

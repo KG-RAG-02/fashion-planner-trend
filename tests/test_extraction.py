@@ -187,7 +187,7 @@ def test_placeholder_style_name_is_v1_error():
     assert any("자리표시자" in e for e in rep.errors)
 
 
-# ---------- 후처리 P2: 이름 끝 '트렌드' 제거 (docs/pipeline.md §6.7 표와 1:1) ----------
+# ---------- 후처리 P2: 이름 끝 '트렌드' 제거 ----------
 def _name_article(*texts):
     a = copy.deepcopy(ARTICLE)
     a["title"] = "합성 기사"

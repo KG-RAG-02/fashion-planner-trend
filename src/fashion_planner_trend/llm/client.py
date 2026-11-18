@@ -6,7 +6,7 @@
     structured_model(prompt, model_cls, *, purpose, prompt_version, exclude=None, overrides=None, **kw) -> BaseModel
 
 - 설정: 인자 → env(`LLM_MODEL`·`LLM_REASONING_EFFORT`·`LLM_API_KEY`·`LLM_TIMEOUT_S`, 저장소 `.env` 포함). 백엔드는 `openai_api` 하나다.
-  `LLM_REASONING_EFFORT`는 모델도 env `LLM_MODEL`에서 올 때만 기본 추론 강도로 쓴다(인자로 모델을 주면 쓰지 않는다, D-40).
+  `LLM_REASONING_EFFORT`는 모델도 env `LLM_MODEL`에서 올 때만 기본 추론 강도로 쓴다(인자로 모델을 주면 쓰지 않는다).
   **모델이 정해지지 않으면 `LLMBackendError`**(고정 모델 원칙).
 - 반환 dict는 strict 스키마 부분집합으로 검사한 것이다(불일치 → `LLMOutputError`). pydantic 재검증은 호출자 몫이고,
   `structured_model`이 대신 해 준다.
@@ -72,12 +72,12 @@ def resolve_settings(backend: Optional[str] = None, model: Optional[str] = None,
     if b not in BACKENDS:
         raise LLMBackendError(f"알 수 없는 백엔드: {b} (허용 {BACKENDS})")
     m = model or env.get("LLM_MODEL") or ""
-    # 기본 추론 강도 env LLM_REASONING_EFFORT는 모델도 env에서 올 때만 쓴다(D-40). 모델을 인자로 주면 섞지 않는다
+    # 기본 추론 강도 env LLM_REASONING_EFFORT는 모델도 env에서 올 때만 쓴다. 모델을 인자로 주면 섞지 않는다
     if not model and not reasoning_effort:
         reasoning_effort = env.get("LLM_REASONING_EFFORT") or None
     if not m:
         raise LLMBackendError("모델이 정해지지 않았다: model 인자나 env LLM_MODEL이 필요하다(고정 모델 원칙)")
-    # 모델 등록표(configs/llm_models.yaml)에 있어야 하고, 요청 규칙은 그 모델의 계열 모듈이 정한다 (docs/pipeline.md D-30, §14.2).
+    # 모델 등록표(configs/llm_models.yaml)에 있어야 하고, 요청 규칙은 그 모델의 계열 모듈이 정한다 (docs/extraction.md).
     # 일반 모델에 추론 강도를 주면 조용히 무시하지 않고 오류다
     spec = get_spec(m)
     profile = get_profile(spec)

@@ -1,4 +1,4 @@
-# 별칭 사전 (collar). 문서: docs/schemas/sources/alias_map.md
+# 별칭 사전 (collar). 문서: docs/vocabulary.md
 # 형식: aliases = 표준 값: [같은 뜻의 원문], approx = 근사 매핑(1차 검색에서는 쓰지 않음),
 #       null_values = 값 없음, route = 다른 속성으로 이동, hint = 같은 행의 다른 필드에 주는 힌트.
 # 원문은 코드가 소문자·공백·-·_ 제거로 정규화해서 비교한다.

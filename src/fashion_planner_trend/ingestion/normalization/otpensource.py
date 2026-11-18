@@ -1,10 +1,10 @@
 """02 `hateslopacademy/otpensource_dataset` → ProductRecord.
 
-문서: docs/schemas/graph_schema.md §2.3, docs/schemas/sources/alias_map.md
+문서: docs/graph-schema.md, docs/vocabulary.md
 - 02는 대분류·소분류별 JSON 파일(`sorted_<대분류>/sorted_<소분류>.json`)이다.
 - 브랜드·가격·상품 URL이 없다 (브랜드는 출처 기준 Musinsa).
 
-v2 (T2): (e) 패딩 힌트는 상분류가 비었거나 아우터일 때만 · (f) 상품명·feature를 따로 토큰 단위로 찾는다(text_match) ·
+정제 규칙: (e) 패딩 힌트는 상분류가 비었거나 아우터일 때만 · (f) 상품명·feature를 따로 토큰 단위로 찾는다(text_match) ·
 (h) 빈 행은 상분류 없이 남겨 적재에서 빠지고(결정), 원본 필드가 모두 같은 뒤쪽 행은 `dup_of`로 표시만 한다.
 세트 분해는 set_split.py.
 """
@@ -102,7 +102,7 @@ def mark_exact_duplicates(records: list[ProductRecord], rows: list[dict[str, Any
 
 
 def drop_without_image(records: list[ProductRecord]) -> tuple[list[ProductRecord], dict[str, Any]]:
-    """v2 (D-33): `image_url`이 없는 Product는 저장하지 않는다(사용자 결정 2026-11-10, 이전 "빈 행은 지우지 않는다"를 대체).
+    """`image_url`이 없는 Product는 저장하지 않는다(원천의 빈 행).
     원천에서는 이런 행이 모두 빈 행(상품명·이미지 URL·소분류 없음)이다. 세트 구성품은 부모 URL을 물려받으므로 부모와 함께 남거나 빠진다.
     반환: (남은 레코드, 리포트). 남은 레코드의 `dup_of`·`parent_id`가 빠진 id를 가리키면 리포트에 센다(정상이면 0)."""
     kept = [r for r in records if r.node.image_url]
@@ -147,7 +147,7 @@ class OtpenNormalizer:
         name = _clean(row.get("product_name"))
         feature = _clean(row.get("feature"))
 
-        # (h) 빈 행은 대분류가 있어도 상분류를 주지 않는다 → 그래프 적재 제외. v2 빌드는 image_url이 없어 저장하지 않는다(D-33)
+        # (h) 빈 행은 대분류가 있어도 상분류를 주지 않는다 → 그래프 적재 제외. 빌드는 image_url이 없어 저장하지 않는다
         cat = OtpenCategory(raw=sub) if is_empty_row(row) else self.alias.map_otpensource_category(sub, name, row.get("big_category"))
         minor: Optional[str] = cat.category_minor
         approx_fields: list[str] = []
@@ -198,7 +198,7 @@ class OtpenNormalizer:
             id=product_id(row),
             name=name or None,
             image_url=image_url,
-            image_ref=image_url,  # 주소 필드 통일(D-33): 02는 image_url 그대로
+            image_ref=image_url,  # 주소 필드 통일: 02는 image_url 그대로
             image_scope="catalog" if image_url else None,
             source="otpensource",
             kind="catalog_item",

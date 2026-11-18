@@ -1,4 +1,4 @@
-"""pydantic 모델 → LLM용 strict JSON Schema 변환 (계약 v1.1 `strict_schema`·`schema_sha256`).
+"""pydantic 모델 → LLM용 strict JSON Schema 변환 (`strict_schema`·`schema_sha256`).
 
 strict 규칙(OpenAI structured outputs):
 - 모든 객체: `properties`의 키 전부가 `required`, `additionalProperties: false`
