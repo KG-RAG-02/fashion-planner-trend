@@ -1,14 +1,14 @@
 """기사 추출 비교: 정답 라벨(labels 링크 + manifest split) vs 예측(백엔드별 추출 디렉터리). 결과는 **건수**로만 보고한다.
 
-문서: eval/README.md(건수 보고 규칙), eval/guidelines/article_extraction.md, docs/schemas/article_extraction.md §5(V2·V3).
+문서: docs/annotation-guide.md(라벨 기준), docs/extraction.md(검증 V2·V3).
 
 실행 (레포 루트):
   python scripts/compare_extraction.py --pred openai_api="data/processed/extractions/<pv>" [--pred 라벨2="…"] \
-      [--split dev|test|all] [--ids 857922,…] [--include-review] [--no-length-rule] [--out eval/results/extraction/<run>] [--confirm-test]
+      [--split dev|test|all] [--ids 857922,…] [--include-review] [--no-length-rule] [--out data/eval/extraction/<run>] [--confirm-test]
 
 - 예측 파일: <dir>/<aid>.json(검증 통과) · <dir>/_review/<aid>.json(검증 실패). 형식은 {"label_meta","extraction"} 또는 ArticleExtraction 단독.
   `_review`는 기본으로 "예측 없음(검토 대기)"으로 세고, --include-review면 함께 비교한다.
-- test 기사는 --confirm-test가 있어야 열린다. 열 때마다 eval/results/test_access.jsonl에 기록한다.
+- test 기사는 --confirm-test가 있어야 열린다. 열 때마다 data/eval/test_access.jsonl에 기록한다.
 - 기장: '롱'은 롱으로 비교한다(D-38, 2026-11-10 L-맥시 폐기). --length-rule은 L-맥시(하의·원피스 롱 → 맥시)를 켜던 이전 보고서 재현용이다. --no-length-rule은 이제 기본과 같다(받기만 함).
 - 목록 속성(색·소재·패턴·디테일): 정답 표준 값을 예측이 표준 값 없이 같은 뜻의 원문(raw)으로만 냈으면 "원문 일치"로 센다(누락 아님, D-43).
 출력: <out>/report.md(행 = 지표, 열 = 백엔드) · details.jsonl(기사별 차이) · summary.json(건수·실행 메타).
@@ -47,8 +47,8 @@ def _norm(text: str) -> str:
 from trend_agent.schemas.vocabulary import BodyLength  # noqa: E402
 import validate_labels as VL  # noqa: E402
 
-LABELS = ROOT / "eval" / "datasets" / "article_extraction" / "labels"
-MANIFEST = ROOT / "eval" / "datasets" / "article_extraction" / "manifest.yaml"
+LABELS = ROOT / "data" / "labels"
+MANIFEST = LABELS / "manifest.yaml"
 SCALARS = ("category_major", "category_minor", "fit", "shape", "length_body", "length_sleeve", "gender")
 LISTS = ("colors", "materials", "patterns", "details")
 STRICT_SIM, RELAXED_SIM, STYLE_DICE = 0.5, 0.6, 0.6
@@ -398,7 +398,7 @@ def render_report(counts: dict[str, Counter], meta: dict) -> str:
          f"- 예측: " + " · ".join(f"`{k}` = {v}" for k, v in meta["pred"].items()),
          f"- 예측 메타: " + " / ".join(f"`{k}` " + ", ".join(f"{x} ×{n}" for x, n in sorted(v.items())) for k, v in meta["pred_meta"].items()),
          f"- 기장 규칙(L-맥시, D-38로 폐기 — 재현용): {'적용' if meta['length_rule'] else '끔(롱은 롱)'} · `_review`: {'비교 포함' if meta['include_review'] else '예측 없음으로 셈'}",
-         "- 규칙: 비율이 아니라 건수다(eval/README). 한 칸 = '이름 건수'.", "",
+         "- 규칙: 비율이 아니라 건수다. 한 칸 = '이름 건수'.", "",
          "| 지표 | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
     for g, cols in GROUPS:
         cells = [" · ".join(f"{col} {counts[n][f'{g}|{col}']}" for col in cols) for n in names]
@@ -428,7 +428,7 @@ def main(argv=None) -> int:
     ap.add_argument("--length-rule", action="store_true", help="폐기된 L-맥시(롱→맥시) 보정을 켠다 — 2026-11-10 이전 보고서 재현용 (D-38)")
     ap.add_argument("--no-length-rule", action="store_true", help=argparse.SUPPRESS)  # 예전 명령 호환. 이제 기본과 같다
     ap.add_argument("--confirm-test", action="store_true", help="test 기사를 연다 (열람 기록이 남는다)")
-    ap.add_argument("--access-log", type=Path, default=ROOT / "eval" / "results" / "test_access.jsonl")
+    ap.add_argument("--access-log", type=Path, default=ROOT / "data" / "eval" / "test_access.jsonl")
     ap.add_argument("--out", type=Path)
     a = ap.parse_args(argv)
 
@@ -446,7 +446,7 @@ def main(argv=None) -> int:
     if test_ids:
         log_test_access(a.access_log, preds, test_ids, {k: dict(v) for k, v in metas.items()})
     ts = dt.datetime.now().astimezone()
-    out = a.out or ROOT / "eval" / "results" / "extraction" / f"{ts:%Y%m%d-%H%M%S}-{a.split if not a.ids else 'ids'}"
+    out = a.out or ROOT / "data" / "eval" / "extraction" / f"{ts:%Y%m%d-%H%M%S}-{a.split if not a.ids else 'ids'}"
     out.mkdir(parents=True, exist_ok=True)
     meta = {"ts": ts.isoformat(timespec="seconds"), "split": a.split if not a.ids else "ids", "ids": ids, "git_head": git_head(),
             "pred": {k: str(v) for k, v in preds.items()}, "pred_meta": {k: dict(v) for k, v in metas.items()},

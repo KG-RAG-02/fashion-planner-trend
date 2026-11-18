@@ -1,7 +1,7 @@
 """정답(label) JSON을 검수하기 쉬운 문서(md)로 바꾼다. 원본 링크가 맨 위에 들어간다.
 
 실행:  python scripts/render_review.py [article_id ...]
-출력:  eval/datasets/article_extraction/review/<article_id>.md   (로컬 전용, gitignore)
+출력:  data/labels/review/<article_id>.md   (로컬 전용, gitignore)
 """
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = ROOT / "eval" / "datasets" / "article_extraction"
-LABELS, REVIEW = BASE / "labels", BASE / "review"
+LABELS = ROOT / "data" / "labels"
+REVIEW = LABELS / "review"
 RAW = ROOT / "data" / "raw" / "vogue_kr"
 
 

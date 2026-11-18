@@ -5,7 +5,7 @@
 approx 값과 값이 없는 속성은 일치로 세지 않는다 (spec Step 8~9와 같은 규칙). 지원 밖 Item(category_major=null)은 건너뛴다.
 
 실행:  python scripts/check_product_coverage.py [article_id ...]
-입력:  eval/datasets/article_extraction/labels/*.json, data/processed/v2/musinsa_dataset_v2.jsonl
+입력:  data/labels/*.json, data/processed/v2/musinsa_dataset_v2.jsonl
        (02·03 통합본. node.source로 나눈다. build_otpensource.py → build_musinsa_snap.py → build_musinsa_dataset.py)
 출력:  data/processed/v2/product_coverage.txt 와 표준 출력
 """
@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from trend_agent.schemas.graph_schema import ProductRecord  # noqa: E402
 
-LABELS = ROOT / "eval" / "datasets" / "article_extraction" / "labels"
+LABELS = ROOT / "data" / "labels"
 PROC = ROOT / "data" / "processed" / "v2"
 PRODUCTS = PROC / "musinsa_dataset_v2.jsonl"
 POOL_NAME = {"otpensource": "02", "musinsa_snap": "03"}

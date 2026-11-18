@@ -9,7 +9,7 @@
        --products-dir DIR를 주면 그 폴더의 otpensource_all.jsonl·musinsa_snap_all.jsonl을 읽는다(예: data/processed/v1)
        data/processed/extractions/<prompt_version>/*.json          (기사 추출 결과, extract_articles.py. 기본 extract-v2)
        data/raw/vogue_kr/articles_pool_150.jsonl                   (크롤 기사 — Item 이미지 맵 {image_idx: url})
-       eval/datasets/article_extraction/labels/*.json              (--include-labels일 때만. 팀 내부로 전달받는 파일)
+       data/labels/*.json                                          (--include-labels일 때만. 직접 만든 정답 라벨)
 선행:  .env의 NEO4J_* 설정 (Aura면 그 주소, 로컬이면 docker compose up -d).
 """
 from __future__ import annotations
@@ -29,7 +29,7 @@ from trend_agent.graph import loader  # noqa: E402
 
 PROC = ROOT / "data" / "processed"
 PRODUCTS = PROC / "v2" / "musinsa_dataset_v2.jsonl"
-LABELS = ROOT / "eval" / "datasets" / "article_extraction" / "labels"
+LABELS = ROOT / "data" / "labels"
 EXTRACTIONS = PROC / "extractions"
 DEFAULT_PROMPT_VERSION = "extract-v2"
 CRAWL = ROOT / "data" / "raw" / "vogue_kr" / "articles_pool_150.jsonl"

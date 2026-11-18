@@ -1,4 +1,4 @@
-"""기사 추출 정답(label) 검증. 문서: eval/guidelines/article_extraction.md §8
+"""기사 추출 정답(label) 검증. 문서: docs/annotation-guide.md
 
 검사:
   1. label_meta 필수 필드와 status(silver|gold)
@@ -23,8 +23,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from trend_agent.schemas.article_extraction import ArticleExtraction  # noqa: E402
 
-LABELS = ROOT / "eval" / "datasets" / "article_extraction" / "labels"
-MANIFEST = ROOT / "eval" / "datasets" / "article_extraction" / "manifest.yaml"
+LABELS = ROOT / "data" / "labels"
+MANIFEST = LABELS / "manifest.yaml"
 RAW = ROOT / "data" / "raw" / "vogue_kr"
 META_FIELDS = ("article_id", "url", "title", "status", "labeler", "reviewer", "guideline_version", "labeled_at", "notes")
 

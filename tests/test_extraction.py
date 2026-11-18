@@ -150,7 +150,7 @@ def test_render_prompt_season_candidates_only_for_v3():
 @pytest.mark.parametrize("version", ["extract-v3", "extract-v5"])
 def test_v3_has_no_label_trend_names(version):
     """v3·v5의 예시는 합성이다(R-11, D-39). 로컬 정답 라벨(gitignore)의 Style 이름·별칭이 프롬프트에 없어야 한다. 라벨이 없으면 건너뛴다."""
-    labels = sorted((ROOT / "eval" / "datasets" / "article_extraction" / "labels").glob("*.json"))
+    labels = sorted((ROOT / "data" / "labels").glob("*.json"))
     if not labels:
         pytest.skip("로컬 라벨 없음")
     from trend_agent.schemas.vocabulary import CategoryMajor, CategoryMinor, Color

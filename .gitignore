@@ -43,16 +43,9 @@ logs/
 .DS_Store
 Thumbs.db
 
-# 평가 데이터: 라벨(Vogue 인용 포함)과 실행 결과는 커밋하지 않는다. 기준 문서와 매니페스트만 커밋한다.
-eval/datasets/**/labels/*
-!eval/datasets/**/labels/.gitkeep
-eval/datasets/**/review/*
-eval/results/*
-!eval/results/.gitkeep
-
-
-# 라벨을 압축한 파일도 제외 (Vogue 인용 포함, 팀 내부 전달용)
-eval/datasets/**/*.zip
+# 평가 데이터: 정답 라벨(기사 인용 포함)·매니페스트·비교 결과는 커밋하지 않는다
+data/labels/
+data/eval/
 
 # iCloud Drive conflict copies (e.g. "server 2.py"); never commit them.
 * [0-9]
