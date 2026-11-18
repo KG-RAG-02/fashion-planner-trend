@@ -1,7 +1,7 @@
 """트렌드 분석 최종 출력. 문서: docs/contracts.md
 
 `schema_version`, 이미지 필드, Style `aliases`·`article_id`, 안정 evidence_id 규칙을 담는다.
-추가 필드는 모두 기본값이라 v1.0 JSON은 그대로 읽힌다. `status`는 ok / no_results / error다.
+선택 필드는 모두 기본값이 있다. `status`는 ok / no_results / error다.
 """
 from __future__ import annotations
 
@@ -69,7 +69,6 @@ class TrendStyle(BaseModel):
     focus_core: list[str] = Field(default_factory=list)
     focus_supporting: list[str] = Field(default_factory=list)
     focus_evidence_ids: list[str] = Field(default_factory=list)
-    # v1.1
     aliases: list[str] = Field(default_factory=list)
     article_id: Optional[str] = None
     # 추가 필드(기본값 빈 목록)
@@ -132,7 +131,7 @@ class ProductMatch(_AttributesOut):
     match: MatchResult = Field(default_factory=MatchResult)
     score: float = 0.0  # base_score + bonus
     score_breakdown: ScoreBreakdown = Field(default_factory=ScoreBreakdown)
-    # v1.1 — 이미지(그래프 Product와 같은 이름·뜻). has_image = ProductNode.has_image
+    # 이미지(그래프 Product와 같은 이름·뜻). has_image = ProductNode.has_image
     gender: Optional[Gender] = None
     snap_id: Optional[int] = None
     image_ref: Optional[str] = None
@@ -177,5 +176,4 @@ class TrendAnalysisResult(BaseModel):
     trends: list[Trend] = Field(default_factory=list)
     evidence: list[EvidenceRecord] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
-    # v1.1
     schema_version: str = SCHEMA_VERSION

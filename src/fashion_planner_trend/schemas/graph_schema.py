@@ -4,7 +4,7 @@ Neo4j 속성은 원시 값과 그 배열만 가질 수 있다. 이 모듈의 *No
 탐색 경로로 쓰는 값(색·소재·패턴·디테일·상분류)은 *Record의 관계 목록에 둔다.
 
 Product 이미지·정제 필드, Style `aliases`·`name_norm`, 이름 정규화 `normalize_term()`(Style 이름 비교 키,
-코드 1곳). 추가 필드는 모두 Optional/기본값이라 v1.0 데이터는 그대로 유효하다.
+코드 1곳). 선택 필드는 모두 Optional/기본값이다.
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ from .vocabulary import (
 
 SCORED_ATTRIBUTES = ("color", "material", "pattern", "detail", "fit")
 
-# ---------- v1.1 공통 어휘 ----------
+# ---------- 공통 어휘 ----------
 ImageScope = Literal["catalog", "full_snap", "full_set"]  # 상품 컷 / 착장 원본 1장(크롭 없음) / 세트 부모 이미지 공유
 ImageStatus = Literal["ok", "broken", "unchecked"]        # 02는 스트리밍 GET, 03은 원본 디코드로만 정한다(HEAD 금지)
 
@@ -152,7 +152,7 @@ class ProductNode(BaseModel):
     source_row: str
     approx: list[str] = Field(default_factory=list)  # 근사 매핑으로 채운 스칼라 필드 이름 (예: "fit")
     # 이미지(원천: 이미지 인덱스)와 정제 표시(원천: 정규화). 모두 Optional이고 None이면 flatten()이
-    # 속성을 만들지 않으므로 v1 데이터는 v1.0 그래프와 같다. bool은 해당할 때만 True로 채운다.
+    # 속성을 만들지 않는다. bool은 해당할 때만 True로 채운다.
     snap_id: Optional[int] = None                      # 03 스냅 사진 = HF parquet 0-based row (같은 사진의 의류는 같은 값)
     image_ref: Optional[str] = None                    # 03 "hf://datasets/disl/musinsa-snap-new@<rev>#row=<row>" · 02 image_url
     image_scope: Optional[ImageScope] = None

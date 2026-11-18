@@ -5,7 +5,7 @@
 - 색은 `서브컬러`뿐이라 `colors`는 비고 `sub_colors`만 채운다. 상품명·URL·브랜드·가격이 없다 (이미지는 parquet 바이트라 저장하지 않고 `image_ref`로 행을 가리킨다).
 - 02와 같은 `AliasMap`을 쓴다 (`otpensource.py`와 같은 표준·같은 별칭 사전).
 
-v2: (a) 노이즈 카테고리를 슬롯 상분류로 채우지 않는다(사용자 결정) · (b) 리스트형 라벨 값 보존 ·
+정제 규칙: (a) 노이즈 카테고리를 슬롯 상분류로 채우지 않는다(사용자 결정) · (b) 리스트형 라벨 값 보존 ·
 (c) 같은 사진 안 동일 라벨 `dup_of` · (d) `snap_id` = parquet row · (e) 패딩 힌트는 상분류가 비었거나 아우터일 때만.
 `image_ref` = `hf://datasets/disl/musinsa-snap-new@<rev>#row=<snap_id>`, `image_scope` = full_snap.
 """

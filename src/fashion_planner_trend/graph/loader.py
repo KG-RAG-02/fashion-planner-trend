@@ -47,7 +47,7 @@ INDEXES = [
     "CREATE INDEX item_article IF NOT EXISTS FOR (i:Item) ON (i.article_id)",
     "CREATE INDEX style_name_norm IF NOT EXISTS FOR (s:Style) ON (s.name_norm)",  # 정규화한 Style 이름
 ]
-# v1.1 fulltext (후보·제안용 — 이름 일치 판정은 name_norm 정확 일치)
+# fulltext 인덱스(후보·제안용. 현재 검색 코드는 쓰지 않는다)
 FULLTEXT = [("style_names", "Style", ["name", "aliases"]), ("product_names", "Product", ["name"])]
 FALLBACK_ANALYZER = "standard-no-stop-words"
 BRAND = "Musinsa"
@@ -263,7 +263,7 @@ def load_label(driver: Driver, doc: dict[str, Any], image_map: Optional[dict[int
                crawl: Optional[dict[str, Any]] = None) -> dict[str, int]:
     """라벨(또는 같은 형식의 자동 추출) JSON 하나(기사 하나)를 적재한다. 같은 기사를 다시 적재하면 그 기사의 Style·Item을 새로 쓴다.
 
-    image_map = 그 기사의 {크롤러 image_idx: url}. 없으면 Item 이미지는 비어 있다(v1.0 동작).
+    image_map = 그 기사의 {크롤러 image_idx: url}. 없으면 Item 이미지는 비어 있다.
     """
     meta = doc["label_meta"]
     ext = ArticleExtraction.model_validate(doc["extraction"])
@@ -407,7 +407,7 @@ def load_articles(driver: Driver, label_dir: Optional[Path | str] = None, extrac
 
 
 def prune_products(driver: Driver, keep_ids: set[str]) -> int:
-    """이번 입력에 없는 Product를 지운다(products v2에서 id가 바뀐 경우 — 예: 세트 분해 구성품 `<원 id>#<k>`)."""
+    """이번 입력에 없는 Product를 지운다(정규화 규칙이 바뀌어 id가 달라진 경우 — 예: 세트 분해 구성품 `<원 id>#<k>`)."""
     rec = driver.execute_query("MATCH (p:Product) WHERE NOT p.id IN $ids WITH p LIMIT 100000 DETACH DELETE p RETURN count(*) AS c",
                                ids=sorted(keep_ids)).records
     return rec[0]["c"] if rec else 0

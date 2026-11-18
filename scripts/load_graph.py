@@ -3,7 +3,7 @@
 실행:  python scripts/load_graph.py                  # 제약·인덱스 + 표준 값 + 02·03 Product + 자동 추출 기사
        python scripts/load_graph.py --articles-only  # 기사(Style·Item·Article)만 다시 적재 (Product는 건드리지 않음)
        python scripts/load_graph.py --include-labels # 정답 라벨도 적재 — 스키마 확인·평가용 임시 옵션 (기본 아님)
-       python scripts/load_graph.py --prune-products # 입력 파일에 없는 Product 삭제 (products v2로 id가 바뀐 뒤)
+       python scripts/load_graph.py --prune-products # 입력 파일에 없는 Product 삭제 (정규화 규칙이 바뀌어 id가 달라진 뒤)
        python scripts/load_graph.py --reset          # 그래프를 비우고 처음부터 (확인 없이 전부 삭제하므로 주의)
 입력:  data/processed/musinsa_dataset.jsonl                        (02·03 통합 Product, build_musinsa_dataset.py)
        --products-dir DIR를 주면 그 폴더의 otpensource_all.jsonl·musinsa_snap_all.jsonl을 읽는다
