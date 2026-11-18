@@ -1,10 +1,7 @@
-"""validate_labels: V2·V3 순수 함수(check_quotes·check_raws)와 validate() 동작 불변 (합성 입력, Vogue 원문 없음)"""
+"""validate_labels: V2·V3 순수 함수(check_quotes·check_raws)와 validate() (합성 입력, 기사 원문 없음)"""
 import importlib.util
 import json
-import re
 from pathlib import Path
-
-import pytest
 
 from fashion_planner_trend.schemas.article_extraction import ArticleExtraction
 
@@ -45,62 +42,9 @@ BAD = ext([
 ], style_ev=((0, "합성 트렌드가 떠올랐다"), (9, "없는 블록")), focus_ev=((3, "빨간"),))
 
 
-def legacy_validate(doc, articles, version, stem):
-    """리팩터링 전 validate()의 본문(커밋 3aab14f) 그대로 — 동작 불변 비교용."""
-    squash = lambda s: re.sub(r"\s+", "", s)
-    errors, warnings = [], []
-    meta = doc.get("label_meta", {})
-    for f in vl.META_FIELDS:
-        if f not in meta:
-            errors.append(f"label_meta.{f} 없음")
-    if meta.get("status") not in ("silver", "gold"):
-        errors.append(f"status가 silver|gold가 아님: {meta.get('status')}")
-    if meta.get("article_id") != stem:
-        errors.append("파일 이름과 label_meta.article_id가 다름")
-    if version and meta.get("guideline_version") != version:
-        warnings.append(f"guideline_version {meta.get('guideline_version')} != manifest {version}")
-    try:
-        ext_ = ArticleExtraction.model_validate(doc["extraction"])
-    except Exception as e:
-        return [f"스키마 오류: {e}"] + errors, warnings
-    art = articles.get(stem)
-    if art is None:
-        return errors + ["원본 기사를 찾을 수 없음 (data/raw/vogue_kr)"], warnings
-    text_by_idx = {b["idx"]: b.get("text", "") for b in art["blocks"] if b["type"] != "image"}
-
-    def check_quote(where, block_idx, quote):
-        text = text_by_idx.get(block_idx)
-        if text is None:
-            errors.append(f"{where}: block_idx {block_idx}에 문단이 없음")
-        elif squash(quote) not in squash(text):
-            errors.append(f"{where}: quote가 block {block_idx}에 없음: {quote[:40]}")
-
-    for s in ext_.styles:
-        for e in s.evidence:
-            check_quote(f"Style[{s.name}].evidence", e.block_idx, e.quote)
-        for d in s.description:
-            for e in d.evidence:
-                check_quote(f"Style[{s.name}].description", e.block_idx, e.quote)
-        for f in s.focus_attributes:
-            for e in f.evidence:
-                check_quote(f"Style[{s.name}].focus[{f.attribute.value}]", e.block_idx, e.quote)
-        for it in s.items:
-            if not it.evidence:
-                errors.append(f"Item[{it.name}]: evidence 없음")
-            for e in it.evidence:
-                check_quote(f"Item[{it.name}].evidence", e.block_idx, e.quote)
-            ev_text = squash("".join(text_by_idx.get(e.block_idx, "") for e in it.evidence))
-            raws = [it.category_raw, it.fit_raw, it.shape_raw, it.length_body_raw, it.length_sleeve_raw, it.styling_raw, it.styling_accessory]
-            raws += [c.raw for c in it.colors] + [m.raw for m in it.materials] + [p.raw for p in it.patterns] + [d.raw for d in it.details]
-            for r in raws:
-                if r and squash(r) not in ev_text:
-                    warnings.append(f"Item[{it.name}]: raw '{r}'가 근거 문단에 없음 (지시 표현이면 notes에 적을 것)")
-    return errors, warnings
-
-
 def meta(**kw):
     m = {"article_id": "000001", "url": "u", "title": "t", "status": "silver", "labeler": "x", "reviewer": None,
-         "guideline_version": "0.3-draft", "labeled_at": "2026-11-08", "notes": []}
+         "labeled_at": "2026-11-08", "notes": []}
     m.update(kw)
     return m
 
@@ -132,16 +76,30 @@ def test_check_raws_reports_v3_warnings():
     ]
 
 
-@pytest.mark.parametrize("doc", [
-    {"label_meta": meta(), "extraction": GOOD},
-    {"label_meta": meta(), "extraction": BAD},
-    {"label_meta": meta(status="draft", guideline_version="0.2-draft"), "extraction": BAD},
-    {"label_meta": {"article_id": "000001"}, "extraction": GOOD},
-    {"label_meta": meta(), "extraction": {"article_id": "000001", "styles": [{"name": "x"}]}},  # 스키마 오류
-])
-def test_validate_output_unchanged_after_refactor(tmp_path, doc):
+def _validate(tmp_path, doc, arts):
     p = tmp_path / "000001.json"
     p.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    arts = {"000001": ART}
-    assert vl.validate(p, arts, "0.3-draft") == legacy_validate(doc, arts, "0.3-draft", "000001")
-    assert vl.validate(p, {}, None) == legacy_validate(doc, {}, None, "000001")  # 원본 기사 없음 경로
+    return vl.validate(p, arts)
+
+
+def test_validate_clean_label(tmp_path):
+    assert _validate(tmp_path, {"label_meta": meta(), "extraction": GOOD}, {"000001": ART}) == ([], [])
+
+
+def test_validate_reports_quotes_missing_evidence_and_raws(tmp_path):
+    e = ArticleExtraction.model_validate(BAD)
+    errors, warnings = _validate(tmp_path, {"label_meta": meta(), "extraction": BAD}, {"000001": ART})
+    assert set(vl.check_quotes(e, vl.text_blocks(ART))) <= set(errors)
+    assert "Item[근거 없음]: evidence 없음" in errors       # 라벨 검증에만 있는 규칙
+    assert warnings == vl.check_raws(e, vl.text_blocks(ART))
+
+
+def test_validate_meta_status_schema_and_missing_article(tmp_path):
+    errors, _ = _validate(tmp_path, {"label_meta": meta(status="draft"), "extraction": GOOD}, {"000001": ART})
+    assert errors == ["status가 silver|gold가 아님: draft"]
+    errors, _ = _validate(tmp_path, {"label_meta": {"article_id": "000001"}, "extraction": GOOD}, {"000001": ART})
+    assert [e for e in errors if e.startswith("label_meta.")] == [f"label_meta.{f} 없음" for f in vl.META_FIELDS if f != "article_id"]
+    errors, _ = _validate(tmp_path, {"label_meta": meta(), "extraction": {"article_id": "000001", "styles": [{"name": "x"}]}}, {})
+    assert errors[0].startswith("스키마 오류")
+    errors, _ = _validate(tmp_path, {"label_meta": meta(), "extraction": GOOD}, {})
+    assert errors == ["원본 기사를 찾을 수 없음 (data/raw)"]

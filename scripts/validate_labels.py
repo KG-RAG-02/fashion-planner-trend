@@ -5,7 +5,6 @@
   2. `extraction`이 ArticleExtraction 스키마를 통과하는가 (구조·허용 값·핵심 속성 규칙)
   3. 모든 evidence의 quote가 해당 block_idx 문단에 실제로 있는가 (공백을 뺀 부분 문자열)
   4. 모든 *_raw 값이 그 Item의 근거 문단 안에 있는가 (경고)
-  5. guideline_version이 매니페스트와 같은가 (경고)
 
 실행:  python scripts/validate_labels.py [article_id ...]
 """
@@ -16,17 +15,14 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from fashion_planner_trend.schemas.article_extraction import ArticleExtraction  # noqa: E402
 
 LABELS = ROOT / "data" / "labels"
-MANIFEST = LABELS / "manifest.yaml"
 RAW = ROOT / "data" / "raw"
-META_FIELDS = ("article_id", "url", "title", "status", "labeler", "reviewer", "guideline_version", "labeled_at", "notes")
+META_FIELDS = ("article_id", "url", "title", "status", "labeler", "reviewer", "labeled_at", "notes")
 
 
 def squash(s: str) -> str:
@@ -40,11 +36,6 @@ def load_articles() -> dict[str, dict]:
             r = json.loads(line)
             rows.setdefault(r["article_id"], r)
     return rows
-
-
-def manifest_version() -> str | None:
-    text = MANIFEST.read_text(encoding="utf-8")
-    return yaml.safe_load(text[text.index("guideline_version"):]).get("guideline_version")
 
 
 def text_blocks(article: dict) -> dict[int, str]:
@@ -102,7 +93,7 @@ def check_raws(ext: ArticleExtraction, text_by_idx: dict[int, str]) -> list[str]
     return warnings
 
 
-def validate(path: Path, articles: dict[str, dict], version: str | None) -> tuple[list[str], list[str]]:
+def validate(path: Path, articles: dict[str, dict]) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
     doc = json.loads(path.read_text(encoding="utf-8"))
@@ -114,15 +105,13 @@ def validate(path: Path, articles: dict[str, dict], version: str | None) -> tupl
         errors.append(f"status가 silver|gold가 아님: {meta.get('status')}")
     if meta.get("article_id") != path.stem:
         errors.append("파일 이름과 label_meta.article_id가 다름")
-    if version and meta.get("guideline_version") != version:
-        warnings.append(f"guideline_version {meta.get('guideline_version')} != manifest {version}")
     try:
         ext = ArticleExtraction.model_validate(doc["extraction"])
     except Exception as e:  # pydantic ValidationError
         return [f"스키마 오류: {e}"] + errors, warnings
     art = articles.get(path.stem)
     if art is None:
-        return errors + ["원본 기사를 찾을 수 없음 (data/raw/vogue_kr)"], warnings
+        return errors + ["원본 기사를 찾을 수 없음 (data/raw)"], warnings
     text_by_idx = text_blocks(art)
     errors += _quote_errors(ext, text_by_idx, require_item_evidence=True)
     warnings += check_raws(ext, text_by_idx)
@@ -134,10 +123,10 @@ def main() -> int:
     if not ids:
         print("라벨 파일이 없습니다.")
         return 0
-    articles, version = load_articles(), manifest_version()
+    articles = load_articles()
     bad = 0
     for i in ids:
-        errs, warns = validate(LABELS / f"{i}.json", articles, version)
+        errs, warns = validate(LABELS / f"{i}.json", articles)
         status = "OK" if not errs else "FAIL"
         print(f"{i}: {status} (errors {len(errs)}, warnings {len(warns)})")
         for e in errs:

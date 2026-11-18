@@ -458,7 +458,7 @@ def test_v2_v3_equivalent_to_validate_labels(tmp_path):
              "extraction": pdoc}
     path = tmp_path / "t-001.json"
     path.write_text(json.dumps(label, ensure_ascii=False), encoding="utf-8")
-    l_err, l_warn = vl.validate(path, {"t-001": ARTICLE}, None)
+    l_err, l_warn = vl.validate(path, {"t-001": ARTICLE})
     ext = ArticleExtraction.model_validate(pdoc)
     rep = validate_extraction(ext, ARTICLE)
     assert len([e for e in l_err if "quote" in e]) == rep.counts.get("V2", 0) == 1
