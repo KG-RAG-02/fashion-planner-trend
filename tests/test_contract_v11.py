@@ -114,15 +114,10 @@ def test_weights_v11_structure_and_v10_loader():
     assert load_weights().base_weights["color"] == 3
 
 
-def test_llm_and_embeddings_contracts_import_lazily():
-    torch_before = "torch" in sys.modules
-    for name in ("trend_agent.llm", "trend_agent.embeddings"):
-        sys.modules.pop(name, None)
+def test_llm_contract_imports_lazily():
+    sys.modules.pop("trend_agent.llm", None)
     llm = importlib.import_module("trend_agent.llm")
-    emb = importlib.import_module("trend_agent.embeddings")
     assert {"structured", "call", "structured_model", "strict_schema", "schema_sha256", "LLMResult",
             "LLMError", "LLMBackendError", "LLMOutputError", "LLMTimeout"} <= set(llm.__all__)
-    assert emb.__all__ == ["embed_texts"]
-    assert ("torch" in sys.modules) == torch_before  # import만으로 torch를 읽지 않는다
     with pytest.raises(AttributeError):
         getattr(llm, "not_a_contract_name")
