@@ -1,9 +1,25 @@
-"""D-45 크롤러 증분: 날짜 하한·이미 받은 기사 건너뛰기·합친 풀(기존 줄 그대로). 네트워크 없이 합성 목록으로 확인한다."""
+"""크롤러: 날짜 하한·이미 받은 기사 건너뛰기·합친 풀(기존 줄 그대로)·robots.txt 준수. 네트워크 없이 합성 입력으로 확인한다."""
 import json
+from urllib.robotparser import RobotFileParser
 
 import pytest
+import requests
 
 from trend_agent.ingestion.crawler import vogue_kr as V
+
+REAL_ROBOTS_PARSER = V.robots_parser  # autouse fixture가 바꾸기 전의 실제 함수
+
+
+def _robots(*lines):
+    rp = RobotFileParser(V.ROBOTS_URL)
+    rp.parse(list(lines))
+    return rp
+
+
+@pytest.fixture(autouse=True)
+def _no_network_robots(monkeypatch):
+    """기본은 모두 허용하는 robots.txt. 실제 사이트에는 요청하지 않는다."""
+    monkeypatch.setattr(V, "robots_parser", lambda: _robots("User-agent: *", "Allow: /"))
 
 
 class FakeResp:
@@ -40,7 +56,7 @@ def test_since_stops_after_two_old_pages_and_keeps_slightly_unordered(monkeypatc
 
 
 def test_crawl_skips_existing_ids(monkeypatch):
-    monkeypatch.setattr(V, "fetch_article_list", lambda limit, delay, since=None: [post(1, "2026.11.10"), post(2, "2026.11.09")])
+    monkeypatch.setattr(V, "fetch_article_list", lambda limit, delay, since=None, robots=None: [post(1, "2026.11.10"), post(2, "2026.11.09")])
     fetched = []
 
     def fake_get(url, **kw):
@@ -82,3 +98,46 @@ def test_existing_ids_ignores_error_records(tmp_path):
 @pytest.mark.parametrize("raw,expected", [("2026.11.06", "2026-11-06"), ("", ""), (None, "")])
 def test_list_date(raw, expected):
     assert V.list_date({"post_date": raw}) == expected
+
+
+def test_user_agent_identifies_the_project_not_a_browser():
+    assert V.HEADERS["User-Agent"] == V.USER_AGENT
+    assert V.USER_AGENT.startswith("fashion-planner-trend/") and V.PROJECT_URL in V.USER_AGENT
+    assert "Mozilla" not in V.USER_AGENT and "Chrome" not in V.USER_AGENT
+
+
+def test_robots_disallow_stops_before_any_request(monkeypatch):
+    calls = []
+    monkeypatch.setattr(V, "_request", lambda *a, **kw: calls.append(a) or FakeResp({"current_posts": []}))
+    with pytest.raises(V.RobotsDisallowed):
+        V.fetch_article_list(None, 0, robots=_robots("User-agent: *", "Disallow: /wp-admin/"))
+    assert calls == []
+
+
+def test_robots_disallowed_article_stops_crawl(monkeypatch):
+    monkeypatch.setattr(V, "fetch_article_list", lambda limit, delay, since=None, robots=None: [post(1, "2026.11.10")])
+    monkeypatch.setattr(V, "_get", lambda url, **kw: pytest.fail("금지된 주소를 요청했다"))
+    with pytest.raises(V.RobotsDisallowed):
+        V.crawl(None, 0, robots=_robots("User-agent: fashion-planner-trend", "Disallow: /x/"))
+
+
+class _Status:
+    def __init__(self, code, text=""):
+        self.status_code, self.text = code, text
+
+
+@pytest.mark.parametrize("response,allowed", [
+    (_Status(200, "User-agent: *\nDisallow: /private/"), True),   # 규칙에 걸리지 않는 주소
+    (_Status(404), True),                                          # robots.txt 없음 → 모두 허용
+    (_Status(503), False),                                         # 서버 오류 → 확인 불가, 모두 금지
+    (requests.ConnectionError("offline"), False),                  # 네트워크 오류 → 모두 금지
+])
+def test_robots_parser_status_handling(monkeypatch, response, allowed):
+    def fake_get(url, **kw):
+        assert url == V.ROBOTS_URL and kw["headers"]["User-Agent"] == V.USER_AGENT
+        if isinstance(response, Exception):
+            raise response
+        return response
+    monkeypatch.setattr(V.requests, "get", fake_get)
+    rp = REAL_ROBOTS_PARSER()
+    assert rp.can_fetch(V.USER_AGENT, f"{V.BASE_URL}/x/1/") is allowed

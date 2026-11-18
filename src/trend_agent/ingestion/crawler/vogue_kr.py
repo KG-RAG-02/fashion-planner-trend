@@ -1,9 +1,14 @@
-"""Vogue Korea 패션 트렌드 기사 크롤러 (타당성 검증용).
+"""Vogue Korea 패션 트렌드 기사 크롤러 (교육·연구용 예시 코드).
 
 - 목록: WordPress admin-ajax(`get_posts_custom_v2`)로 페이지 단위 조회
 - 기사: HTML 파싱 (메타태그 + `div.contt` 본문 + figure/figcaption)
 - 이미지는 파일을 받지 않고 URL과 캡션만 저장한다.
 - 시즌·컬렉션 정보는 원문에 명시된 표현만 수집하고, 없으면 비워 둔다.
+
+수집 예절: 이 프로젝트를 밝히는 User-Agent를 쓰고, 요청 전에 robots.txt를 그 User-Agent로 확인해 금지된 URL이면
+멈춘다(`RobotsDisallowed`). 요청 사이에는 대기하고 기본 수집 수는 작다.
+주의: 작성자들은 사이트 이용약관을 검토하지 않았다. 수집한 기사는 저작권이 발행처에 있으므로 재배포하지 않는다.
+실행과 그 결과에 대한 책임은 실행한 사람에게 있다.
 """
 from __future__ import annotations
 
@@ -12,6 +17,7 @@ import re
 import time
 from datetime import datetime, timezone
 from urllib.parse import unquote, urljoin
+from urllib.robotparser import RobotFileParser
 
 import requests
 from bs4 import BeautifulSoup
@@ -19,12 +25,15 @@ from bs4 import BeautifulSoup
 BASE_URL = "https://www.vogue.co.kr"
 LIST_URL = f"{BASE_URL}/fashion/fashion-trend/"
 AJAX_URL = f"{BASE_URL}/wp-admin/admin-ajax.php"
+ROBOTS_URL = f"{BASE_URL}/robots.txt"
+PROJECT_URL = "https://github.com/KG-RAG-02/fashion-planner-trend"
+USER_AGENT = f"fashion-planner-trend/1.0 (+{PROJECT_URL})"  # 브라우저로 위장하지 않는다
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "User-Agent": USER_AGENT,
     "Accept-Language": "ko-KR,ko;q=0.9",
     "Referer": LIST_URL,
 }
+DEFAULT_LIMIT = 5  # --limit·--since를 주지 않을 때 받는 기사 수
 
 # 목록 AJAX 파라미터 (목록 페이지의 인라인 스크립트에서 확인한 값)
 LIST_PARAMS = {
@@ -69,18 +78,52 @@ def _get(url: str, **kwargs) -> requests.Response:
     return _request("GET", url, **kwargs)
 
 
+class RobotsDisallowed(RuntimeError):
+    """robots.txt가 이 크롤러의 User-Agent에 금지한 URL이다. 수집을 멈춘다."""
+
+
+def robots_parser() -> RobotFileParser:
+    """robots.txt를 이 크롤러의 User-Agent로 받아 해석한다.
+
+    없거나 4xx면 모두 허용(robots 규약), 5xx·네트워크 오류면 확인할 수 없으므로 모두 금지로 본다.
+    표준 라이브러리 `RobotFileParser`는 먼저 나온 규칙을 따른다. 그래서 Disallow 뒤에 더 구체적인 Allow가 오는
+    파일은 보수적으로(막힌 쪽으로) 해석될 수 있다.
+    """
+    rp = RobotFileParser(ROBOTS_URL)
+    try:
+        resp = requests.get(ROBOTS_URL, headers=HEADERS, timeout=20)
+    except requests.RequestException:
+        rp.disallow_all = True
+        return rp
+    if resp.status_code >= 500:
+        rp.disallow_all = True
+    elif resp.status_code >= 400:
+        rp.allow_all = True
+    else:
+        rp.parse(resp.text.splitlines())
+    return rp
+
+
+def check_robots(url: str, robots: RobotFileParser) -> None:
+    if not robots.can_fetch(USER_AGENT, url):
+        raise RobotsDisallowed(f"robots.txt가 이 User-Agent의 접근을 막는다: {url}")
+
+
 def list_date(item: dict) -> str:
     """목록 항목의 post_date('2026.11.06') → '2026-11-06'. 없으면 ''."""
     return (item.get("post_date") or "").strip().replace(".", "-")
 
 
-def fetch_article_list(limit: int | None = 20, delay: float = 1.0, since: str | None = None,
-                       max_pages: int = 200) -> list[dict]:
+def fetch_article_list(limit: int | None = DEFAULT_LIMIT, delay: float = 1.0, since: str | None = None,
+                       max_pages: int = 200, robots: RobotFileParser | None = None) -> list[dict]:
     """목록 AJAX를 페이지 단위로 호출해 기사 메타(post_id, permalink, title, date 등)를 반환한다.
 
     limit: 최대 개수(None = 제한 없음). since: 'YYYY-MM-DD' — 이 날짜 이상인 기사만 남긴다(D-45).
     목록은 대체로 최신순이지만 조금 섞여 있어, 한 페이지 전체가 since보다 오래되면 한 페이지 더 보고 멈춘다.
+    robots: 미리 읽은 robots.txt(없으면 여기서 받는다). 목록 주소가 금지면 `RobotsDisallowed`.
     """
+    robots = robots or robots_parser()
+    check_robots(AJAX_URL, robots)
     items: list[dict] = []
     page, old_pages = 1, 0
     while (limit is None or len(items) < limit) and page <= max_pages:
@@ -386,16 +429,19 @@ def existing_ids(paths: list[str]) -> set[str]:
     return ids
 
 
-def crawl(limit: int | None = 20, delay: float = 1.0, since: str | None = None,
-          skip_ids: set[str] | None = None) -> list[dict]:
+def crawl(limit: int | None = DEFAULT_LIMIT, delay: float = 1.0, since: str | None = None,
+          skip_ids: set[str] | None = None, robots: RobotFileParser | None = None) -> list[dict]:
     """목록 수집 → 기사별 파싱. 개별 기사 실패는 error 필드로 기록하고 계속 진행한다.
-    skip_ids에 있는 post_id(= article_id)는 받지 않는다(D-45)."""
-    listing = fetch_article_list(limit, delay, since=since)
+    skip_ids에 있는 post_id(= article_id)는 받지 않는다(D-45).
+    robots.txt가 막는 주소를 만나면 기록하지 않고 `RobotsDisallowed`로 멈춘다."""
+    robots = robots or robots_parser()
+    listing = fetch_article_list(limit, delay, since=since, robots=robots)
     skip_ids = skip_ids or set()
     listing = [it for it in listing if str(it.get("post_id")) not in skip_ids]
     records = []
     for item in listing:
         url = urljoin(BASE_URL, item["permalink"])
+        check_robots(url, robots)
         try:
             resp = _get(url)
             rec = parse_article(resp.content.decode("utf-8"), resp.url)
