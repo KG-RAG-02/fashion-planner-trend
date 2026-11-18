@@ -83,7 +83,7 @@ def call_api(searcher, body, path=ROUTE, token="test-agent-token"):
         req = Request(f"http://127.0.0.1:{server.server_address[1]}{path}", data=data,
                       headers=headers, method="POST")
         try:
-            with patch.dict(os.environ, {"VOGUE_AGENT_SERVICE_BEARER_TOKEN": "test-agent-token"}):
+            with patch.dict(os.environ, {"FASHION_PLANNER_SERVICE_TOKEN": "test-agent-token"}):
                 with urlopen(req, timeout=2) as response:
                     return response.status, json.loads(response.read())
         except HTTPError as exc:
@@ -109,9 +109,9 @@ def test_success_response_preserves_result_and_envelope():
     result = TrendAnalysisResult(request_id=query.request_id, status="ok", limitations=["synthetic test"])
     status, response = call_api(FakeSearcher(result), request_payload())
     assert status == 200
-    assert response["contract_version"] == "vogue-handoff/0.1"
+    assert response["contract_version"] == "trend-handoff"
     assert response["request_id"] == result.request_id
-    assert response["producer"] == {"agent_id": "trend-analysis-agent", "schema_version": "1.1"}
+    assert response["producer"] == {"agent_id": "trend", "schema_version": "1.0.0"}
     assert response["status"] == response["result"]["status"] == "ok"
     assert response["result"] == result.model_dump(mode="json")
 

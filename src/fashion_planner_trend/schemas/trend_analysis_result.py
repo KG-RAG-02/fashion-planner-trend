@@ -25,7 +25,7 @@ from .vocabulary import (
     SleeveLength,
 )
 
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.0.0"
 
 
 def evidence_id(article_id: str, block_idx: int, quote: str) -> str:

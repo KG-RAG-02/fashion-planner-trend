@@ -32,7 +32,7 @@ def call(searcher, body=b'{}', token='synthetic', length=None, path=ROUTE, env=N
     handler.rfile = BytesIO(body)
     output = []
     handler._send_json = lambda status, value: output.append((status, value))
-    with patch('fashion_planner_trend.api.server.load_env', return_value=env if env is not None else {'VOGUE_AGENT_SERVICE_BEARER_TOKEN': 'synthetic'}):
+    with patch('fashion_planner_trend.api.server.load_env', return_value=env if env is not None else {'FASHION_PLANNER_SERVICE_TOKEN': 'synthetic'}):
         handler.do_POST()
     return output[0], handler.rfile.tell()
 
@@ -44,7 +44,7 @@ def test_unauthenticated_request_does_not_read_body_or_search(token):
     assert status == 401 and read == 0 and searcher.calls == 0
 
 
-@pytest.mark.parametrize('env', [{}, {'VOGUE_AGENT_SERVICE_BEARER_TOKEN': ''}])
+@pytest.mark.parametrize('env', [{}, {'FASHION_PLANNER_SERVICE_TOKEN': ''}])
 def test_unconfigured_auth_fails_closed(env):
     searcher = Searcher()
     (status, _), read = call(searcher, env=env)
@@ -67,7 +67,7 @@ def test_authorized_malformed_is_rejected_before_search(body, length, code):
 
 
 def test_env_only_token_authorizes_malformed_without_inference(tmp_path):
-    with patch.dict(os.environ, {'VOGUE_AGENT_SERVICE_BEARER_TOKEN': 'synthetic'}, clear=True):
+    with patch.dict(os.environ, {'FASHION_PLANNER_SERVICE_TOKEN': 'synthetic'}, clear=True):
         env = load_env(tmp_path / 'absent.env')
     searcher = Searcher()
     (status, _), _ = call(searcher, env=env)
@@ -82,7 +82,7 @@ def test_producer_status_limitations_schema_and_id_preserved(status):
     assert http_status == 200 and searcher.calls == 1
     assert value['status'] == value['result']['status'] == status
     assert value['request_id'] == value['result']['request_id'] == payload['request_id']
-    assert value['producer']['schema_version'] == value['result']['schema_version'] == '1.1'
+    assert value['producer']['schema_version'] == value['result']['schema_version'] == '1.0.0'
     assert value['result']['limitations'] == ['synthetic; no live graph observation']
     assert value['result']['trends'] == []
     assert not any(k in value['result'] for k in ('stock', 'quantity', 'errors'))

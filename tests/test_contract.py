@@ -97,7 +97,7 @@ def test_evidence_id_is_stable_and_formatted():
 
 def test_result_defaults_and_closed_status():
     r = TrendAnalysisResult.model_validate({"request_id": "r", "status": "ok", "trends": [], "evidence": [], "limitations": []})
-    assert r.schema_version == SCHEMA_VERSION == "1.1"
+    assert r.schema_version == SCHEMA_VERSION == "1.0.0"
     for status in ("ok", "no_results", "error"):
         assert TrendAnalysisResult(request_id="r", status=status).status == status
     with pytest.raises(ValidationError):  # partial은 이 계약에 없다

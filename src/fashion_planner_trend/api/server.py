@@ -1,4 +1,4 @@
-"""Trend v0.1 handoff API: local loopback or explicit authenticated service bind."""
+"""Trend handoff API (trend-handoff): local loopback or explicit authenticated service bind."""
 from __future__ import annotations
 
 import argparse
@@ -21,8 +21,8 @@ from fashion_planner_trend.graph.search import TrendSearcher  # noqa: E402
 from fashion_planner_trend.schemas.trend_analysis_result import SCHEMA_VERSION  # noqa: E402
 from fashion_planner_trend.schemas.trend_query import TrendQuery  # noqa: E402
 
-CONTRACT_VERSION = "vogue-handoff/0.1"
-AGENT_ID = "trend-analysis-agent"
+CONTRACT_VERSION = "trend-handoff"
+AGENT_ID = "trend"
 ROUTE = f"/v1/agents/{AGENT_ID}/runs"
 MAX_BODY_BYTES = 1_000_000
 
@@ -59,7 +59,7 @@ def _validate_request(value: Any) -> tuple[str, TrendQuery]:
 
 def build_handler(searcher: TrendSearcher):
     class TrendHandler(BaseHTTPRequestHandler):
-        server_version = "TrendAnalysisAgent/0.1"
+        server_version = "FashionPlannerTrend/1.0.0"
 
         def log_message(self, fmt: str, *args: object) -> None:
             # Keep query bodies, headers, and environment configuration out of logs.
@@ -82,7 +82,7 @@ def build_handler(searcher: TrendSearcher):
                 self._send_json(404, {"error": {"code": "not_found", "message": "Route not found."}})
 
         def _authorized(self) -> bool:
-            expected = load_env().get("VOGUE_AGENT_SERVICE_BEARER_TOKEN", "")
+            expected = load_env().get("FASHION_PLANNER_SERVICE_TOKEN", "")
             authorization = self.headers.get("Authorization", "")
             supplied = authorization[7:].strip() if authorization.startswith("Bearer ") else ""
             return bool(expected and supplied) and hmac.compare_digest(supplied, expected)

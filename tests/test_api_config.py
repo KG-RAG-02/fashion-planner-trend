@@ -7,7 +7,7 @@ import pytest
 from fashion_planner_trend.config import ApiSettings, api_settings, load_env
 from fashion_planner_trend.api import server
 
-KEYS = ('VOGUE_AGENT_SERVICE_BEARER_TOKEN', 'TREND_API_HOST', 'TREND_API_PORT', 'TREND_API_MODE')
+KEYS = ('FASHION_PLANNER_SERVICE_TOKEN', 'TREND_API_HOST', 'TREND_API_PORT', 'TREND_API_MODE')
 
 
 def test_env_only_service_keys_without_dotenv(tmp_path):
@@ -34,7 +34,7 @@ def test_process_overrides_dotenv_including_empty(tmp_path, value):
 
 def test_dotenv_only_values_and_missing_keys(tmp_path):
     dotenv = tmp_path / 'dotenv'
-    dotenv.write_text('# comment\nTREND_API_PORT="9876"\nVOGUE_AGENT_SERVICE_BEARER_TOKEN=\'synthetic\'\n')
+    dotenv.write_text('# comment\nTREND_API_PORT="9876"\nFASHION_PLANNER_SERVICE_TOKEN=\'synthetic\'\n')
     with patch.dict(os.environ, {}, clear=True):
         env = load_env(dotenv)
         assert load_env(tmp_path / 'absent') == {}
@@ -46,7 +46,7 @@ def test_dotenv_only_values_and_missing_keys(tmp_path):
 def test_empty_values_use_defaults_but_do_not_restore_token():
     env = {k: '' for k in KEYS}
     assert api_settings(env) == ApiSettings()
-    with pytest.raises(ValueError, match='requires VOGUE'):
+    with pytest.raises(ValueError, match='requires FASHION_PLANNER'):
         api_settings(env, mode='service', host='0.0.0.0')
 
 
@@ -64,13 +64,13 @@ def test_local_mode_rejects_nonloopback(host):
 @pytest.mark.parametrize('host', ['127.0.0.1', 'localhost', '::', '192.0.2.1'])
 def test_service_mode_requires_explicit_ipv4_wildcard(host):
     with pytest.raises(ValueError, match='explicit'):
-        api_settings({'VOGUE_AGENT_SERVICE_BEARER_TOKEN': 'synthetic'}, mode='service', host=host)
+        api_settings({'FASHION_PLANNER_SERVICE_TOKEN': 'synthetic'}, mode='service', host=host)
 
 
 @pytest.mark.parametrize('token', [None, '', '   '])
 def test_service_mode_requires_nonempty_token(token):
-    env = {} if token is None else {'VOGUE_AGENT_SERVICE_BEARER_TOKEN': token}
-    with pytest.raises(ValueError, match='requires VOGUE'):
+    env = {} if token is None else {'FASHION_PLANNER_SERVICE_TOKEN': token}
+    with pytest.raises(ValueError, match='requires FASHION_PLANNER'):
         api_settings(env, host='0.0.0.0', mode='service')
 
 
@@ -96,7 +96,7 @@ def test_rejected_service_settings_do_not_connect():
 def test_startup_uses_settings_and_closes_resources(host, mode, server_name):
     driver = Mock()
     http = Mock()
-    env = {'VOGUE_AGENT_SERVICE_BEARER_TOKEN': 'synthetic', 'TREND_API_HOST': host,
+    env = {'FASHION_PLANNER_SERVICE_TOKEN': 'synthetic', 'TREND_API_HOST': host,
            'TREND_API_MODE': mode, 'TREND_API_PORT': '9876'}
     with patch.object(server, 'load_env', return_value=env), patch.object(server, 'neo4j_driver', return_value=driver), patch.object(server, server_name, return_value=http) as factory:
         server.serve()

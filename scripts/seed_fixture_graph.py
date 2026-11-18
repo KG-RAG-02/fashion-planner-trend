@@ -2,7 +2,7 @@
 
 실행:  NEO4J_URI=bolt://127.0.0.1:7688 NEO4J_USER=neo4j NEO4J_PASSWORD=<로컬값> python scripts/seed_fixture_graph.py
        ... python scripts/seed_fixture_graph.py --allow-wipe   # 비어 있지 않은 그래프를 비우고 적재 (일회용 인스턴스만)
-       컨테이너: docker run --rm --read-only --tmpfs /tmp -e NEO4J_URI=bolt://neo4j-stub:7687 ... vogue/trend:dev \
+       컨테이너: docker run --rm --read-only --tmpfs /tmp -e NEO4J_URI=bolt://neo4j-stub:7687 ... fashion-planner/trend:dev \
                  python scripts/seed_fixture_graph.py
 데이터: src/fashion_planner_trend/graph/fixture.py — Neo4j 테스트 그래프 + 기사 900003 "발레코어"(합성, Vogue 원문 없음).
 확인:  적재 뒤 stub 질의(examples/stub/trend-request.json의 input)를 실행해 요약을 출력한다.

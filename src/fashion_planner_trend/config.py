@@ -9,7 +9,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SERVICE_ENV_KEYS = frozenset({
-    "VOGUE_AGENT_SERVICE_BEARER_TOKEN", "TREND_API_HOST", "TREND_API_PORT", "TREND_API_MODE",
+    "FASHION_PLANNER_SERVICE_TOKEN", "TREND_API_HOST", "TREND_API_PORT", "TREND_API_MODE",
 })
 
 
@@ -61,8 +61,8 @@ def api_settings(env: dict[str, str] | None = None, *, host: str | None = None,
             raise ValueError
     except (ValueError, TypeError):
         raise ValueError("TREND_API_PORT must be an integer between 1 and 65535.") from None
-    if selected_mode == "service" and not env.get("VOGUE_AGENT_SERVICE_BEARER_TOKEN", "").strip():
-        raise ValueError("Service mode requires VOGUE_AGENT_SERVICE_BEARER_TOKEN.")
+    if selected_mode == "service" and not env.get("FASHION_PLANNER_SERVICE_TOKEN", "").strip():
+        raise ValueError("Service mode requires FASHION_PLANNER_SERVICE_TOKEN.")
     return ApiSettings(selected_host, selected_port, selected_mode)
 
 

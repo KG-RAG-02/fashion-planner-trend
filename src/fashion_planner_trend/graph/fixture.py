@@ -85,7 +85,7 @@ def synthetic_products() -> list[ProductRecord]:
 
 
 # ---------- stub 그래프 ----------
-CONTRACT_VERSION = "vogue-handoff/0.1"
+CONTRACT_VERSION = "trend-handoff"
 STUB_ARTICLE_ID = "900003"
 STUB_REQUEST_ID = "stub-trend-001"
 # orchestrator의 합성 질의 구조화 모드가 위 질의로 만드는 TrendQuery와 같다 (request_id만 고정)
@@ -103,7 +103,7 @@ EVIDENCE_ID_RE = re.compile(r"^trend:[^:]+:\d+:[0-9a-f]{8}$")
 
 
 def stub_request() -> dict[str, Any]:
-    """examples/stub/trend-request.json: `vogue-handoff/0.1` envelope + `STUB_QUERY`."""
+    """examples/stub/trend-request.json: `trend-handoff` envelope + `STUB_QUERY`."""
     return {"contract_version": CONTRACT_VERSION, "request_id": STUB_REQUEST_ID, "input": copy.deepcopy(STUB_QUERY)}
 
 
