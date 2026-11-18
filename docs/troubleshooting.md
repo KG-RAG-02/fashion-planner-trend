@@ -21,14 +21,14 @@
 - **해결:** `.env`에 `NEO4J_PASSWORD`를 넣는다. Docker 메모리를 4 GB 이상으로 올리고 다른 컨테이너를 멈춘다.
 - **검증:** (나)이면 `docker inspect -f '{{.State.OOMKilled}}' <컨테이너>`가 `true`를 출력한다.
 - **교훈:** 로그가 깨끗한데 재시작이 반복되면 설정보다 메모리를 먼저 의심한다.
-- **커밋:** {{commit:e3c9e18}}
+- **커밋:** [`a465c2e`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/a465c2e967193d737600b0f9afec4306557b8599)
 
 ### T-DOCKER-02 비밀번호를 바꾼 뒤 인증이 실패한다
 - **증상:** `.env`가 맞는데 `scripts/check_neo4j.py`가 인증 오류로 실패한다.
 - **원인:** 데이터 볼륨은 처음 만들 때의 비밀번호를 기억한다.
 - **해결:** 예전 비밀번호를 쓰거나, 볼륨을 지우고(`docker compose down -v`, 로컬 그래프가 지워진다) 다시 시작한다.
 - **교훈:** 상태가 있는 컨테이너의 자격 증명은 compose 파일이 아니라 볼륨에 산다.
-- **커밋:** {{commit:e3c9e18}}
+- **커밋:** [`a465c2e`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/a465c2e967193d737600b0f9afec4306557b8599)
 
 ### T-DOCKER-03 읽기 전용 루트 파일시스템에서 API 이미지가 뜨지 않는다
 - **증상:** 통합 배포에서 trend 컨테이너가 시작되지 않았다. 배포 환경은 모든 앱 컨테이너를 uid/gid 10001과
@@ -39,7 +39,7 @@
 - **검증:** 컨테이너 안에서 `id`가 uid 10001을 출력한다. `--read-only --tmpfs /tmp`로 실행하면 service 모드는
   토큰이 없거나 Neo4j에 닿지 않을 때만 실패한다.
 - **교훈:** 이미지는 처음부터 가장 엄격한 실행 환경에 맞춰 만든다. 나중에 맞추면 숨은 쓰기가 드러난다.
-- **커밋:** {{commit:ef9de46}}
+- **커밋:** [`c73f177`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/c73f177547890e94d4dd68d9ec3d83311b55094a)
 
 ## Neo4j
 
@@ -52,7 +52,7 @@
   함수 하나로 드라이버를 연다.
 - **검증:** `tests/test_config_neo4j_driver.py`가 scheme마다 변환을 확인한다.
 - **교훈:** DB 연결은 한 곳에서만 열어야 전송 계층 수정이 모든 곳에 적용된다.
-- **커밋:** {{commit:140f527}}, API 서버 적용은 {{commit:a2df23e}}
+- **커밋:** [`7b4d2d8`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/7b4d2d8ec0152b3aa6c04d3cc5f08e04284ce597), API 서버 적용은 [`538ccdb`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/538ccdb1804168d61df2b4f30343fcf2bf8745f6)
 
 ### T-NEO4J-02 테스트가 호스팅 그래프를 지울 수 있었다
 - **증상:** Neo4j 테스트 fixture는 실행 전에 그래프를 비운다.
@@ -60,7 +60,7 @@
 - **해결:** 테스트는 `NEO4J_TEST_URI`만 쓰고, 이 값은 로컬 주소여야 하며 `NEO4J_URI`와 달라야 한다. stub 적재
   스크립트는 `*.neo4j.io` 주소와, `--allow-wipe` 없이 비어 있지 않은 그래프를 거부한다.
 - **교훈:** 지우는 도구는 막을 대상을 나열하지 말고 허용할 대상만 나열한다.
-- **커밋:** {{commit:140f527}}
+- **커밋:** [`7b4d2d8`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/7b4d2d8ec0152b3aa6c04d3cc5f08e04284ce597)
 
 ## LLM과 추출
 
@@ -70,7 +70,7 @@
 - **해결:** `filelock.py`가 POSIX에서는 `fcntl`, Windows에서는 `msvcrt`를 `file_lock()` 하나로 감싼다.
 - **검증:** `tests/test_filelock.py`.
 - **교훈:** 팀이 쓰는 모든 OS에서 테스트를 돌린 뒤에 완료라고 한다.
-- **커밋:** {{commit:d470631}}
+- **커밋:** [`397826b`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/397826bb63d9fc68d47c3f85594e13fbae0d9b4d)
 
 ### T-LLM-02 LLM 백엔드가 둘이라 결과가 달랐다
 - **증상:** 로컬 CLI 에이전트를 쓰는지 API를 쓰는지에 따라 결과가 달랐고, CLI 쪽은 재현이 어려웠다.
@@ -78,7 +78,7 @@
 - **해결:** 백엔드를 하나(엄격한 JSON 스키마를 쓰는 OpenAI API)로 줄였다. 모델 이름은 코드가 아니라 설정에서만
   받는다.
 - **교훈:** 운영 경로의 백엔드는 하나여야 한다. 라벨 작성 도구는 파이프라인과 분리한다.
-- **커밋:** {{commit:d470631}}
+- **커밋:** [`397826b`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/397826bb63d9fc68d47c3f85594e13fbae0d9b4d)
 
 ### T-EXTRACT-01 자리표시자 같은 Style 이름이 검증을 통과했다
 - **증상:** 추론 모델이 `DUMMY-END`, `PLACEHOLDER_REMOVEME` 같은 Style 이름을 냈는데 기사가 검증을 통과했다.
@@ -87,7 +87,7 @@
   기호 무시)을 기사에 그 말이 없으면 오류로 본다. 그 기사는 재시도한 뒤 검토 폴더로 간다.
 - **검증:** 저장된 응답을 다시 검증하면 이제 `_review/`로 간다(API를 새로 부르지 않음).
 - **교훈:** 스키마를 통과했다고 의미가 맞는 것은 아니다. 내용을 원문과 대조해 검증한다.
-- **커밋:** {{commit:9fcc127}}
+- **커밋:** [`6d86690`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/6d8669011b0e66211f9e74833c4910250437cf98)
 
 ### T-EXTRACT-02 이름에 표지어와 따옴표가 섞였다
 - **증상:** 이름이 *X* 대신 *이른바 'X'*로 나왔다.
@@ -95,7 +95,7 @@
 - **해결:** 후처리 P2가 이름 앞의 표지어와 감싼 따옴표를 뗀다. 단 남은 이름이 기사에 있고(2글자 이상) 같은
   기사의 다른 Style 이름과 겹치지 않을 때만 고친다. 겹치면 고치지 않고 메모(N3)만 남긴다.
 - **교훈:** 모델 출력은 원문으로 확인할 수 있을 때만 코드로 고치고, 고친 내용은 모두 기록한다.
-- **커밋:** {{commit:9fcc127}}
+- **커밋:** [`6d86690`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/6d8669011b0e66211f9e74833c4910250437cf98)
 
 ### T-EXTRACT-03 프롬프트가 같은데 해시가 달라졌다
 - **증상:** 같은 프롬프트로 한 실험 기록의 템플릿 해시가 서로 달랐다.
@@ -111,7 +111,7 @@
   `--merged-out`을 두어 새 기사만 더하고, 기존 레코드는 바이트 그대로 복사한다. 범위는 목록 날짜가 아니라 기사
   발행일로 정한다(고친 옛 기사가 목록에서는 새 기사처럼 보인다).
 - **교훈:** 근거 포인터는 그것이 가리키는 스냅숏만큼만 안정적이다. 스냅숏을 고정한다.
-- **커밋:** {{commit:741860c}}
+- **커밋:** [`d2206cc`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/d2206cc0b96896c79712eadf36f7681a3d47eee4)
 
 ### T-EXTRACT-05 캐시와 검증 단계가 서로 다르다
 - **증상:** JSON 스키마는 통과했지만 그 뒤 검증에서 걸린 응답이 다음 실행에서 캐시로 다시 나왔다.
@@ -130,7 +130,7 @@
   Hugging Face 캐시에 받는다.
 - **검증:** 캐시를 채운 뒤에는 깨끗한 체크아웃에서 두 상품 빌드가 오프라인으로 돌았다.
 - **교훈:** 깨끗한 clone과 문서에 적힌 다운로드만으로 모든 스크립트가 돌아야 한다.
-- **커밋:** {{commit:83d9118}}
+- **커밋:** [`f0efe95`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/f0efe9577751ea50bafe3dbbbb7439171a241944)
 
 ### T-DATA-02 정규화 결과를 감사해서 찾은 버그
 - **증상:** 정규화한 상품의 카테고리와 속성이 틀렸다.
@@ -140,7 +140,7 @@
   더했다. 여러 벌 세트는 부모 이미지를 공유하는 구성품 상품으로 나눈다(`set_split.py`).
 - **검증:** 필드별 변경 전후 수치. 단위 테스트 125개를 새로 더했다.
 - **교훈:** 테스트할 수 있는 규칙으로 정규화하고, 표본이 아니라 결과 분포 전체를 감사한다.
-- **커밋:** {{commit:25fd2b9}}
+- **커밋:** [`1b39414`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/1b3941488a2dace78e8480fd1b74d13b062b3e40)
 
 ### T-DATA-03 사람이 검수한 데이터셋은 다시 만들 수 없다
 - **증상:** 공개한 빌드 스크립트로는 원래 그래프의 상품 데이터를 재현할 수 없다.
@@ -157,14 +157,14 @@
 - **해결:** 속성 노드(Color, Material, Pattern, Detail), 하분류, fit에서 출발하게 바꿨다. 이제 어떤
   `ItemRecord`로도 검색할 수 있고, 기존 Item의 후보 집합은 그대로다.
 - **검증:** 당시 라벨이 있는 Item 36개 모두에서 두 질의의 후보 집합이 같았다.
-- **커밋:** {{commit:c244d20}}
+- **커밋:** [`9226831`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/9226831979e501024982c69bfcfac36095651aef)
 
 ### T-SEARCH-02 빈 결과의 이유가 모두 같아 보였다
 - **증상:** "이름 없음", "시즌 불일치", "시즌 미확인"이 같은 문장으로 나왔다.
 - **해결:** 사유마다 `limitations` 문장을 따로 둔다. 근거 id를 안정적으로 바꿔(`trend:<article>:<block>:<sha8>`)
   같은 질의를 두 번 하면 `request_id`만 빼고 JSON이 같다.
 - **교훈:** 기획 도구에서는 이유가 있는 "없음"이 좋은 "있음"만큼 중요하다.
-- **커밋:** {{commit:c244d20}}
+- **커밋:** [`9226831`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/9226831979e501024982c69bfcfac36095651aef)
 
 ### T-SEARCH-03 시즌 질의에 보이지 않는 트렌드가 많다 (한계)
 - **증상:** 기사가 분명히 지금 유행이라고 한 트렌드가 시즌 질의에 나오지 않는다.
@@ -184,17 +184,17 @@
 - **원인:** 라벨을 숨긴 기사가 여전히 맥락으로 모델에 전달됐다.
 - **해결:** 숨긴 라벨의 출처 기사를 맥락에서 빼고, 맥락 해시를 캐시 키에 넣어 옛 캐시 답을 다시 쓰지 않게 했다.
 - **교훈:** 답을 숨길 때는 캐시를 포함해 답에 닿는 모든 경로를 막는다.
-- **커밋:** {{commit:7fc8c3f}}
+- **커밋:** [`3c3d77b`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/3c3d77b3bef2bf68a98d0e039700ce7ad666769b)
 
 ### T-EVAL-02 자동 추출 결과를 적재한 뒤 평가 풀이 무너졌다
 - **증상:** 검색 평가의 커버리지가 크게 떨어지고 판정 비용이 늘었다.
 - **원인:** 사람이 판정하지 않은 자동 추출 Item까지 풀에 들어갔다.
 - **해결:** 풀은 라벨이 있는 Item(dev·test 분할)으로 한정한다.
-- **커밋:** {{commit:3496855}}
+- **커밋:** [`8fe3fad`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/8fe3fad8915db02d2dffbeca01e1498e4047ddff)
 
 ### T-EVAL-03 같은 판정을 여러 번 했다
 - **해결:** (가상 트렌드, 맥락 해시)가 같은 프로필은 한 번만 판정한다.
-- **커밋:** {{commit:c4d7640}}
+- **커밋:** [`f68c804`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/f68c804109486c54dc7ddb09c2f00cada6de88c3)
 
 ## 진행 방식
 
@@ -203,11 +203,11 @@
   같은 날 되돌렸다.
 - **교훈:** 제3자 콘텐츠가 구워진 이미지는 곧 데이터 배포다. 데이터는 이미지 밖에 두고 사용자가 자기 그래프를
   만들게 한다. 그래서 공개 레포에는 합성 stub만 있다.
-- **커밋:** {{commit:1107696}}, 되돌림 {{commit:f1cf75c}}
+- **커밋:** [`93f027a`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/93f027aa7e7f653a932fb92ee2c58937853e690c), 되돌림 [`ab1df01`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/ab1df0142eb8ef9593b353144d29c13f6a99c940)
 
 ### T-PROC-02 결과 스키마를 하나 더 만들었다
 - **있었던 일:** 기존 결과 스키마 옆에 "근거를 보존하는" 트렌드 결과 모델을 따로 넣었다가 같은 날 오전에
   되돌렸다.
 - **교훈:** 계약은 하나를 넓히고 평행한 계약을 늘리지 않는다. 근거 보존은 나중에 기존 결과의 안정 근거 id로
   들어갔다.
-- **커밋:** {{commit:70a9589}}, 되돌림 {{commit:6d3465b}}
+- **커밋:** [`075e801`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/075e801566ce2d7ec248bc7e7e5a863709e40dc2), 되돌림 [`ff825c1`](https://github.com/KG-RAG-02/fashion-planner-trend/commit/ff825c19c3e14605f86739c7d4f6534fe7a700ea)
