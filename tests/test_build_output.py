@@ -20,7 +20,7 @@ def _symlink_supported(tmp_path) -> bool:
     return True
 
 
-def test_resolve_out_refuses_v1_and_symlinks(tmp_path):
+def test_resolve_out_refuses_protected_and_symlinks(tmp_path):
     if not _symlink_supported(tmp_path):
         pytest.skip("symlink를 만들 수 없는 환경(Windows 권한)")
     v1 = tmp_path / "data" / "processed" / "v1"

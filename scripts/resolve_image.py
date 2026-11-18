@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from fashion_planner_trend.images import ImageResolver, ImageRefError, ImageUnavailable  # noqa: E402
 
-DATASET = ROOT / "data" / "processed" / "v2" / "musinsa_dataset_v2.jsonl"
+DATASET = ROOT / "data" / "processed" / "musinsa_dataset.jsonl"
 OUT = ROOT / "data" / "processed" / "images_preview"
 EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 

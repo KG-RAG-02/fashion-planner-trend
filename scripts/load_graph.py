@@ -5,10 +5,10 @@
        python scripts/load_graph.py --include-labels # 정답 라벨도 적재 — 스키마 확인·평가용 임시 옵션 (기본 아님)
        python scripts/load_graph.py --prune-products # 입력 파일에 없는 Product 삭제 (products v2로 id가 바뀐 뒤)
        python scripts/load_graph.py --reset          # 그래프를 비우고 처음부터 (확인 없이 전부 삭제하므로 주의)
-입력:  data/processed/v2/musinsa_dataset_v2.jsonl                   (02·03 통합 Product, build_musinsa_dataset.py, D-33)
-       --products-dir DIR를 주면 그 폴더의 otpensource_all.jsonl·musinsa_snap_all.jsonl을 읽는다(예: data/processed/v1)
+입력:  data/processed/musinsa_dataset.jsonl                        (02·03 통합 Product, build_musinsa_dataset.py)
+       --products-dir DIR를 주면 그 폴더의 otpensource_all.jsonl·musinsa_snap_all.jsonl을 읽는다
        data/processed/extractions/<prompt_version>/*.json          (기사 추출 결과, extract_articles.py. 기본 article-extraction)
-       data/raw/vogue_kr/articles_pool_150.jsonl                   (크롤 기사 — Item 이미지 맵 {image_idx: url})
+       data/raw/articles.jsonl                                     (크롤 기사 — Item 이미지 맵 {image_idx: url})
        data/labels/*.json                                          (--include-labels일 때만. 직접 만든 정답 라벨)
 선행:  .env의 NEO4J_* 설정 (Aura면 그 주소, 로컬이면 docker compose up -d).
 """
@@ -29,18 +29,18 @@ from fashion_planner_trend.graph import loader  # noqa: E402
 from fashion_planner_trend.ingestion.extraction.prompt import PROMPT_ID  # noqa: E402
 
 PROC = ROOT / "data" / "processed"
-PRODUCTS = PROC / "v2" / "musinsa_dataset_v2.jsonl"
+PRODUCTS = PROC / "musinsa_dataset.jsonl"
 LABELS = ROOT / "data" / "labels"
 EXTRACTIONS = PROC / "extractions"
 DEFAULT_PROMPT_VERSION = PROMPT_ID
-CRAWL = ROOT / "data" / "raw" / "vogue_kr" / "articles_pool_150.jsonl"
+CRAWL = ROOT / "data" / "raw" / "articles.jsonl"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--articles-only", action="store_true", help="Product는 건드리지 않고 기사만")
     ap.add_argument("--reset", action="store_true", help="MATCH (n) DETACH DELETE n 후 다시 적재")
-    ap.add_argument("--products", default=str(PRODUCTS), help="통합 Product JSONL (기본 data/processed/v2/musinsa_dataset_v2.jsonl)")
+    ap.add_argument("--products", default=str(PRODUCTS), help="통합 Product JSONL (기본 data/processed/musinsa_dataset.jsonl)")
     ap.add_argument("--products-dir", default=None, help="출처별 JSONL 폴더를 대신 읽는다 (otpensource_all·musinsa_snap_all, 예: v1)")
     ap.add_argument("--include-labels", action="store_true", help="정답 라벨도 적재 (스키마 확인·평가용 임시 옵션, 기본 아님)")
     ap.add_argument("--labels-dir", default=str(LABELS), help="--include-labels일 때 읽는 폴더")

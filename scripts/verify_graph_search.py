@@ -27,7 +27,7 @@ from fashion_planner_trend.retrieval.scoring import ScoringOptions, rank_product
 from fashion_planner_trend.retrieval.weights import load_weights  # noqa: E402
 from fashion_planner_trend.schemas.graph_schema import ItemNode, ItemRecord  # noqa: E402
 
-PRODUCTS = ROOT / "data" / "processed" / "v2" / "musinsa_dataset_v2.jsonl"  # 02·03 통합본 (D-33)
+PRODUCTS = ROOT / "data" / "processed" / "musinsa_dataset.jsonl"  # 02·03 통합본
 
 
 def main() -> int:

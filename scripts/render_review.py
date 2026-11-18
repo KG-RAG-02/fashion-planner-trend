@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = ROOT / "data" / "labels"
 REVIEW = LABELS / "review"
-RAW = ROOT / "data" / "raw" / "vogue_kr"
+RAW = ROOT / "data" / "raw"
 
 
 def load_articles() -> dict[str, dict]:

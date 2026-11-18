@@ -1,14 +1,14 @@
 """02·03 v2 Product를 하나의 통합본으로 합친다 (D-33). 그래프 적재(load_graph.py)의 기본 입력이다.
 
 실행 순서:
-  python scripts/build_otpensource.py      # → data/processed/v2/otpensource_all.jsonl (image_url 없는 행 제외)
-  python scripts/build_musinsa_snap.py     # → data/processed/v2/musinsa_snap_all.jsonl (snap_id·image_ref)
-  python scripts/build_musinsa_dataset.py  # → data/processed/v2/musinsa_dataset_v2.jsonl
-옵션:  [--in-dir DIR] [--out DIR]   # 둘 다 기본 data/processed/v2
+  python scripts/build_otpensource.py      # → data/processed/otpensource_all.jsonl (image_url 없는 행 제외)
+  python scripts/build_musinsa_snap.py     # → data/processed/musinsa_snap_all.jsonl (snap_id·image_ref)
+  python scripts/build_musinsa_dataset.py  # → data/processed/musinsa_dataset.jsonl
+옵션:  [--in-dir DIR] [--out DIR]   # 둘 다 기본 data/processed
 출력(--out):
-  musinsa_dataset_v2.jsonl          ProductRecord 한 줄에 하나(02 다음 03). 모든 줄의 키가 같다. 출처는 node.source
-  musinsa_dataset_v2_report.json    출처별 건수·이미지 참조 수·필드 목록
-  BUILD_INFO.json                   "musinsa_dataset_v2" 항목(입력·출력 sha256)
+  musinsa_dataset.jsonl             ProductRecord 한 줄에 하나(02 다음 03). 모든 줄의 키가 같다. 출처는 node.source
+  musinsa_dataset_report.json       출처별 건수·이미지 참조 수·필드 목록
+  BUILD_INFO.json                   "musinsa_dataset" 항목(입력·출력 sha256)
 검사(출처 불일치·id 중복·키 집합 불일치)가 실패하면 아무것도 쓰지 않고 멈춘다.
 """
 from __future__ import annotations
@@ -31,13 +31,13 @@ from fashion_planner_trend.ingestion.normalization.output import (  # noqa: E402
     write_lines_atomic,
 )
 
-V2 = ROOT / "data" / "processed" / "v2"
+PROCESSED = ROOT / "data" / "processed"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--in-dir", default=str(V2), help="출처별 v2 JSONL 폴더 (기본 data/processed/v2)")
-    ap.add_argument("--out", default=str(V2), help="출력 폴더 (기본 data/processed/v2)")
+    ap.add_argument("--in-dir", default=str(PROCESSED), help="출처별 JSONL 폴더 (기본 data/processed)")
+    ap.add_argument("--out", default=str(PROCESSED), help="출력 폴더 (기본 data/processed)")
     a = ap.parse_args()
     in_dir = Path(a.in_dir)
     inputs = [(src, in_dir / name) for src, name in SOURCES]
@@ -48,7 +48,7 @@ def main() -> int:
     lines, report = combine_products(inputs)
     write_lines_atomic(out / OUTPUT_NAME, lines)
     write_json_atomic(out / REPORT_NAME, report)
-    update_build_info(out, "musinsa_dataset_v2", {
+    update_build_info(out, "musinsa_dataset", {
         "inputs": {str(p.name): sha256_file(p) for _, p in inputs},
         "git": git_state(ROOT),
         "outputs": {n: sha256_file(out / n) for n in (OUTPUT_NAME, REPORT_NAME)},

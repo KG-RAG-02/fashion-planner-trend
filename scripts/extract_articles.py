@@ -26,7 +26,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from fashion_planner_trend.ingestion.extraction.batch import BatchConfig, run_batch, write_report  # noqa: E402
 from fashion_planner_trend.ingestion.extraction.prompt import PROMPT_ID  # noqa: E402
 
-DEFAULT_IN = ROOT / "data" / "raw" / "vogue_kr" / "articles_pool_150.jsonl"
+DEFAULT_IN = ROOT / "data" / "raw" / "articles.jsonl"
 DEFAULT_PROMPT_VERSION = PROMPT_ID
 EXTRACTIONS = ROOT / "data" / "processed" / "extractions"
 

@@ -1,4 +1,4 @@
-"""02·03 v2 Product를 하나의 통합본(`musinsa_dataset_v2.jsonl`)으로 합친다 (D-33).
+"""02·03 Product를 하나의 통합본(`musinsa_dataset.jsonl`)으로 합친다.
 
 - 두 출처 모두 같은 `ProductRecord` 모델로 쓰므로 키(필드명)가 같다. 출처에 없는 값은 null이다
   (예: 02의 `snap_id`, 03의 `name`·`image_url`). 합칠 때 모든 줄의 키 집합이 같은지 다시 확인한다.
@@ -17,8 +17,8 @@ from fashion_planner_trend.schemas.graph_schema import ProductRecord
 
 # (출처 값, 파일 이름) — 이 순서로 쓴다
 SOURCES: tuple[tuple[str, str], ...] = (("otpensource", "otpensource_all.jsonl"), ("musinsa_snap", "musinsa_snap_all.jsonl"))
-OUTPUT_NAME = "musinsa_dataset_v2.jsonl"
-REPORT_NAME = "musinsa_dataset_v2_report.json"
+OUTPUT_NAME = "musinsa_dataset.jsonl"
+REPORT_NAME = "musinsa_dataset_report.json"
 
 
 class CombineError(ValueError):

@@ -1,4 +1,4 @@
-"""02·03 통합본(musinsa_dataset_v2) 합치기 (D-33, 합성 입력)."""
+"""02·03 통합본(musinsa_dataset) 합치기 (합성 입력)."""
 import json
 
 import pytest

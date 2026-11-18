@@ -1,6 +1,6 @@
 """03 musinsa-snap-new를 표준 어휘로 정규화해 전체를 저장한다 (02와 같은 AliasMap).
 
-실행:  python scripts/build_musinsa_snap.py [--out DIR] [--parquet PATH] [--image-index PATH]   # --out 기본 data/processed/v2
+실행:  python scripts/build_musinsa_snap.py [--out DIR] [--parquet PATH] [--image-index PATH]   # --out 기본 data/processed
        --parquet을 주지 않으면 HF 캐시(HF_HOME)의 고정 리비전을 쓴다(없으면 내려받는다)
 출력(--out):
   musinsa_snap_all.jsonl                 ProductRecord, 라벨 슬롯 하나당 한 줄(슬롯 수·id는 v1과 같다).
@@ -82,7 +82,7 @@ def build(parquet: Path, out: Path, image_index: Path | None) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=str(ROOT / "data" / "processed" / "v2"), help="출력 폴더 (기본 data/processed/v2)")
+    ap.add_argument("--out", default=str(ROOT / "data" / "processed"), help="출력 폴더 (기본 data/processed)")
     ap.add_argument("--parquet", help="03 원천 parquet 파일 또는 폴더. 없으면 HF 캐시")
     ap.add_argument("--image-index", help="이미지 인덱스 parquet (선택. 없으면 이미지 상태를 채우지 않는다)")
     a = ap.parse_args()

@@ -25,7 +25,7 @@ from fashion_planner_trend.schemas.article_extraction import ArticleExtraction  
 
 LABELS = ROOT / "data" / "labels"
 MANIFEST = LABELS / "manifest.yaml"
-RAW = ROOT / "data" / "raw" / "vogue_kr"
+RAW = ROOT / "data" / "raw"
 META_FIELDS = ("article_id", "url", "title", "status", "labeler", "reviewer", "guideline_version", "labeled_at", "notes")
 
 
