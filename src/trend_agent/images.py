@@ -2,7 +2,7 @@
 
 그래프·JSONL에는 주소(`image_ref`)만 두고, 이미지는 보여 줄 때 이 모듈로 꺼낸다.
 - 03 `hf://datasets/disl/musinsa-snap-new@<rev>#row=<n>` → JPEG **바이트**. 찾는 순서:
-  ① `snap_dir/<n>.jpg` (fetch_snap_images.py extract 결과, 있으면) ② 고정 리비전 parquet의 n번째 행 `image.bytes`.
+  ① `snap_dir/<n>.jpg` (미리 풀어 둔 사진이 있으면) ② 고정 리비전 parquet의 n번째 행 `image.bytes`.
   parquet은 100행 단위 row group이라 행 하나를 읽을 때 그 group만 읽는다(마지막 group은 메모리에 둔다).
 - 02 `http(s)://…` → **URL만** 돌려준다. 이 모듈은 외부로 요청을 보내지 않는다(내려받기·핫링크 여부는 표현층이 정한다).
 - 운영에서는 같은 인터페이스(`resolve(ref) -> ResolvedImage`)로 구현만 바꾼다(예: 오브젝트 스토리지 서명 URL).

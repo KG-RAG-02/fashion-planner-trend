@@ -24,7 +24,7 @@ from .alias_map import AliasMap
 
 REPO_ID = "disl/musinsa-snap-new"
 REVISION = "4335d233ef3b54bc5132a4d572d589042a41219d"  # 고정 리비전
-IMAGE_BASE = f"hf://datasets/{REPO_ID}@{REVISION}#row="  # image_ref = IMAGE_BASE + snap_id (fetch_snap_images.py와 같은 형식)
+IMAGE_BASE = f"hf://datasets/{REPO_ID}@{REVISION}#row="  # image_ref = IMAGE_BASE + snap_id
 # 카테고리 값이 의류가 아닌 경우: 상분류를 정하지 않는다 (그래프 밖). 사전 null_values에도 있다 — 리포트 분류용.
 NON_GARMENT = {"모자", "스카프", "가방", "부츠", "백팩", "헤드웨어", "야구모자", "햇모자"}
 SCALAR_FIELDS = ("카테고리", "핏", "기장", "소매기장")  # 값 하나만 쓰는 필드: 리스트가 오면 첫 원소(리포트에 센다)

@@ -5,7 +5,6 @@
 # - efforts: reasoning 모델이 허용하는 추론 강도 목록 (standard에는 쓰지 않는다)
 # - checked_at: 이 모델이 이 코드로 동작하는 것을 확인한 날짜. 새 모델은 합성 문장 1건으로 확인한 뒤 적는다:
 #     python scripts/check_llm_model.py --model <모델> --profile <계열> [--reasoning-effort <강도>]
-# - 단가는 configs/llm_pricing.yaml (파일을 나눈다: 단가는 자주 바뀌는 값, 이 파일은 동작 규칙)
 models:
   gpt-4o-mini:
     profile: standard
