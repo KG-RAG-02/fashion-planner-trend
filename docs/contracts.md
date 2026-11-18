@@ -423,21 +423,43 @@ assert evidence_id("900003", 3, "블라우스 인용") == "trend:900003:3:d7db6a
 ## 하류 서비스가 읽는 필드
 
 오케스트레이터는 트렌드 결과를 바꾸지 않고 하류 서비스에 넘긴다. 하류 서비스는 먼저 `status`를 확인하고, 모르는 필드는 무시하며, 어휘 값은 한국어 문자열 그대로 비교하고, `limitations`는
-표시용 텍스트로 다룬다. inventory 서비스는 다음 필드를 읽는다.
+표시용 텍스트로 다룬다.
+
+Item과 상품의 속성 목록(`colors`, `materials`, `patterns`, `details`, `fit`)에는 근사로 옮긴 값도 들어 있다. 어느 값이 근사인지는 같은
+객체의 `approx`에 `"color:<값>"`, `"detail:<type>:<값>"`, `"fit"` 형태로 적혀 있으므로, 정확한 값만 쓰려면 여기에 적힌 값을 빼고 쓴다.
+
+inventory 서비스는 다음 필드를 읽는다.
 
 | 필드 | 타입 | 용도 |
 |---|---|---|
+| `schema_version` | string | `1.0.0`이 아니면 결과를 받지 않는다 |
+| `request_id` | string | 비어 있지 않은 문자열인지 확인한다 |
+| `status` | `ok` \| `no_results` \| `error` | `ok`가 아니면 재고를 조회하지 않는다 |
+| `limitations` | string[] | `status`가 `no_results`·`error`일 때 inventory 응답 요약에 옮긴다 |
 | `applied_filters.season` | SeasonRequest | 대상 시즌(`year`, `season`) |
 | `applied_filters.categories` | CategoryFilter | 요청한 상분류·하분류(`include` / `exclude`) |
 | `applied_filters.attributes[]` 중 `type: "color"` | `{type, value}` | 요청한 표준 색 |
 | `applied_filters.gender` | Gender \| null | 요청한 성별(트렌드 검색에서는 적용하지 않았다) |
+| `trends[].style.id`, `.name` | string | inventory 결과의 트렌드 표시와 근거 id 이름공간(`inventory:<style.id>:E-00n`) |
+| `trends[].items[].id`, `.name` | string | 기준 이미지를 고른 Item 기록 |
 | `trends[].items[].category_major`, `.category_minor` | CategoryMajor, CategoryMinor \| null | 트렌드 의류의 카테고리 |
-| `trends[].items[].colors`, `.materials`, `.details` | 목록 | 의류 속성(값을 믿기 전에 `approx`를 확인한다) |
+| `trends[].items[].colors` | Color[] | 트렌드 색. `approx`는 보지 않고 그대로 쓴다 |
 | `trends[].items[].gender` | Gender \| null | 알려진 경우의 의류 성별 |
-| `trends[].items[].similar_products[].kind` | `catalog_item` \| `snap_garment` | `catalog_item`만 판매 상품이다. |
-| `trends[].items[].similar_products[].score` | float | 트렌드 의류와의 유사도. 같은 Item 목록 안에서 비교한다. |
+| `trends[].items[].similar_products[].product_id`, `.source` | string | 기준 이미지 기록과 그 근거의 출처 |
+| `trends[].items[].similar_products[].kind` | `catalog_item` \| `snap_garment` | 기준 이미지 우선순위: `snap_garment`를 먼저, 없으면 `catalog_item`을 쓴다. 판매 상품은 `catalog_item`뿐이다 |
+| `trends[].items[].similar_products[].score` | float | 트렌드 의류와의 유사도. 기준 이미지는 종류별로 점수가 가장 높은 1장을 고른다(아래 참고) |
+| `trends[].items[].similar_products[].has_image` | bool | `false`면 기준 이미지 후보에서 뺀다 |
 | `trends[].items[].similar_products[].image_url`, `.image_ref` | string \| null | 상품 이미지(`image_ref`는 스냅 사진까지 포함한다) |
-| `trends[].items[].similar_products[].multi_wearer_suspected` | bool \| null | `true`면 스냅 사진에 다른 사람의 옷이 함께 보일 수 있다. |
+| `trends[].items[].similar_products[].multi_wearer_suspected` | bool \| null | `true`면 스냅 사진에 다른 사람의 옷이 함께 보일 수 있다 |
+| `trends[].items[].similar_products[].materials`, `.details` | 목록 | 기준 이미지와 함께 쓰는 CLIP 기준 텍스트(넥라인·칼라는 뺀다) |
+
+트렌드 결과 본문에는 `agent_id`가 없다. 서비스 이름은 HTTP 응답 봉투의 `producer.agent_id`(`trend`)에 있고, inventory는
+결과에 `agent_id`가 있을 때만 `trend`인지 확인한다.
+
+**`score`를 Item 사이에서 비교할 때.** `score`는 `base_score`(0~1로 정규화한 속성 일치)에 하분류 일치 보너스(α × 트렌드
+배수, 최대 0.2)를 더한 값이라 범위는 모든 Item에서 같다. 하지만 분모는 그 Item에 값이 있고 상품 쪽에서도 알려진 속성만으로
+계산하므로, 비교한 속성이 적은 Item의 후보일수록 높은 점수를 받기 쉽다. 같은 Item 목록 안에서는 같은 기준으로 매긴 순위지만, 여러 Item의
+후보를 한꺼번에 놓고 고르는 비교는 근사다. 근거가 필요하면 `score_breakdown.attributes`의 비교 속성 수를 함께 본다.
 
 ## 버전
 
