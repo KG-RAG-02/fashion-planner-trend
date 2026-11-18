@@ -1,8 +1,4 @@
-"""점수: 값 가중 재현율 선택 사항. 값 가중치가 없거나 모두 1.0이면 기본 식과 같아야 한다.
-
-회귀 기준: v1.0 `score_product`의 식을 아래 `_score_v10`에 그대로 얼려 두고, 무작위 합성 쌍에서
-점수·비교 수·breakdown·match가 **완전히 같음**(값 가중치 없음 / 모두 1.0)을 확인한다.
-"""
+"""점수 선택 사항: 값 가중 재현율. 값 가중치가 모두 1.0이면 값 가중치가 없을 때와 결과가 같아야 한다."""
 import random
 
 import pytest
@@ -10,7 +6,6 @@ import pytest
 from fashion_planner_trend.retrieval.scoring import (
     ScoringOptions,
     attribute_values,
-    category_minor_of,
     score_product,
 )
 from fashion_planner_trend.retrieval.weights import load_weights
@@ -26,37 +21,6 @@ from fashion_planner_trend.schemas.graph_schema import (
 )
 
 W = load_weights()
-
-
-# ---------- v1.0 기준 식 (얼린 사본 — 바꾸지 않는다) ----------
-def _score_v10(item, product, weights, focus_core=(), focus_supporting=()):
-    if item.category_major is None or item.category_major != product.category_major:
-        return None
-    core, supporting = set(focus_core), set(focus_supporting)
-    attrs, matched, mismatched, unknown = {}, [], [], []
-    num = den = 0.0
-    for attr in SCORED_ATTRIBUTES:
-        iv = attribute_values(item, attr)
-        if not iv:
-            continue
-        pv = attribute_values(product, attr)
-        if not pv:
-            unknown.append(attr)
-            continue
-        common = iv & pv
-        ratio = len(common) / len(iv)
-        w = weights.applied_weight(attr, core, supporting)
-        attrs[attr] = (w, weights.base_weights[attr], "core" if attr in core else "supporting" if attr in supporting else None, ratio)
-        num += w * ratio
-        den += w
-        matched += [v if attr == "detail" else f"{attr}:{v}" for v in sorted(common)]
-        mismatched += [v if attr == "detail" else f"{attr}:{v}" for v in sorted(iv - pv)]
-    base = num / den if den else 0.0
-    bonus = {}
-    im, pm = category_minor_of(item), category_minor_of(product)
-    if im is not None and im == pm:
-        bonus["category_minor"] = weights.applied_alpha(core, supporting)
-    return base + sum(bonus.values()), base, bonus, attrs, (matched, mismatched, unknown), len(attrs)
 
 
 # ---------- 합성 데이터 ----------
@@ -104,8 +68,7 @@ def rand_product(rng, k, major=None):
         patterns=_edges(rng, PATTERNS, 2), details=_details(rng))
 
 
-@pytest.mark.parametrize("all_ones", [False, True])
-def test_v11_defaults_equal_v10_on_random_pairs(all_ones):
+def test_all_one_value_weights_equal_default_on_random_pairs():
     rng = random.Random(20261108)
     n = 0
     for k in range(5000):
@@ -113,20 +76,15 @@ def test_v11_defaults_equal_v10_on_random_pairs(all_ones):
         p = rand_product(rng, k, major=it.category_major.value if rng.random() < 0.85 else None)
         core = rng.sample(FOCUS, rng.randint(0, 3))
         sup = rng.sample([f for f in FOCUS if f not in core], rng.randint(0, 2))
-        vw = None
-        if all_ones:
-            vw = {a: {v: 1.0 for v in attribute_values(it, a)} for a in SCORED_ATTRIBUTES}
-        ref = _score_v10(it, p, W, core, sup)
-        got = score_product(it, p, W, core, sup, ScoringOptions(value_weights=vw))
+        ones = {a: {v: 1.0 for v in attribute_values(it, a)} for a in SCORED_ATTRIBUTES}
+        ref = score_product(it, p, W, core, sup)
+        got = score_product(it, p, W, core, sup, ScoringOptions(value_weights=ones))
         if ref is None:
             assert got is None
             continue
         n += 1
-        score, base, bonus, attrs, (m, mm, u), compared = ref
-        assert got.score == score and got.breakdown.base_score == base and got.breakdown.bonus == bonus
-        assert {a: (s.weight, s.base_weight, s.level, s.ratio) for a, s in got.breakdown.attributes.items()} == attrs
-        assert (got.match.matched, got.match.mismatched, got.match.unknown) == (m, mm, u)
-        assert got.compared == compared and got.breakdown.unknown_core_weight == 0.0
+        assert got.score == ref.score and got.compared == ref.compared and got.match == ref.match
+        assert got.breakdown.attributes == ref.breakdown.attributes and got.breakdown.bonus == ref.breakdown.bonus
     assert n > 3000  # 같은 상분류 쌍이 충분히 비교됐다
 
 

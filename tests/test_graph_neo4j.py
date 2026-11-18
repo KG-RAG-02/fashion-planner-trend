@@ -1,4 +1,4 @@
-"""Neo4j 테스트 인스턴스(7688)에서: 적재 v1.1 · 속성 노드 출발 후보 · 사유 구분 · 안정 evidence_id.
+"""Neo4j 테스트 인스턴스(7688)에서: 적재 · 속성 노드 출발 후보 · 사유 구분 · 안정 evidence_id.
 
 합성 데이터만 쓴다. **그래프를 비운다** — conftest가 7687을 거부한다.
 """
@@ -54,7 +54,7 @@ def test_auto_extraction_approx_edge(g):
     assert lab == [{"a": False}]
 
 
-def test_style_v11_props(g):
+def test_style_props(g):
     r = _q(g.d, "MATCH (s:Style {id: '900001-s0'}) RETURN s.name_norm AS n, s.aliases_norm AS an, s.article_id AS aid")[0]
     assert r == {"n": "테스트럭셔리", "an": ["콰이어트럭셔리"], "aid": "900001"}
 

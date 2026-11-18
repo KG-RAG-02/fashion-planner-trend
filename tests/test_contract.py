@@ -1,4 +1,4 @@
-"""계약 v1.1 (G1) 회귀·호환 테스트. 라벨 파일(gitignore)은 쓰지 않고 작은 가짜 데이터만 쓴다."""
+"""데이터 계약(그래프 노드·결과 스키마·가중치 설정) 테스트. 라벨 파일(gitignore)은 쓰지 않고 작은 가짜 데이터만 쓴다."""
 import importlib
 import sys
 
@@ -44,13 +44,13 @@ def test_normalize_term_keeps_generic_suffix():
     assert normalize_term("코어 룩 스타일") == "코어룩스타일"
 
 
-def test_v10_product_flattens_exactly_as_before():
+def test_product_without_optional_fields_flattens_to_required_only():
     p = ProductNode(id="otpensource:a:1", **BASE)
     assert set(flatten(p)) == {"id", "source", "kind", "source_row", "sub_colors", "approx"}
-    assert ProductNode.model_validate({"id": "x", **BASE}).snap_id is None  # v1.0 JSON 그대로 유효
+    assert ProductNode.model_validate({"id": "x", **BASE}).snap_id is None  # 선택 필드는 없어도 유효
 
 
-def test_v11_product_fields_and_has_image():
+def test_product_image_fields_and_has_image():
     snap = ProductNode(id="musinsa_snap:7:상의", source="musinsa_snap", kind="snap_garment", source_row="r",
                        snap_id=7, image_ref="hf://datasets/x@rev#row=7", image_scope="full_snap",
                        image_status="ok", multi_wearer_suspected=True)
@@ -69,8 +69,8 @@ def test_v11_product_fields_and_has_image():
     assert flatten(part)["parent_id"] == "otpensource:a:1"
 
 
-def test_v13_split_from_review():
-    """계약 v1.3: 사용자가 채택한 검수 분해는 split_from="review". 정의 밖 값은 거부한다."""
+def test_split_from_review():
+    """사람이 채택한 검수 분해는 split_from="review". 정의 밖 값은 거부한다."""
     part = ProductNode(id="otpensource:a:2#1", parent_id="otpensource:a:2", split_from="review",
                        image_scope="full_set", **BASE)
     assert flatten(part)["split_from"] == "review"
@@ -78,7 +78,7 @@ def test_v13_split_from_review():
         ProductNode(id="otpensource:a:3#1", parent_id="otpensource:a:3", split_from="vision", **BASE)
 
 
-def test_style_node_v11_norm_aliases_article_id():
+def test_style_node_norm_aliases_article_id():
     s = ExtractedStyle(name="뉴 로", name_origin="article", definition="d", aliases=["New Raw", "뉴 로", "New Raw"])
     n = style_node_from_extraction(s, "881396-s0")
     assert n.article_id == "881396" and n.name_norm == "뉴로"
@@ -95,7 +95,7 @@ def test_evidence_id_is_stable_and_formatted():
     assert a != evidence_id("881396", 8, "오묘한 패턴이")
 
 
-def test_result_v10_json_parses_and_status_is_closed():
+def test_result_defaults_and_closed_status():
     r = TrendAnalysisResult.model_validate({"request_id": "r", "status": "ok", "trends": [], "evidence": [], "limitations": []})
     assert r.schema_version == SCHEMA_VERSION == "1.1"
     for status in ("ok", "no_results", "error"):

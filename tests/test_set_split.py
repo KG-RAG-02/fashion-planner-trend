@@ -1,4 +1,4 @@
-"""02 다중 의류 분해 — 상품명 규칙. 계약 v1.1 ProductNode."""
+"""02 다중 의류 분해 — 상품명 규칙. ProductNode."""
 import pytest
 
 from fashion_planner_trend.ingestion.normalization.otpensource import OtpenNormalizer

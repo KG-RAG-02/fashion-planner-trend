@@ -1,4 +1,4 @@
-"""적재 v1.1 (Neo4j 없이): 기사 출처 선택·이미지 맵·메타 어댑터·auto 근사 재판정."""
+"""적재 (Neo4j 없이): 기사 출처 선택·이미지 맵·메타 어댑터·auto 근사 재판정."""
 from conftest import synthetic_crawl, synthetic_label
 from fashion_planner_trend.graph import loader
 from fashion_planner_trend.schemas.article_extraction import ArticleExtraction
