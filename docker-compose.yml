@@ -1,6 +1,6 @@
-# 로컬 Neo4j 실행 파일. 파일은 이것 하나이고 기본은 개발용(빈 DB)이다. 데이터가 구워진 이미지(demo)는 서비스 이름으로 시작한다.
+# 로컬 Neo4j 실행 파일. 빈 DB로 시작하고 데이터는 직접 적재한다(합성 stub은 scripts/seed_fixture_graph.py).
 #
-# [기본 = 개발용] 빈 DB에서 시작해 직접 적재한다 (README "실행 방법 B"). 데이터가 없다는 가정의 기본 동작
+# [개발용] 빈 DB에서 시작해 직접 적재한다
 #   docker compose up -d          # 시작 (처음에는 이미지를 내려받는다)
 #   docker compose ps             # healthy 가 되면 사용 가능
 #   docker compose down           # 중지 (데이터는 볼륨에 남는다)
@@ -10,23 +10,10 @@
 #         확인: docker inspect -f '{{.State.OOMKilled}}' trend-agent-neo4j  /  docker stats --no-stream
 #   선택: NEO4J_BOLT_PORT / NEO4J_HTTP_PORT — 이미 쓰는 Neo4j와 포트가 겹칠 때 (바꾸면 `.env`의 NEO4J_URI 포트도 같이)
 #
-# [demo] 데이터를 구워 넣은 이미지로 코드만 고쳐 보는 용도 (README "실행 방법 A"). Docker만 있으면 되고 `.env`가 필요 없다
-#   docker load -i trend-agent-demo-images-amd64.tar.gz  # 처음 한 번. Windows·Intel PC는 -amd64, Apple Silicon Mac은 -arm64 (이미지는 docker/demo/build.sh가 만든다)
-#   docker compose stop neo4j                            # 개발용 neo4j가 떠 있으면 같은 포트(7474/7687)라 demo가 시작되지 않는다. 먼저 멈춘다
-#   docker compose up -d neo4j-demo app                  # 서비스 이름을 꼭 적는다 (그냥 `up -d`는 개발용 neo4j를 시작한다)
-#   docker compose exec app python scripts/run_trend_search.py --include 스커트 --top-k 3
-#   (호스트에서 src/trend_agent/graph/search.py 등을 고치고 같은 명령을 다시 실행하면 바로 반영된다)
-#   docker compose exec app python -m pytest -q
-#   docker compose --profile demo down                   # 데이터는 구워 넣은 시점으로 돌아간다 (`docker compose down neo4j-demo app`은 Compose v2.15.1에서 unknown command)
-#   선택: DEMO_BOLT_PORT / DEMO_HTTP_PORT — 포트가 겹칠 때
-#   주의: 내 CPU에 맞는 파일을 쓴다 (-amd64: Windows·Intel, -arm64: Apple Silicon). Apple Silicon에서 amd64를 compose로 돌리면 에뮬레이션이라 느리고 아래 healthcheck가 쌓여 OOM(exit 137)이 날 수 있다
-#   주의: 이미지에 Vogue 인용문(근거)이 들어 있으므로 팀 내부로만 전달한다.
-#
 # 브라우저: http://localhost:<HTTP 포트> (기본 포트는 아래 `:-` 뒤의 값)
 name: trend-agent
 
 services:
-  # ───────── 기본(개발용): 빈 DB + 직접 적재 ─────────
   neo4j:
     image: neo4j:5.26-community        # 5.x LTS. 버전을 바꾸면 spec §7.3과 같이 갱신한다
     container_name: trend-agent-neo4j
@@ -51,42 +38,6 @@ services:
       retries: 12
       start_period: 20s
 
-  # ───────── demo: 데이터가 구워진 이미지 + 파이썬 환경 (profile이라 그냥 `up -d`로는 시작하지 않는다) ─────────
-  neo4j-demo:
-    profiles: ["demo"]
-    image: trend-agent-demo-neo4j:latest
-    container_name: trend-agent-demo-neo4j
-    ports:
-      - "127.0.0.1:${DEMO_HTTP_PORT:-7474}:7474"
-      - "127.0.0.1:${DEMO_BOLT_PORT:-7687}:7687"
-    healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p x 'RETURN 1' > /dev/null 2>&1 || exit 1"]
-      interval: 5s
-      timeout: 10s
-      retries: 20
-      start_period: 15s
-
-  app:
-    profiles: ["demo"]
-    image: trend-agent-demo-app:latest
-    container_name: trend-agent-demo-app
-    depends_on:
-      neo4j-demo:
-        condition: service_healthy
-    working_dir: /app
-    ports:
-      - "127.0.0.1:${TREND_API_PORT:-8768}:8768"
-    environment:
-      VOGUE_AGENT_SERVICE_BEARER_TOKEN: "${VOGUE_AGENT_SERVICE_BEARER_TOKEN:-}"
-      NEO4J_URI: bolt://neo4j-demo:7687
-      NEO4J_USER: neo4j
-      NEO4J_PASSWORD: unused   # 이미지는 인증을 끄고 있다
-    volumes:                   # 코드는 호스트 폴더를 그대로 쓴다 (고치면 바로 반영)
-      - ./src:/app/src
-      - ./scripts:/app/scripts
-      - ./configs:/app/configs
-      - ./tests:/app/tests
-      - ./data:/app/data       # 검색 결과 JSON이 data/processed/results/에 저장된다
 
 volumes:
   neo4j_data:
