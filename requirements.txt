@@ -1,22 +1,23 @@
-# 의존성은 개발하면서 추가합니다. (OpenAI는 requests로 직접 호출하므로 SDK가 필요 없다)
+# 개발용 전체 의존성. 패키지 설치는 `pip install -e ".[all,dev]"`(pyproject.toml)를 권한다.
+# OpenAI API는 requests로 직접 호출하므로 SDK가 필요 없다.
+
+# HTTP 호출(LLM API·수집기)과 HTML 파싱
 requests
 beautifulsoup4
 lxml
 
-# 노트북 확인용
-pandas
-ipykernel
+# 스키마·설정
+pydantic>=2.10
+pyyaml>=6
 
-# 스키마·정규화
-pydantic>=2
-pyyaml
+# 상품 데이터셋 빌드·이미지 조회
 huggingface_hub
-pyarrow  # 03 parquet
-Pillow  # 이미지 크기·디코드 확인
+pyarrow
+pandas
 
-# Knowledge Graph
+# 지식 그래프
 neo4j>=5
 certifi  # Aura(neo4j+s) 인증서 검증용 루트 묶음 — Windows 저장소에 없는 루트 보완 (config.neo4j_driver)
 
 # 테스트
-pytest
+pytest>=8

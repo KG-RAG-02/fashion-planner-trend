@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fashion-planner-trend"
+version = "1.0.0"
+description = "패션 기사 트렌드 추출, Neo4j 지식 그래프, 트렌드-상품 검색 서비스 (Fashion Planner)"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+authors = [{ name = "The Fashion Planner Contributors" }]
+keywords = ["fashion", "trend analysis", "knowledge graph", "neo4j", "llm extraction"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "Natural Language :: Korean",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Database",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+  "pydantic>=2.10",
+  "pyyaml>=6",
+  "neo4j>=5",
+  "certifi",
+]
+
+[project.optional-dependencies]
+# 기사 추출의 OpenAI API 호출 (scripts/extract_articles.py)
+llm = ["requests"]
+# 기사 수집기 (scripts/crawl_vogue_sample.py)
+crawl = ["requests", "beautifulsoup4", "lxml"]
+# 상품 데이터셋 빌드와 이미지 조회 (scripts/build_*.py)
+datasets = ["huggingface_hub", "pyarrow", "pandas"]
+dev = ["pytest>=8"]
+all = ["fashion-planner-trend[llm,crawl,datasets]"]
+
+[project.urls]
+Repository = "https://github.com/KG-RAG-02/fashion-planner-trend"
+Issues = "https://github.com/KG-RAG-02/fashion-planner-trend/issues"
+Changelog = "https://github.com/KG-RAG-02/fashion-planner-trend/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fashion_planner_trend"]
