@@ -104,13 +104,9 @@ def test_result_v10_json_parses_and_status_is_closed():
         TrendAnalysisResult(request_id="r", status="partial")
 
 
-def test_weights_v11_structure_and_v10_loader():
+def test_weights_yaml_has_only_scoring_sections():
     d = yaml.safe_load(DEFAULT_PATH.read_text(encoding="utf-8"))
-    flags = d["flags"]
-    assert set(flags) == {"image_first_tiebreak", "core_unknown_decay", "snap_id_limit", "item_gender_filter"}
-    assert (flags["image_first_tiebreak"], flags["core_unknown_decay"], flags["snap_id_limit"],
-            flags["item_gender_filter"]) == (False, 0.0, 0, False)          # 모두 꺼짐 = v1.0 동작 (켜는 것은 사용자 결정)
-    assert "tier4" not in d and "resolver" not in d and "trend_topk" not in d
+    assert set(d) == {"base_weights", "category", "focus_multipliers"}
     assert load_weights().base_weights["color"] == 3
 
 

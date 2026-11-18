@@ -82,9 +82,6 @@ _ATTR_CANDIDATES = {
     for attr, label, rel in (("color", "Color", "HAS_COLOR"), ("material", "Material", "HAS_MATERIAL"),
                              ("pattern", "Pattern", "HAS_PATTERN"), ("detail", "Detail", "HAS_DETAIL"))
 }
-# ProductNode.has_image와 같은 정의 (status가 있으면 == 'ok', 없으면 참조 존재)
-HAS_IMAGE_CYPHER = ("CASE WHEN p.image_status IS NOT NULL THEN p.image_status = 'ok' "
-                    "ELSE (p.image_url IS NOT NULL OR p.image_ref IS NOT NULL) END")
 
 
 def _edges(rows: Iterable[dict[str, Any]]) -> list[AttrEdge]:
@@ -140,7 +137,7 @@ class TrendSearcher:
         self.driver = driver
         self.weights = weights or load_weights()
         self.top_k = top_k
-        self.options = options or ScoringOptions.from_weights(self.weights)  # 기본 = flags (현재 yaml은 v1.0 동작)
+        self.options = options or ScoringOptions()
         self._products: dict[str, ProductRecord] = {}
 
     # ---------- 그래프 조회 ----------
@@ -156,12 +153,11 @@ class TrendSearcher:
                 self._products[rec.node.id] = rec
         return [self._products[i] for i in ids if i in self._products]
 
-    def candidate_ids(self, item: ItemRecord, limit_when_no_attributes: Optional[int] = None,
-                      image_first: bool = False) -> list[str]:
+    def candidate_ids(self, item: ItemRecord, limit_when_no_attributes: Optional[int] = None) -> list[str]:
         """Item과 상분류가 같고, 하분류·핏·공유 속성 노드 중 하나가 같은 Product의 id.
 
         속성 노드에서 출발하므로 그래프에 없는 가상 Item(ItemRecord만 있음)에도 쓸 수 있다.
-        `limit_when_no_attributes`(fast path)는 하분류 일치 상품을 [이미지 우선(플래그)] → id 순으로 k개만 가져온다.
+        `limit_when_no_attributes`(fast path)는 하분류 일치 상품을 id 순으로 k개만 가져온다.
         """
         major = _v(item.category_major)
         ids: set[str] = set()
@@ -169,8 +165,7 @@ class TrendSearcher:
         if minor is not None:
             order = ""
             if limit_when_no_attributes:
-                img = f"{HAS_IMAGE_CYPHER} DESC, " if image_first else ""
-                order = f" ORDER BY {img}p.id LIMIT {int(limit_when_no_attributes)}"
+                order = f" ORDER BY p.id LIMIT {int(limit_when_no_attributes)}"
             ids |= {r["id"] for r in self._q(
                 "MATCH (p:Product {category_minor: $minor})-[:IN_CATEGORY]->(:Category {id: $major}) RETURN p.id AS id" + order,
                 minor=_v(minor), major=major)}
@@ -187,30 +182,27 @@ class TrendSearcher:
                 ids |= {r["id"] for r in self._q(cypher, vals=vals, major=major)}
         return sorted(ids)
 
-    def fast_path(self, item: ItemRecord, has_requested: bool = False, options: Optional[ScoringOptions] = None) -> bool:
+    def fast_path(self, item: ItemRecord, has_requested: bool = False) -> bool:
         """속성이 없는 Item은 하분류 일치 보너스만 받으므로 상위 k개만 가져와도 전수 결과와 같다.
-        성별 필터·snap 제한이 켜져 있으면 k개 뒤의 상품이 올라올 수 있어 쓰지 않는다."""
-        o = options or self.options
-        if has_requested or o.item_gender_filter or o.snap_id_limit:
+        요청 속성 필터가 있으면 k개 뒤의 상품이 올라올 수 있어 쓰지 않는다."""
+        if has_requested:
             return False
         return not any(attribute_values(item, a) for a in SCORED_ATTRIBUTES)
 
-    def candidates(self, item: ItemRecord, top_k: Optional[int] = None, has_requested: bool = False,
-                   options: Optional[ScoringOptions] = None) -> list[str]:
+    def candidates(self, item: ItemRecord, top_k: Optional[int] = None, has_requested: bool = False) -> list[str]:
         """search()·verify_graph_search가 같은 규칙으로 쓰는 후보 id."""
-        o = options or self.options
         k = top_k or self.top_k
-        fast = self.fast_path(item, has_requested, o)
-        return self.candidate_ids(item, limit_when_no_attributes=k if fast else None, image_first=o.image_first_tiebreak)
+        fast = self.fast_path(item, has_requested)
+        return self.candidate_ids(item, limit_when_no_attributes=k if fast else None)
 
     def rank_item(self, item: ItemRecord, focus_core: Iterable[str] = (), focus_supporting: Iterable[str] = (), *,
                   top_k: Optional[int] = None, requested: Iterable[Any] = (), options: Optional[ScoringOptions] = None,
-                  excluded: Optional[dict[str, int]] = None, stats: Optional[dict[str, int]] = None) -> list[ScoredProduct]:
+                  excluded: Optional[dict[str, int]] = None) -> list[ScoredProduct]:
         """Item 하나의 후보 → (요청 속성 필터) → 점수·순위."""
         o = options or self.options
         k = top_k or self.top_k
         requested = list(requested)
-        products = self._fetch_products(self.candidates(item, k, bool(requested), o))
+        products = self._fetch_products(self.candidates(item, k, bool(requested)))
         if requested:
             kept = []
             for p in products:
@@ -220,7 +212,7 @@ class TrendSearcher:
                 elif excluded is not None:
                     excluded[why] = excluded.get(why, 0) + 1
             products = kept
-        return rank_products(item, products, self.weights, focus_core, focus_supporting, top_k=k, options=o, stats=stats)
+        return rank_products(item, products, self.weights, focus_core, focus_supporting, top_k=k, options=o)
 
     # ---------- 조립 ----------
     def styles(self) -> list[dict[str, Any]]:
@@ -341,13 +333,12 @@ class TrendSearcher:
         excluded = {"unknown": 0, "mismatch": 0}
         weak_items: list[str] = []
         uses_snap = False
-        stats: dict[str, int] = {}
         for s in matched:
             rows = []
             for item, res in by_style.get(s["id"], []):
                 core, supporting = s.get("focus_core", []), s.get("focus_supporting", [])
                 ranked = self.rank_item(item, core, supporting, requested=query.requested.attributes,
-                                        excluded=excluded, stats=stats)
+                                        excluded=excluded)
                 if ranked and ranked[0].compared == 0:
                     weak_items.append(item.node.name)
                 uses_snap |= any(r.product.node.source == "musinsa_snap" for r in ranked)
@@ -360,7 +351,6 @@ class TrendSearcher:
             limitations.append("속성이 없는 아이템은 하분류가 같다는 것만으로 후보를 골랐습니다 (순위 근거가 약함): " + ", ".join(dict.fromkeys(weak_items)))
         if uses_snap:
             limitations.append("musinsa_snap 상품은 착장 사진 속 아이템이라 구매 가능한 상품이 아니며 색 정보가 없습니다 (kind=snap_garment).")
-        limitations += scoring_limitations(stats)
         if not trends_raw:
             limitations.append("조건을 통과한 트렌드·아이템이 없습니다.")
             return TrendAnalysisResult(request_id=query.request_id, status="no_results", applied_filters=applied, limitations=limitations)
@@ -377,16 +367,6 @@ class TrendSearcher:
             trends.append(Trend(style=style, items=items))
         return TrendAnalysisResult(request_id=query.request_id, status="ok", applied_filters=applied, trends=trends,
                                    evidence=list(evidence.values()), limitations=limitations)
-
-
-def scoring_limitations(stats: dict[str, int]) -> list[str]:
-    """점수 플래그로 걸러낸 건수 (플래그가 꺼져 있으면 빈 목록)."""
-    out = []
-    if stats.get("gender_excluded"):
-        out.append(f"Item 성별 필터로 Item과 반대 성별 상품 {stats['gender_excluded']}건을 제외했습니다.")
-    if stats.get("snap_limited"):
-        out.append(f"같은 스냅 사진(snap_id)의 상품 수 제한으로 {stats['snap_limited']}건을 뺐습니다.")
-    return out
 
 
 def product_match(sp: ScoredProduct) -> ProductMatch:

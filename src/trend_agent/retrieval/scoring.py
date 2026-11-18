@@ -8,10 +8,8 @@
   Product에 값이 없으면 `unknown`으로 표시하고 빠진다. 불일치로 감점하지 않는다.
 - 근사(approx) 값은 쓰지 않는다 (미확인 취급). Length·Shape·서브컬러는 점수에 쓰지 않는다.
 
-v1.1 (계약 G1, 모두 기본값 = v1.0 동작 — `ScoringOptions()`):
-- 값 가중 재현율: ratio = Σ_{공통} w(v) ÷ Σ_{Item 값} w(v). 값 가중치가 없으면 |공통|/|Item| 그대로 계산한다.
-- core 미확인 감쇠 γ: base = Σ w·r ÷ (Σ w + γ·Σ_{core ∧ Item 값 있음 ∧ Product 미확인} w).
-- 이미지 동점 정렬(id 바로 앞에 -has_image), snap_id 개수 제한, Item 성별 필터(남/여와 반대 성별 제외).
+선택: 값 가중 재현율 ratio = Σ_{공통} w(v) ÷ Σ_{Item 값} w(v) (`ScoringOptions.value_weights`).
+값 가중치가 없으면 |공통|/|Item| 그대로 계산한다.
 """
 from __future__ import annotations
 
@@ -54,21 +52,9 @@ ValueWeights = Mapping[str, Mapping[str, float]]  # {속성: {값: 가중치}} �
 
 @dataclass(frozen=True)
 class ScoringOptions:
-    """점수·정렬 플래그 묶음. 기본값 = v1.0 동작 (weights.yaml `flags` 기본값과 같다)."""
+    """점수 선택 사항. 기본값은 값 가중치 없음(|공통|/|Item|)."""
 
     value_weights: Optional[ValueWeights] = None
-    core_unknown_decay: float = 0.0
-    image_first_tiebreak: bool = False
-    snap_id_limit: int = 0
-    item_gender_filter: bool = False
-
-    @classmethod
-    def from_weights(cls, weights: WeightsConfig, *,
-                     value_weights: Optional[ValueWeights] = None) -> "ScoringOptions":
-        """weights.yaml `flags`로 만든다."""
-        f = weights.flags
-        return cls(value_weights=value_weights, core_unknown_decay=f.core_unknown_decay, image_first_tiebreak=f.image_first_tiebreak,
-                   snap_id_limit=f.snap_id_limit, item_gender_filter=f.item_gender_filter)
 
 
 DEFAULT_OPTIONS = ScoringOptions()
@@ -81,22 +67,16 @@ class ScoredProduct:
     breakdown: ScoreBreakdown
     match: MatchResult
     compared: int = 0  # 비교된 속성 수 (동점 정렬에 쓴다)
-    image_first: bool = False  # flags.image_first_tiebreak (켜면 id 바로 앞에서 이미지 있는 상품 우선)
-
-    @property
-    def has_image(self) -> bool:
-        return self.product.node.has_image
 
     @property
     def sort_key(self) -> tuple:
-        # 같은 입력은 같은 순위: 점수 → 비교된 속성이 많은 쪽 → 일치 값이 많은 쪽 → [이미지 있는 쪽] → id
-        img = -int(self.has_image) if self.image_first else 0
-        return (-round(self.score, 9), -self.compared, -len(self.match.matched), img, self.product.node.id)
+        # 같은 입력은 같은 순위: 점수 → 비교된 속성이 많은 쪽 → 일치 값이 많은 쪽 → id
+        return (-round(self.score, 9), -self.compared, -len(self.match.matched), self.product.node.id)
 
 
 def _value_ratio(iv: set[str], common: set[str], vw: Optional[Mapping[str, float]]) -> float:
     if not vw:
-        return len(common) / len(iv)  # v1.0 식 그대로 (비트 단위 동일)
+        return len(common) / len(iv)
     total = sum(vw.get(v, 1.0) for v in iv)
     return sum(vw.get(v, 1.0) for v in common) / total if total else 0.0
 
@@ -119,7 +99,6 @@ def score_product(
     mismatched: list[str] = []
     unknown: list[str] = []
     num = den = 0.0
-    unknown_core = 0.0
     for attr in SCORED_ATTRIBUTES:
         iv = attribute_values(item, attr)
         if not iv:
@@ -127,8 +106,6 @@ def score_product(
         pv = attribute_values(product, attr)
         if not pv:
             unknown.append(attr)  # Product 미확인
-            if options.core_unknown_decay and attr in core:
-                unknown_core += options.core_unknown_decay * weights.applied_weight(attr, core, supporting)
             continue
         common = iv & pv
         ratio = _value_ratio(iv, common, vws.get(attr))
@@ -140,10 +117,7 @@ def score_product(
         den += w
         matched += [_label(attr, v) for v in sorted(common)]
         mismatched += [_label(attr, v) for v in sorted(iv - pv)]
-    if unknown_core:
-        base = num / (den + unknown_core)
-    else:
-        base = num / den if den else 0.0
+    base = num / den if den else 0.0
     bonus: dict[str, float] = {}
     im, pm = category_minor_of(item), category_minor_of(product)
     if im is not None and im == pm:
@@ -151,36 +125,10 @@ def score_product(
     return ScoredProduct(
         product=product,
         score=base + sum(bonus.values()),
-        breakdown=ScoreBreakdown(attributes=attrs, base_score=base, bonus=bonus, unknown_core_weight=unknown_core,
-                                 value_weighted=bool(vws)),
+        breakdown=ScoreBreakdown(attributes=attrs, base_score=base, bonus=bonus, value_weighted=bool(vws)),
         match=MatchResult(matched=matched, mismatched=mismatched, unknown=unknown),
         compared=len(attrs),
-        image_first=options.image_first_tiebreak,
     )
-
-
-def gender_compatible(item: ItemRecord, product: ProductRecord) -> bool:
-    """Item 성별 필터: Item이 남/여면 반대 성별 상품만 제외한다. 공용·미상(상품이든 Item이든)은 통과."""
-    ig, pg = _s(item.node.gender), _s(getattr(product.node, "gender", None))
-    if ig not in ("남", "여") or pg not in ("남", "여"):
-        return True
-    return ig == pg
-
-
-def limit_per_snap(scored: list[ScoredProduct], limit: int) -> list[ScoredProduct]:
-    """정렬된 목록에서 같은 snap_id(같은 사진)는 앞에서부터 `limit`개만 남긴다. snap_id 없는 상품은 그대로."""
-    if limit <= 0:
-        return scored
-    seen: dict[int, int] = {}
-    out = []
-    for s in scored:
-        sid = s.product.node.snap_id
-        if sid is not None:
-            seen[sid] = seen.get(sid, 0) + 1
-            if seen[sid] > limit:
-                continue
-        out.append(s)
-    return out
 
 
 def rank_products(
@@ -192,26 +140,14 @@ def rank_products(
     top_k: Optional[int] = None,
     min_score: float = 0.0,
     options: ScoringOptions = DEFAULT_OPTIONS,
-    stats: Optional[dict[str, int]] = None,
 ) -> list[ScoredProduct]:
     """점수가 `min_score`를 넘는 Product를 순서대로. 아무것도 맞지 않은 후보(점수 0)는 내지 않는다.
 
-    Neo4j 없이 호출할 수 있는 순수 함수다(T4 평가용). `stats`를 주면 `gender_excluded`·`snap_limited` 건수를 더한다.
+    Neo4j 없이 호출할 수 있는 순수 함수다.
     """
-    products = list(products)
-    if options.item_gender_filter:
-        kept = [p for p in products if gender_compatible(item, p)]
-        if stats is not None:
-            stats["gender_excluded"] = stats.get("gender_excluded", 0) + len(products) - len(kept)
-        products = kept
     scored = [s for p in products if (s := score_product(item, p, weights, focus_core, focus_supporting, options)) is not None]
     scored = [s for s in scored if s.score > min_score]
     scored.sort(key=lambda s: s.sort_key)
-    if options.snap_id_limit:
-        n = len(scored)
-        scored = limit_per_snap(scored, options.snap_id_limit)
-        if stats is not None:
-            stats["snap_limited"] = stats.get("snap_limited", 0) + n - len(scored)
     return scored[:top_k] if top_k else scored
 
 

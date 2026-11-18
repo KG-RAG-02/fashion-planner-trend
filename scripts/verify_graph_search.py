@@ -4,10 +4,10 @@
   A) 그래프 검색(`TrendSearcher.candidate_ids` → 점수) 상위 k
   B) 정규화 파일의 같은 상분류 Product 전부를 `rank_products`로 점수 계산한 상위 k
 두 목록(id, 점수)이 같아야 한다. 다르면 후보 탐색 Cypher에 빠지는 경우가 있다는 뜻이다.
-v1.1: 점수 플래그(weights.yaml `flags`)를 두 경로에 똑같이 적용하고, fast path 규칙은 `TrendSearcher.candidates`를 쓴다.
+fast path 규칙은 `TrendSearcher.candidates`를 그대로 쓴다.
 `--virtual`은 실 Item을 Item 노드 없이(가상 Item과 같은 경로) 다시 조회해 같은지도 본다(속성 노드 출발 후보).
 
-실행:  python scripts/verify_graph_search.py [--top-k 5] [--virtual] [--image-first] [--gamma 0.5] [--snap-limit 1] [--gender-filter]
+실행:  python scripts/verify_graph_search.py [--top-k 5] [--virtual]
 선행:  python scripts/load_graph.py
 """
 from __future__ import annotations
@@ -23,8 +23,6 @@ sys.path.insert(0, str(ROOT / "src"))
 from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
 from trend_agent.graph.loader import read_products  # noqa: E402
 from trend_agent.graph.search import ITEMS_CYPHER, TrendSearcher, _record  # noqa: E402
-from dataclasses import replace  # noqa: E402
-
 from trend_agent.retrieval.scoring import ScoringOptions, rank_products  # noqa: E402
 from trend_agent.retrieval.weights import load_weights  # noqa: E402
 from trend_agent.schemas.graph_schema import ItemNode, ItemRecord  # noqa: E402
@@ -36,23 +34,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--top-k", type=int, default=5)
     ap.add_argument("--virtual", action="store_true", help="Item id를 가상 id로 바꿔 속성 노드 출발 후보만으로도 같은지 확인")
-    ap.add_argument("--image-first", action="store_true", help="flags.image_first_tiebreak를 켜고 확인")
-    ap.add_argument("--gamma", type=float, help="core_unknown_decay γ를 이 값으로 확인")
-    ap.add_argument("--snap-limit", type=int, help="snap_id_limit을 이 값으로 확인")
-    ap.add_argument("--gender-filter", action="store_true", help="item_gender_filter를 켜고 확인")
     a = ap.parse_args()
     k = a.top_k
     weights = load_weights()
-    opts = ScoringOptions.from_weights(weights)
-    if a.image_first:
-        opts = replace(opts, image_first_tiebreak=True)
-    if a.gamma is not None:
-        opts = replace(opts, core_unknown_decay=a.gamma)
-    if a.snap_limit is not None:
-        opts = replace(opts, snap_id_limit=a.snap_limit)
-    if a.gender_filter:
-        opts = replace(opts, item_gender_filter=True)
-    print("적용 플래그:", opts)
+    opts = ScoringOptions()
 
     products = [r for r in read_products(PRODUCTS) if r.in_graph_scope]
     by_major: dict[str, list] = {}

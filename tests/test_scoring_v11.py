@@ -1,4 +1,4 @@
-"""점수 v1.1 (값 가중 재현율 · γ · 이미지 동점 · snap 제한 · 성별 필터). 기본값은 v1.0과 같아야 한다.
+"""점수: 값 가중 재현율 선택 사항. 값 가중치가 없거나 모두 1.0이면 기본 식과 같아야 한다.
 
 회귀 기준: v1.0 `score_product`의 식을 아래 `_score_v10`에 그대로 얼려 두고, 무작위 합성 쌍에서
 점수·비교 수·breakdown·match가 **완전히 같음**(값 가중치 없음 / 모두 1.0)을 확인한다.
@@ -11,11 +11,9 @@ from trend_agent.retrieval.scoring import (
     ScoringOptions,
     attribute_values,
     category_minor_of,
-    gender_compatible,
-    rank_products,
     score_product,
 )
-from trend_agent.retrieval.weights import WeightsConfig, load_weights
+from trend_agent.retrieval.weights import load_weights
 from trend_agent.schemas import vocabulary as V
 from trend_agent.schemas.graph_schema import (
     SCORED_ATTRIBUTES,
@@ -132,8 +130,8 @@ def test_v11_defaults_equal_v10_on_random_pairs(all_ones):
     assert n > 3000  # 같은 상분류 쌍이 충분히 비교됐다
 
 
-def _gamma_case(gamma):
-    """설계 메모 §2.6: 가상 Item (color core 베이지 primary·화이트 secondary, material supporting 면, fit 루즈)."""
+def test_value_weighted_ratio():
+    """가상 Item: color core 베이지(가중치 1.0)·화이트(0.5), material supporting 면, fit 루즈."""
     it = ItemRecord(node=ItemNode(id="v", name="v", raw_text="", article_id="virtual", fit="루즈"),
                     category_major="상의", colors=[AttrEdge(value="베이지"), AttrEdge(value="화이트")],
                     materials=[AttrEdge(value="면")])
@@ -141,37 +139,18 @@ def _gamma_case(gamma):
                          category_major="상의", materials=[AttrEdge(value="면")])
     cat = ProductRecord(node=ProductNode(id="otpensource:1", source="otpensource", kind="catalog_item", source_row="1"),
                         category_major="상의", colors=[AttrEdge(value="베이지")])
-    opt = ScoringOptions(value_weights={"color": {"베이지": 1.0, "화이트": 0.5}}, core_unknown_decay=gamma)
+    opt = ScoringOptions(value_weights={"color": {"베이지": 1.0, "화이트": 0.5}})
     a = score_product(it, snap, W, ["color"], ["material"], opt)
     b = score_product(it, cat, W, ["color"], ["material"], opt)
-    return a, b
-
-
-@pytest.mark.parametrize("gamma,snap_score", [(0.0, 1.0), (0.5, 0.625), (1.0, 5 / 11)])
-def test_core_unknown_decay(gamma, snap_score):
-    snap, cat = _gamma_case(gamma)
-    assert snap.score == pytest.approx(snap_score)
-    assert cat.score == pytest.approx(2 / 3)  # 베이지 1.0 ÷ (1.0 + 0.5)
-    assert snap.breakdown.unknown_core_weight == pytest.approx(gamma * 6.0)  # color 3 × core 2.0
-    assert cat.breakdown.value_weighted and cat.breakdown.attributes["color"].ratio == pytest.approx(2 / 3)
+    assert a.score == pytest.approx(1.0) and a.match.unknown == ["color"]  # 상품에 없는 color는 분모에서 빠진다
+    assert b.score == pytest.approx(2 / 3)  # 베이지 1.0 ÷ (1.0 + 0.5)
+    assert b.breakdown.value_weighted and b.breakdown.attributes["color"].ratio == pytest.approx(2 / 3)
 
 
 def _p(pid, image_status=None, image_url=None, snap_id=None, gender=None, color="블랙"):
     return ProductRecord(node=ProductNode(id=pid, source="otpensource", kind="catalog_item", source_row=pid,
                                           image_status=image_status, image_url=image_url, snap_id=snap_id, gender=gender),
                          category_major="상의", colors=[AttrEdge(value=color)])
-
-
-def _it(gender=None):
-    return ItemRecord(node=ItemNode(id="i", name="n", raw_text="", article_id="a", gender=gender),
-                      category_major="상의", colors=[AttrEdge(value="블랙")])
-
-
-def test_image_first_tiebreak_only_when_flag_on():
-    ps = [_p("a"), _p("b", image_status="ok", image_url="u"), _p("c", image_status="broken", image_url="u")]
-    assert [s.product.node.id for s in rank_products(_it(), ps, W)] == ["a", "b", "c"]
-    on = ScoringOptions(image_first_tiebreak=True)
-    assert [s.product.node.id for s in rank_products(_it(), ps, W, options=on)] == ["b", "a", "c"]
 
 
 def test_has_image_definition():
@@ -181,32 +160,5 @@ def test_has_image_definition():
     assert not _p("x").node.has_image
 
 
-def test_snap_id_limit():
-    ps = [_p("a", snap_id=7), _p("b", snap_id=7), _p("c", snap_id=8), _p("d")]
-    stats: dict = {}
-    got = rank_products(_it(), ps, W, options=ScoringOptions(snap_id_limit=1), stats=stats)
-    assert [s.product.node.id for s in got] == ["a", "c", "d"] and stats["snap_limited"] == 1
-    assert len(rank_products(_it(), ps, W)) == 4
-
-
-def test_item_gender_filter():
-    ps = [_p("m", gender="남"), _p("f", gender="여"), _p("u", gender="공용"), _p("n")]
-    stats: dict = {}
-    got = rank_products(_it("여"), ps, W, options=ScoringOptions(item_gender_filter=True), stats=stats)
-    assert [s.product.node.id for s in got] == ["f", "n", "u"] and stats["gender_excluded"] == 1
-    assert len(rank_products(_it("여"), ps, W)) == 4  # 기본 꺼짐
-    assert gender_compatible(_it("공용"), ps[0]) and gender_compatible(_it(None), ps[0])
-
-
-def test_weights_v11_sections_default_to_v10_when_absent():
-    cfg = WeightsConfig.model_validate({"base_weights": dict(W.base_weights)})
-    assert cfg.flags.core_unknown_decay == 0.0
-    assert not cfg.flags.image_first_tiebreak and cfg.flags.snap_id_limit == 0 and not cfg.flags.item_gender_filter
-    assert ScoringOptions.from_weights(cfg) == ScoringOptions()
-
-
-def test_weights_yaml_flags_are_all_off_and_sha():
-    f = W.flags  # 켜는 것은 사용자 결정 사항이다. 저장소 설정은 v1.0 동작(모두 꺼짐)이다.
-    assert (f.image_first_tiebreak, f.core_unknown_decay, f.snap_id_limit, f.item_gender_filter) == (False, 0.0, 0, False)
-    assert ScoringOptions.from_weights(W) == ScoringOptions()
+def test_weights_sha_is_stable():
     assert len(W.sha) == 12 and W.sha == load_weights().sha

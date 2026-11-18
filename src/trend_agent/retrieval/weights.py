@@ -1,13 +1,9 @@
-"""유사도 가중치 설정. 문서: docs/spec.md Step 9, §7.3. 기본값 파일: configs/weights.yaml
-
-v1.1: `flags` 섹션을 **Optional + 코드 기본값**으로 읽는다. 키가 없으면 코드 기본값 = v1.0 동작이다
-(γ=0, 이미지 동점 정렬 끔, 같은 사진 제한 없음, Item 성별 필터 끔). 값을 켜는 것은 별도 결정이다.
-"""
+"""유사도 가중치 설정. 문서: docs/spec.md Step 9, §7.3. 기본값 파일: configs/weights.yaml"""
 from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Iterable, Literal, Optional
+from typing import Iterable, Literal
 
 import yaml
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
@@ -27,21 +23,10 @@ class FocusMultipliers(BaseModel):
     default: float = Field(1.0, gt=0)
 
 
-class Flags(BaseModel):
-    """점수 플래그. 기본값 = v1.0 동작(모두 꺼짐). 켜려면 사용자 결정이 필요하다."""
-
-    image_first_tiebreak: bool = False   # 동점이면 has_image 우선 (fast path·sort_key·verify 함께)
-    core_unknown_decay: float = Field(0.0, ge=0)  # γ (0 = 끔)
-    snap_id_limit: int = Field(0, ge=0)  # Item별 목록에서 같은 snap_id 최대 개수 (0 = 제한 없음)
-    item_gender_filter: bool = False     # Item 성별(남/여)과 반대 성별 상품 제외. 꺼 둔다 — 트렌드명에 성별이 명확할 때만 적용하는 규칙으로 바꿀 예정
-
-
 class WeightsConfig(BaseModel):
     base_weights: dict[str, float]
     category: CategoryConfig = Field(default_factory=CategoryConfig)
     focus_multipliers: FocusMultipliers = Field(default_factory=FocusMultipliers)
-    # v1.1 (없으면 v1.0 동작)
-    flags: Flags = Field(default_factory=Flags)
     _sha: str = PrivateAttr(default="")
 
     @model_validator(mode="after")

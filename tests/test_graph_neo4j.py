@@ -83,14 +83,12 @@ def test_attribute_origin_candidates_work_for_virtual_items(g):
     assert set(s.candidate_ids(approx_item)) == {"otpensource:a", "otpensource:b", "musinsa_snap:1"}
 
 
-def test_fast_path_image_first_order(g):
+def test_fast_path_order(g):
     s = TrendSearcher(g.d)
     bare = ItemRecord(node=ItemNode(id="virtual:2:x-i0", name="셔츠", raw_text="", article_id="virtual", category_minor="셔츠"),
                       category_major="상의")
     assert s.candidate_ids(bare, limit_when_no_attributes=2) == ["musinsa_snap:1", "otpensource:a"]  # id 순 (m < o)
-    # 이미지 우선: a(ok)·snap:1(ok) > b(broken) — 같은 집합이지만 limit 1이면 차이가 난다
     assert s.candidate_ids(bare, limit_when_no_attributes=1) == ["musinsa_snap:1"]
-    assert s.candidate_ids(bare, limit_when_no_attributes=3, image_first=True) == ["musinsa_snap:1", "otpensource:a", "otpensource:b"]
 
 
 def _query(season="2027SS", names=()):
