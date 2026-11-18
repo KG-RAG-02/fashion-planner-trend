@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -11,7 +12,7 @@ import pytest
 from trend_agent.ingestion.extraction import extractor
 from trend_agent.ingestion.extraction.llm_schema import extraction_schema
 from trend_agent.ingestion.extraction.postprocess import postprocess
-from trend_agent.ingestion.extraction.prompt import load_template, render_blocks, render_prompt, render_retry_suffix
+from trend_agent.ingestion.extraction.prompt import PROMPT_ID, load_template, prompt_sha256, render_blocks, render_prompt, render_retry_suffix
 from trend_agent.ingestion.extraction.validate import squash, validate_extraction
 from trend_agent.llm import client
 from trend_agent.llm.backends import BackendReply
@@ -76,12 +77,13 @@ def _validated(doc):
 
 
 # ---------- 프롬프트 ----------
-def test_template_front_matter_and_version():
-    body, front = load_template("extract-v1")
-    assert front["prompt_version"] == "extract-v1" and front["guideline_version"] == "0.3-draft"
+def test_template_front_matter_and_id():
+    body, front = load_template()
+    assert PROMPT_ID == "article-extraction" and front["prompt_id"] == PROMPT_ID
     assert not body.startswith("---") and "도구를 쓰지 않는다" in body
+    assert prompt_sha256() == hashlib.sha256(body.encode("utf-8")).hexdigest()  # 앞머리를 뺀 본문의 해시
     with pytest.raises(ValueError):
-        load_template("v1")
+        load_template("extract-v5")
 
 
 def test_render_blocks_lines():
@@ -96,7 +98,7 @@ def test_render_blocks_lines():
 
 
 def test_render_prompt_and_retry_suffix():
-    p = render_prompt(ARTICLE, "extract-v1")
+    p = render_prompt(ARTICLE)
     assert "- article_id: t-001" in p and "- 발행일: 2026-10-21" in p and "기사 시즌 태그: 2027SS" in p
     assert p.rstrip().endswith("JSON 객체 하나만 출력하라.")
     suf = render_retry_suffix([f"V2 e{i}" for i in range(35)], limit=30)
@@ -111,59 +113,45 @@ SEASON_CANDIDATES = [
 ]
 
 
-def test_v3_template_front_matter():
-    body, front = load_template("extract-v3")
-    assert front["prompt_version"] == "extract-v3" and front["guideline_version"] == "0.3-draft"
-    assert front["season_candidates"] is True
+def test_template_rules():
+    body, _ = load_template()
     assert "시즌 후보" in body and "과거 컬렉션" in body and "발행일로 추정하지 않는다" in body
-    _, v2 = load_template("extract-v2")
-    assert not v2.get("season_candidates")  # v2는 동결 — 입력도 그대로
-
-
-def test_v5_template_front_matter_and_rules():
-    body, front = load_template("extract-v5")
-    assert front["prompt_version"] == "extract-v5" and front["base"] == "extract-v4"
-    assert front["guideline_version"] == "0.4-draft" and front["season_candidates"] is True
     for rule in ("한 문장으로 정의", "항목 하나에 사실 하나", "정의에 쓴 주장 하나하나", "확실하지 않으면 Item으로 내지 않는다",
                  "착용 사례로 나열만", "같이 입으라고 권하는 옷", "착용 법칙·비율", "대비시키며 나열한", "일반 범주",
                  "\"롱\"·\"긴\"은 **롱**", "성질만 말한 표현", "발행일로 추정하지 않는다", "자리표시자"):
         assert rule in body, rule
-    assert "애매하면 Item으로 내고" not in body                       # v4의 완화 규칙은 v5에서 뺐다
-    art = {**ARTICLE, "season_candidates": SEASON_CANDIDATES}
-    assert "- 시즌 후보 (" in render_prompt(art, "extract-v5")         # v3·v4와 같은 입력 형식
+    assert "애매하면 Item으로 내고" not in body
 
 
-def test_render_prompt_season_candidates_only_for_v3():
+def test_render_prompt_season_candidates():
     art = {**ARTICLE, "season_candidates": SEASON_CANDIDATES}
-    p3 = render_prompt(art, "extract-v3")
+    p3 = render_prompt(art)
     assert "- 기사 시즌 태그: 2027SS" in p3 and "- 시즌 후보 (" in p3
     assert "  - 2027SS ← 본문 1회 · 캡션 3회" in p3           # 같은 값은 출처별 횟수를 합친다 (고정 순서: 제목·태그·본문·캡션)
     assert "  - 2011SS ← 본문 1회" in p3
     assert "  - 2027 리조트 (표준 시즌으로 정규화 불가) ← 캡션 1회" in p3
     assert p3.index("2027SS ←") < p3.index("2011SS ←") < p3.index("2027 리조트")  # 많이 나온 값 먼저, 같으면 문자열 순
-    assert render_prompt(art, "extract-v3") == p3                                  # 같은 입력 → 같은 문자열(캐시 키)
-    assert "시즌 후보" not in render_prompt(art, "extract-v2").split("## 8. 기사")[1]  # v2 입력은 바뀌지 않는다
-    none = render_prompt(ARTICLE, "extract-v3")                                    # 후보 필드가 없는 기사
+    assert render_prompt(art) == p3                                                # 같은 입력 → 같은 문자열(캐시 키)
+    none = render_prompt(ARTICLE)                                                  # 후보 필드가 없는 기사
     assert "- 시즌 후보: 없음" in none
 
 
-@pytest.mark.parametrize("version", ["extract-v3", "extract-v5"])
-def test_v3_has_no_label_trend_names(version):
-    """v3·v5의 예시는 합성이다(R-11, D-39). 로컬 정답 라벨(gitignore)의 Style 이름·별칭이 프롬프트에 없어야 한다. 라벨이 없으면 건너뛴다."""
+def test_prompt_has_no_label_trend_names():
+    """프롬프트의 예시는 합성이다. 로컬 정답 라벨(gitignore)의 Style 이름·별칭이 프롬프트에 없어야 한다. 라벨이 없으면 건너뛴다."""
     labels = sorted((ROOT / "data" / "labels").glob("*.json"))
     if not labels:
         pytest.skip("로컬 라벨 없음")
     from trend_agent.schemas.vocabulary import CategoryMajor, CategoryMinor, Color
 
-    # 표준 값과 같은 일반어 Style 이름(색 "화이트", 카테고리 "스커트")은 누출이 아니다 (pipeline R-11)
+    # 표준 값과 같은 일반어 Style 이름(색 "화이트", 카테고리 "스커트")은 누출이 아니다
     generic = {c.value for c in Color} | {c.value for c in CategoryMinor} | {c.value for c in CategoryMajor}
-    body, _ = load_template(version)
+    body, _ = load_template()
     for p in labels:
         for s in json.loads(p.read_text(encoding="utf-8"))["extraction"]["styles"]:
             for name in [s["name"], *(s.get("aliases") or [])]:
                 if name in generic:
                     continue
-                assert name not in body, f"{version} 프롬프트에 라벨 {p.stem}의 트렌드명이 들어 있다"
+                assert name not in body, f"프롬프트에 라벨 {p.stem}의 트렌드명이 들어 있다"
 
 
 # ---------- N3: 이름 충실성 탐지 (경고만) ----------
@@ -294,8 +282,8 @@ def test_extractor_name_fix_counts_p2_and_clears_n3(monkeypatch, tmp_path):
 
     client.register_backend("openai_api", _Fixed())
     try:
-        off = extractor.extract_article_outcome(ARTICLE, model="m", prompt_version="extract-v1", use_cache=False)
-        on = extractor.extract_article_outcome(ARTICLE, model="m", prompt_version="extract-v1", use_cache=False,
+        off = extractor.extract_article_outcome(ARTICLE, model="m", use_cache=False)
+        on = extractor.extract_article_outcome(ARTICLE, model="m", use_cache=False,
                                                dedupe=True, name_fix=True)
     finally:
         client.register_backend("openai_api", None)
@@ -364,8 +352,8 @@ def test_extractor_dedupe_records_p1_warning(monkeypatch, tmp_path):
 
     client.register_backend("openai_api", _Fixed())
     try:
-        off = extractor.extract_article_outcome(ARTICLE, model="m", prompt_version="extract-v1", use_cache=False)
-        on = extractor.extract_article_outcome(ARTICLE, model="m", prompt_version="extract-v1", use_cache=False, dedupe=True)
+        off = extractor.extract_article_outcome(ARTICLE, model="m", use_cache=False)
+        on = extractor.extract_article_outcome(ARTICLE, model="m", use_cache=False, dedupe=True)
     finally:
         client.register_backend("openai_api", None)
     assert not off.passed and off.counts.get("V1")
@@ -509,13 +497,13 @@ def test_retry_once_then_pass(fake_llm):
     bad = _llm_doc()
     bad["styles"][0]["evidence"] = [{"block_idx": 1, "quote": "기사에 없는 문장"}]
     b = fake_llm([bad, _llm_doc()])
-    out = extractor.extract_article_outcome(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
+    out = extractor.extract_article_outcome(ARTICLE, backend="openai_api", model="m-1")
     assert out.passed and out.attempts == 2 and len(b.prompts) == 2
     assert "이전 출력의 검증 오류" in b.prompts[1] and "기사에 없는 문장" in b.prompts[1]
     doc = extractor.build_output_doc(out, ARTICLE)
     meta = doc["label_meta"]
     assert meta["status"] == "auto" and meta["labeler"] == "llm:openai_api/m-1" and meta["published"] == "2026-10-21"
-    assert meta["prompt_version"] == "extract-v1" and meta["guideline_version"] == "0.3-draft"
+    assert meta["prompt_version"] == PROMPT_ID and meta["prompt_sha256"] == prompt_sha256() and "guideline_version" not in meta
     assert meta["postprocess"] == {"alias_map": True, "length_area": False, "dedupe": False, "name_fix": False}
     assert meta["validation"]["passed"] is True and meta["validation"]["attempts"] == 2
     assert meta["llm"]["thread_ids"] == ["th-1", "th-2"] and meta["llm"]["latency_s"] == 2.5
@@ -526,10 +514,10 @@ def test_retry_once_then_pass(fake_llm):
 def test_still_failing_goes_to_review(fake_llm):
     bad = _llm_doc(items=[_item(fit_raw="오버핏")])
     fake_llm([bad])
-    out = extractor.extract_article_outcome(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
+    out = extractor.extract_article_outcome(ARTICLE, backend="openai_api", model="m-1")
     assert not out.passed and out.attempts == 2 and out.counts["V3"] == 1
     with pytest.raises(extractor.ExtractionFailed):
-        extractor.extract_article(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
+        extractor.extract_article(ARTICLE, backend="openai_api", model="m-1")
 
 
 def test_pydantic_failure_kept_as_raw(fake_llm):
@@ -538,7 +526,7 @@ def test_pydantic_failure_kept_as_raw(fake_llm):
         {"attribute": a, "level": "core", "evidence": [{"block_idx": 1, "quote": "화려한 컬러"}]}
         for a in ("color", "pattern", "detail", "fit")]  # core 4개 > 3
     fake_llm([bad])
-    out = extractor.extract_article_outcome(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
+    out = extractor.extract_article_outcome(ARTICLE, backend="openai_api", model="m-1")
     assert not out.passed and out.extraction is None and out.counts["V1"] >= 1
     doc = extractor.build_output_doc(out, ARTICLE)
     assert doc["extraction"]["article_id"] == "t-001" and doc["label_meta"]["validation"]["passed"] is False
@@ -546,7 +534,7 @@ def test_pydantic_failure_kept_as_raw(fake_llm):
 
 def test_negative_article_empty_styles(fake_llm):
     fake_llm([{"styles": []}])
-    ext = extractor.extract_article(ARTICLE, backend="openai_api", model="m-1", prompt_version="extract-v1")
+    ext = extractor.extract_article(ARTICLE, backend="openai_api", model="m-1")
     assert ext.styles == [] and ext.article_id == "t-001"
 
 

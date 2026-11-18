@@ -146,11 +146,11 @@ def _write(p: Path, obj):
 
 def test_load_pred_formats_review_and_schema_failure(tmp_path):
     good = {"article_id": "1", "styles": []}
-    _write(tmp_path / "1.json", {"label_meta": {"prompt_version": "extract-v2"}, "extraction": good})
+    _write(tmp_path / "1.json", {"label_meta": {"prompt_version": "article-extraction"}, "extraction": good})
     _write(tmp_path / "2.json", good)                                  # ArticleExtraction 단독
     _write(tmp_path / "_review" / "3.json", {"label_meta": {}, "extraction": good})
     _write(tmp_path / "4.json", {"extraction": {"article_id": "4", "styles": [{"name": "x"}]}})
-    assert ce.load_pred(tmp_path, "1", False)[1:] == ("ok", {"prompt_version": "extract-v2"})
+    assert ce.load_pred(tmp_path, "1", False)[1:] == ("ok", {"prompt_version": "article-extraction"})
     assert ce.load_pred(tmp_path, "2", False)[1] == "ok"
     assert ce.load_pred(tmp_path, "3", False)[:2] == (None, "review")
     assert ce.load_pred(tmp_path, "3", True)[1] == "review_compared"

@@ -1,4 +1,4 @@
-"""기사 추출 프롬프트 렌더링 — 템플릿 `prompts/extraction/<v>.md`(앞머리 YAML 제거) + 기사 메타 + 블록.
+"""기사 추출 프롬프트 렌더링 — 템플릿 `prompts/article_extraction.md`(앞머리 YAML 제거) + 기사 메타 + 블록.
 
 블록 줄 형식(번호 = block idx, LLM은 이 번호 하나만 쓴다):
     [3] 문단: …
@@ -7,10 +7,12 @@
     [6] 이미지 (run 2 · two_column): 캡션: 사진 출처만
 이미지 픽셀·URL은 보내지 않는다(링크만, 범위는 텍스트).
 
-기사 헤더의 시즌 후보(`season_candidates`)는 템플릿 앞머리에 `season_candidates: true`가 있을 때만 넣는다(v3~).
+기사 헤더에는 크롤러가 찾은 시즌 후보(`season_candidates`)를 넣는다.
+프롬프트는 ID(`article-extraction`)와 보내는 본문의 sha256(`prompt_sha256`)으로 식별한다.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -20,28 +22,36 @@ import yaml
 
 from ...config import ROOT
 
-PROMPT_DIR = ROOT / "prompts" / "extraction"
+PROMPT_DIR = ROOT / "prompts"
+PROMPT_ID = "article-extraction"
+PROMPT_FILES = {PROMPT_ID: "article_extraction.md"}
 TEXT_TYPES = {"paragraph": "문단", "heading": "소제목"}
 
-__all__ = ["load_template", "render_blocks", "render_prompt", "render_retry_suffix", "PROMPT_DIR"]
+__all__ = ["load_template", "prompt_sha256", "render_blocks", "render_prompt", "render_retry_suffix", "PROMPT_DIR", "PROMPT_ID"]
 
 
 @lru_cache(maxsize=8)
-def load_template(prompt_version: str, prompt_dir: Optional[str] = None) -> tuple[str, dict]:
-    """`extract-v1` → `v1.md`. (본문, 앞머리 dict). 앞머리 prompt_version이 다르면 오류."""
+def load_template(prompt_version: str = PROMPT_ID, prompt_dir: Optional[str] = None) -> tuple[str, dict]:
+    """프롬프트 ID → (본문, 앞머리 dict). 모르는 ID거나 앞머리 prompt_id가 다르면 오류."""
     base = Path(prompt_dir) if prompt_dir else PROMPT_DIR
-    m = re.fullmatch(r"extract-(v\d+[a-z0-9.-]*)", prompt_version)
-    if not m:
-        raise ValueError(f"prompt_version 형식은 extract-v<N>: {prompt_version!r}")
-    text = (base / f"{m.group(1)}.md").read_text(encoding="utf-8")
+    name = PROMPT_FILES.get(prompt_version)
+    if name is None:
+        raise ValueError(f"알 수 없는 프롬프트 ID: {prompt_version!r} (지원: {', '.join(PROMPT_FILES)})")
+    text = (base / name).read_text(encoding="utf-8")
     front: dict[str, Any] = {}
     fm = re.match(r"^---\n(.*?)\n---\n", text, flags=re.S)
     if fm:
         front = yaml.safe_load(fm.group(1)) or {}
         text = text[fm.end():]
-    if front.get("prompt_version") not in (None, prompt_version):
-        raise ValueError(f"템플릿 앞머리 prompt_version {front.get('prompt_version')} != {prompt_version}")
+    if front.get("prompt_id") not in (None, prompt_version):
+        raise ValueError(f"템플릿 앞머리 prompt_id {front.get('prompt_id')} != {prompt_version}")
     return text.strip() + "\n", front
+
+
+def prompt_sha256(prompt_version: str = PROMPT_ID, prompt_dir: Optional[str] = None) -> str:
+    """LLM에 보내는 템플릿 본문(앞머리 제외)의 sha256. 앞머리만 고치면 바뀌지 않는다."""
+    body, _ = load_template(prompt_version, prompt_dir)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
 def _one_line(s: Any) -> str:
@@ -104,7 +114,7 @@ def _season_candidate_lines(candidates: Optional[list[dict]]) -> list[str]:
     return rows
 
 
-def _article_header(article: dict, *, season_candidates: bool = False) -> str:
+def _article_header(article: dict) -> str:
     season = article.get("season") or {}
     rows = [
         f"- article_id: {article.get('article_id')}",
@@ -115,17 +125,16 @@ def _article_header(article: dict, *, season_candidates: bool = False) -> str:
         rows.append(f"- 태그: {', '.join(map(str, article['tags']))}")
     if season.get("value"):
         rows.append(f"- 기사 시즌 태그: {season['value']} (출처 {season.get('source')})")
-    if season_candidates:  # 템플릿 앞머리 `season_candidates: true`(v3~)일 때만. v1·v2 입력은 그대로 둔다(캐시 키)
-        rows += _season_candidate_lines(article.get("season_candidates"))
+    rows += _season_candidate_lines(article.get("season_candidates"))
     return "\n".join(rows)
 
 
-def render_prompt(article: dict, prompt_version: str, *, prompt_dir: Optional[str] = None) -> str:
-    template, front = load_template(prompt_version, str(prompt_dir) if prompt_dir else None)
+def render_prompt(article: dict, prompt_version: str = PROMPT_ID, *, prompt_dir: Optional[str] = None) -> str:
+    template, _front = load_template(prompt_version, str(prompt_dir) if prompt_dir else None)
     return (
         f"{template}\n"
         "## 8. 기사\n"
-        f"{_article_header(article, season_candidates=bool(front.get('season_candidates')))}\n\n"
+        f"{_article_header(article)}\n\n"
         "### 블록 (번호 = block_idx)\n"
         f"{render_blocks(article.get('blocks') or [])}\n\n"
         "위 기사에서 규칙대로 추출한 JSON 객체 하나만 출력하라.\n"

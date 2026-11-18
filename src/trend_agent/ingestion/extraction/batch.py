@@ -24,6 +24,7 @@ from typing import Callable, Iterable, Optional
 
 from ...llm import LLMError
 from .extractor import KST, ExtractionOutcome, build_output_doc, extract_article_outcome
+from .prompt import PROMPT_ID
 
 MAX_CONCURRENCY = 2
 STAGES = ("V1", "V2", "V3", "V4", "V6")
@@ -38,7 +39,7 @@ class BatchConfig:
     backend: Optional[str] = None
     model: Optional[str] = None
     reasoning_effort: Optional[str] = None
-    prompt_version: str = "extract-v2"
+    prompt_version: str = PROMPT_ID
     concurrency: int = 2
     ids: Optional[list[str]] = None
     limit: Optional[int] = None

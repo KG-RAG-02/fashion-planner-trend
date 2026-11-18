@@ -46,8 +46,8 @@ def env(monkeypatch, tmp_path):
 
 
 def _cfg(tmp_path, **kw):
-    return BatchConfig(input_path=tmp_path / "unused.jsonl", out_dir=tmp_path / "extract-v1", model="m-1",
-                       backend="openai_api", prompt_version="extract-v1", **kw)
+    return BatchConfig(input_path=tmp_path / "unused.jsonl", out_dir=tmp_path / "article-extraction", model="m-1",
+                       backend="openai_api", prompt_version="article-extraction", **kw)
 
 
 def test_batch_pass_review_resume_and_report(env):
@@ -56,7 +56,7 @@ def test_batch_pass_review_resume_and_report(env):
     client.register_backend("openai_api", fb)
     arts = [_article("a1"), _article("a2"), _article("a3")]
     s = run_batch(_cfg(env), articles=arts)
-    out = env / "extract-v1"
+    out = env / "article-extraction"
     assert (s.passed, s.review, s.failed, s.skipped) == (2, 1, 0, 0)
     assert (out / "a1.json").exists() and (out / "a3.json").exists() and (out / "_review" / "a2.json").exists()
     assert sorted(fb.calls) == ["a1", "a2", "a2", "a3"]  # a2만 1회 재시도
@@ -88,7 +88,7 @@ def test_batch_stops_after_consecutive_backend_errors(env):
     client.register_backend("openai_api", fb)
     s = run_batch(_cfg(env, concurrency=1, max_consecutive_failures=3), articles=[_article(f"b{i}") for i in range(6)])
     assert s.stopped_early and s.failed == 3 and len(fb.calls) == 3
-    out = env / "extract-v1"
+    out = env / "article-extraction"
     assert not list(out.glob("b*.json"))  # 실패 기사는 파일을 쓰지 않는다(다음 실행에서 다시)
     log = [json.loads(x) for x in (out / "run.log").read_text(encoding="utf-8").splitlines()]
     assert {r["status"] for r in log} == {"failed"}
@@ -103,7 +103,7 @@ def test_batch_ids_order_and_unknown(env):
     client.register_backend("openai_api", _ByArticle({"c1": _llm_doc(), "c2": _llm_doc()}))
     arts = [_article("c1"), _article("c2")]
     s = run_batch(_cfg(env, ids=["c2"]), articles=arts)
-    assert s.passed == 1 and (env / "extract-v1" / "c2.json").exists() and not (env / "extract-v1" / "c1.json").exists()
+    assert s.passed == 1 and (env / "article-extraction" / "c2.json").exists() and not (env / "article-extraction" / "c1.json").exists()
     with pytest.raises(SystemExit):
         run_batch(_cfg(env, ids=["zz"]), articles=arts)
 
@@ -114,8 +114,8 @@ def test_reprocess_uses_cache_and_rewrites(env):
     client.register_backend("openai_api", fb)
     arts = [_article("r1")]
     run_batch(_cfg(env), articles=arts)
-    first = json.loads((env / "extract-v1" / "r1.json").read_text(encoding="utf-8"))
+    first = json.loads((env / "article-extraction" / "r1.json").read_text(encoding="utf-8"))
     s = run_batch(_cfg(env, reprocess=True), articles=arts)
     assert fb.calls == ["r1"] and s.passed == 1 and s.skipped == 0  # 두 번째는 캐시 — LLM 호출 없음
-    again = json.loads((env / "extract-v1" / "r1.json").read_text(encoding="utf-8"))
+    again = json.loads((env / "article-extraction" / "r1.json").read_text(encoding="utf-8"))
     assert again["extraction"] == first["extraction"] and again["label_meta"]["llm"]["cache_hit"] == [True]

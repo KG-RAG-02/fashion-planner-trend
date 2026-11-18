@@ -3,7 +3,7 @@
 실행 예:
     python scripts/extract_articles.py --limit 3                       # 3건만 시험 (기본 입력: 크롤 150건)
     python scripts/extract_articles.py --ids 857922,876706             # 기사 지정
-    python scripts/extract_articles.py                                 # 크롤 150건 전체 → data/processed/extractions/extract-v2/
+    python scripts/extract_articles.py                                 # 입력 기사 전체 → data/processed/extractions/article-extraction/
     python scripts/extract_articles.py --report-only                   # LLM 호출 없이 보고서만
 
 필요: `.env`의 LLM_API_KEY, LLM_MODEL (OpenAI API. 모델명은 코드에 없다). **실행하면 기사 원문이 OpenAI로 전송된다 —
@@ -24,9 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from trend_agent.ingestion.extraction.batch import BatchConfig, run_batch, write_report  # noqa: E402
+from trend_agent.ingestion.extraction.prompt import PROMPT_ID  # noqa: E402
 
 DEFAULT_IN = ROOT / "data" / "raw" / "vogue_kr" / "articles_pool_150.jsonl"
-DEFAULT_PROMPT_VERSION = "extract-v2"
+DEFAULT_PROMPT_VERSION = PROMPT_ID
 EXTRACTIONS = ROOT / "data" / "processed" / "extractions"
 
 

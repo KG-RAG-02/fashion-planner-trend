@@ -18,7 +18,7 @@ from ... import llm
 from ...schemas.article_extraction import ArticleExtraction
 from .llm_schema import extraction_schema
 from .postprocess import postprocess
-from .prompt import load_template, render_prompt, render_retry_suffix
+from .prompt import PROMPT_ID, prompt_sha256, render_prompt, render_retry_suffix
 from .validate import ValidationReport, validate_extraction
 
 PURPOSE = "article_extraction"
@@ -42,7 +42,7 @@ class ExtractionOutcome:
     model: str = ""
     reasoning_effort: Optional[str] = None
     prompt_version: str = ""
-    guideline_version: Optional[str] = None
+    prompt_sha256: str = ""
     schema_sha256: str = ""
     extracted_at: str = ""
     postprocess: dict = field(default_factory=dict)  # 켠 후처리 선택 규칙 (예: {"length_area": true})
@@ -87,12 +87,11 @@ def _attempt(article: dict, prompt: str, schema: dict, *, prompt_version: str, b
 
 
 def extract_article_outcome(article: dict, *, backend: Optional[str] = None, model: Optional[str] = None,
-                            prompt_version: str = "extract-v2", reasoning_effort: Optional[str] = None,
+                            prompt_version: str = PROMPT_ID, reasoning_effort: Optional[str] = None,
                             timeout_s: Optional[float] = None, use_cache: bool = True, max_retries: int = 1,
                             max_blocks: int = 2, max_text_gap: int = 1, length_area: bool = False,
                             dedupe: bool = False, name_fix: bool = False) -> ExtractionOutcome:
     schema, _dropped, sha = extraction_schema()
-    _tmpl, front = load_template(prompt_version)
     base_prompt = render_prompt(article, prompt_version)
     prompt = base_prompt
     calls: list[dict] = []
@@ -114,14 +113,14 @@ def extract_article_outcome(article: dict, *, backend: Optional[str] = None, mod
         article_id=str(article["article_id"]), extraction=ext, raw_output=doc, passed=rep.passed and ext is not None,
         attempts=attempts, errors=rep.errors, warnings=rep.warnings, counts=rep.counts, calls=calls,
         backend=last.get("backend", ""), model=last.get("model", ""), reasoning_effort=last.get("reasoning_effort"),
-        prompt_version=prompt_version, guideline_version=front.get("guideline_version"), schema_sha256=sha,
+        prompt_version=prompt_version, prompt_sha256=prompt_sha256(prompt_version), schema_sha256=sha,
         extracted_at=datetime.now(KST).isoformat(timespec="seconds"),
         postprocess={"alias_map": True, "length_area": length_area, "dedupe": dedupe, "name_fix": name_fix},
     )
 
 
 def extract_article(article: dict, *, backend: Optional[str] = None, model: Optional[str] = None,
-                    prompt_version: str = "extract-v2", **kw: Any) -> ArticleExtraction:
+                    prompt_version: str = PROMPT_ID, **kw: Any) -> ArticleExtraction:
     out = extract_article_outcome(article, backend=backend, model=model, prompt_version=prompt_version, **kw)
     if not out.passed or out.extraction is None:
         raise ExtractionFailed(out)
@@ -144,8 +143,8 @@ def build_output_doc(out: ExtractionOutcome, article: dict) -> dict:
             "status": "auto",
             "labeler": f"llm:{out.backend}/{out.model}",
             "prompt_version": out.prompt_version,
+            "prompt_sha256": out.prompt_sha256,
             "extracted_at": out.extracted_at,
-            "guideline_version": out.guideline_version,
             "postprocess": out.postprocess,
             "validation": {"passed": out.passed, "attempts": out.attempts, "errors": out.errors,
                            "warnings": out.warnings, "counts": out.counts},

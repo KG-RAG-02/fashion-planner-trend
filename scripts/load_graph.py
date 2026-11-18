@@ -7,7 +7,7 @@
        python scripts/load_graph.py --reset          # 그래프를 비우고 처음부터 (확인 없이 전부 삭제하므로 주의)
 입력:  data/processed/v2/musinsa_dataset_v2.jsonl                   (02·03 통합 Product, build_musinsa_dataset.py, D-33)
        --products-dir DIR를 주면 그 폴더의 otpensource_all.jsonl·musinsa_snap_all.jsonl을 읽는다(예: data/processed/v1)
-       data/processed/extractions/<prompt_version>/*.json          (기사 추출 결과, extract_articles.py. 기본 extract-v2)
+       data/processed/extractions/<prompt_version>/*.json          (기사 추출 결과, extract_articles.py. 기본 article-extraction)
        data/raw/vogue_kr/articles_pool_150.jsonl                   (크롤 기사 — Item 이미지 맵 {image_idx: url})
        data/labels/*.json                                          (--include-labels일 때만. 직접 만든 정답 라벨)
 선행:  .env의 NEO4J_* 설정 (Aura면 그 주소, 로컬이면 docker compose up -d).
@@ -26,12 +26,13 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
 from trend_agent.graph import loader  # noqa: E402
+from trend_agent.ingestion.extraction.prompt import PROMPT_ID  # noqa: E402
 
 PROC = ROOT / "data" / "processed"
 PRODUCTS = PROC / "v2" / "musinsa_dataset_v2.jsonl"
 LABELS = ROOT / "data" / "labels"
 EXTRACTIONS = PROC / "extractions"
-DEFAULT_PROMPT_VERSION = "extract-v2"
+DEFAULT_PROMPT_VERSION = PROMPT_ID
 CRAWL = ROOT / "data" / "raw" / "vogue_kr" / "articles_pool_150.jsonl"
 
 
