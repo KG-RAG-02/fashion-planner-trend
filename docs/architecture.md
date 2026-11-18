@@ -78,8 +78,9 @@ HTTP 계약은 [contracts.md](contracts.md)에 있다.
 낸다.
 
 ```
-점수    = Σ_a w_a · ratio_a / Σ_a w_a  +  α · [하분류 일치]
-w_a     = 기본 가중치_a × 트렌드 배수 (핵심 2.0, 보조 1.5, 그 밖 1.0)
+점수    = Σ_a w_a · ratio_a / Σ_a w_a  +  α · m_category · [하분류 일치]
+w_a     = 기본 가중치_a × m_a
+m_x     = 트렌드 배수 (핵심 2.0, 보조 1.5, 그 밖 1.0)
 ratio_a = |Item 값 ∩ 상품 값| / |Item 값|
 ```
 
@@ -90,7 +91,7 @@ ratio_a = |Item 값 ∩ 상품 값| / |Item 값|
   그래서 소재를 모르는 상품이 소재가 맞는 상품과 같은 점수를 받을 수 있다. 알려진 한계다
   ([troubleshooting.md](troubleshooting.md) 참고).
 - 트렌드 배수는 Style의 `focus_core`·`focus_supporting`에서 온다. 기사가 트렌드의 핵심이라고 한 속성이 더
-  크게 반영된다.
+  크게 반영된다. 하분류 보너스의 배수 `m_category`는 focus에 `category`가 있을 때만 1보다 크다(최대 0.2).
 - 점수가 같으면 비교한 속성 수, 일치한 값 수, 상품 id 순으로 정한다. 같은 입력은 항상 같은 순위가 된다.
 
 ## 코드 구성
