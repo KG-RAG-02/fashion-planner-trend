@@ -552,11 +552,11 @@ def test_length_area_rule_optional():
     assert on2["styles"][0]["items"][0]["length_body"] == "롱"  # 아우터는 롱 허용
 
 
-def test_validator_uses_label_check_functions_and_fallback_agrees():
-    from fashion_planner_trend.ingestion.extraction.validate import label_checks
+def test_validator_v2_v3_come_from_shared_evidence_checks():
+    """자동 추출 검증의 V2·V3는 패키지의 evidence 모듈 판정과 같다(스크립트를 런타임에 불러오지 않는다)."""
+    from fashion_planner_trend.ingestion.extraction import evidence, validate
 
-    lib = label_checks()
-    assert lib is not None and callable(lib.check_quotes) and callable(lib.check_raws)
+    assert not hasattr(validate, "label_checks")
     cases = [
         _llm_doc(),
         _llm_doc(items=[_item(fit_raw="오버핏", image_links=[])]),
@@ -567,7 +567,7 @@ def test_validator_uses_label_check_functions_and_fallback_agrees():
     for doc in cases:
         pdoc, _ = postprocess(doc, ARTICLE)
         ext = ArticleExtraction.model_validate(pdoc)
-        a = validate_extraction(ext, ARTICLE)
-        b = validate_extraction(ext, ARTICLE, use_label_checks=False)
-        for stage in ("V2", "V3"):
-            assert a.counts.get(stage, 0) == b.counts.get(stage, 0), (stage, a.errors, b.errors)
+        rep = validate_extraction(ext, ARTICLE)
+        texts = evidence.text_blocks(ARTICLE)
+        assert rep.counts.get("V2", 0) == len(evidence.check_quotes(ext, texts))
+        assert rep.counts.get("V3", 0) == len(evidence.check_raws(ext, texts))
