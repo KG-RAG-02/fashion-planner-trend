@@ -3,90 +3,77 @@
 # split: product_id → 구성품(표준 하분류·상분류). 구성품 Product는 split_from="review", 이미지는 부모 공유(full_set),
 #        색·소재는 부모 공유, 패턴은 부모 상품명 전체에서(셋업은 같은 원단), 디테일·세이프는 붙이지 않는다.
 #        raw = 검토 의견에 적힌 상품명 근거 토큰(이름에 없는 구성품은 사진 근거라 토큰이 표지뿐일 수 있다).
-# clear_candidate: product_id → 상품명(확인용). split_candidate 표시를 지운다(분해하지 않음).
+# clear_candidate: product_id → null. split_candidate 표시를 지운다(분해하지 않음).
+# 상품명은 적지 않는다. 확인할 때는 원 데이터셋에서 product_id(파일·행 번호)로 찾는다. 코드는 키만 읽는다.
 attribute: set_overrides
 split:
   "otpensource:sorted_상의/sorted_맨투맨_스웨트.json:155":  # review_id 5
-    name: "샘플 세트 상품 05"
     components:
       - {category_minor: "티셔츠", category_major: "상의", raw: "맨투맨·SET"}
       - {category_minor: "조거팬츠", category_major: "하의", raw: "셋업"}
   "otpensource:sorted_아우터/sorted_나일론_코치재킷.json:151":  # review_id 35
-    name: "샘플 세트 상품 03"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "SET·자켓"}
       - {category_minor: "팬츠", category_major: "하의", raw: "셋업"}
   "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:63":  # review_id 46
-    name: "샘플 세트 상품 02"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "세트·셋업"}
       - {category_minor: "팬츠", category_major: "하의", raw: "세트·셋업"}
   "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:79":  # review_id 47
-    name: "(세트상품) 샘플 헤링본 체크 블레이저 셋업"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "세트상품·블레이저"}
       - {category_minor: "팬츠", category_major: "하의", raw: "세트상품·셋업"}
   "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:100":  # review_id 51
-    name: "[SET]샘플 크롭드 블레이저 자켓 셋업[브라운]"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "SET·블레이저 자켓"}
       - {category_minor: "팬츠", category_major: "하의", raw: "SET·셋업"}
   "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:150":  # review_id 63
-    name: "샘플 트위드 투피스"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "트위드 투피스"}
       - {category_minor: "드레스", category_major: "원피스", raw: "트위드 투피스"}
   "otpensource:sorted_아우터/sorted_트러커재킷.json:7":  # review_id 82
-    name: "샘플 세트 상품 07"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "트러커 데님"}
       - {category_minor: "청바지", category_major: "하의", raw: "데님 셋업"}
   "otpensource:sorted_아우터/sorted_트러커재킷.json:119":  # review_id 85
-    name: "샘플 세트 상품 14"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "트러커"}
       - {category_minor: "청바지", category_major: "하의", raw: "SET·셋업"}
   "otpensource:sorted_아우터/sorted_트러커재킷.json:153":  # review_id 88
-    name: "샘플 세트 상품 06"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "데님 셋업"}
       - {category_minor: "청바지", category_major: "하의", raw: "데님 셋업"}
   "otpensource:sorted_아우터/sorted_트러커재킷.json:155":  # review_id 89
-    name: "샘플 세트 상품 12"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "데님 셋업"}
       - {category_minor: "청바지", category_major: "하의", raw: "데님 셋업"}
   "otpensource:sorted_아우터/sorted_트러커재킷.json:184":  # review_id 92
-    name: "샘플 세트 상품 16"
     components:
       - {category_minor: "재킷", category_major: "아우터", raw: "트러커"}
       - {category_minor: "청바지", category_major: "하의", raw: "SET"}
   "otpensource:sorted_원피스_스커트/sorted_맥시원피스.json:29":  # review_id 115
-    name: "샘플 세트 상품 21"
     components:
       - {category_minor: "셔츠", category_major: "상의", raw: "코튼 투피스"}
       - {category_minor: "스커트", category_major: "하의", raw: "투피스 셋업"}
   "otpensource:sorted_하의/sorted_점프_슈트_오버올.json:56":  # review_id 171
-    name: "샘플 세트 상품 08"
     components:
       - {category_minor: "베스트", category_major: "아우터", raw: "two piece"}
       - {category_minor: "스커트", category_major: "하의", raw: "two piece"}
   "otpensource:sorted_하의/sorted_트레이닝_조거팬츠.json:121":  # review_id 179
-    name: "샘플 세트 상품 04"
     components:
       - {category_minor: "후드티", category_major: "상의", raw: "후디"}
       - {category_minor: "조거팬츠", category_major: "하의", raw: "트레이닝 셋업"}
 clear_candidate:
-  "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:9": "샘플 셋업 자켓 (베이지)"  # review_id 42
-  "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:23": "샘플 셋업 자켓 (그린)"  # review_id 43
-  "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:59": "샘플 세트 상품 10"  # review_id 45
-  "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:135": "샘플 세트 상품 18"  # review_id 59
-  "otpensource:sorted_아우터/sorted_카디건.json:1": "샘플 세트 상품 15"  # review_id 78
-  "otpensource:sorted_아우터/sorted_트러커재킷.json:88": "샘플 세트 상품 19"  # review_id 84
-  "otpensource:sorted_아우터/sorted_트레이닝재킷.json:31": "샘플 세트 상품 09"  # review_id 95
-  "otpensource:sorted_아우터/sorted_트레이닝재킷.json:143": "샘플 세트 상품 20"  # review_id 98
-  "otpensource:sorted_아우터/sorted_트레이닝재킷.json:154": "샘플 세트 상품 11"  # review_id 99
-  "otpensource:sorted_하의/sorted_슈트팬츠_슬랙스.json:46": "샘플 세트 상품 17"  # review_id 164
-  "otpensource:sorted_하의/sorted_슈트팬츠_슬랙스.json:84": "샘플 세트 상품 13"  # review_id 166
-  "otpensource:sorted_하의/sorted_점프_슈트_오버올.json:148": "Sample sleeveless two piece like jumpsuit"  # review_id 172
-  "otpensource:sorted_하의/sorted_트레이닝_조거팬츠.json:14": "샘플 세트 상품 01"  # review_id 177
+  "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:9": null  # review_id 42
+  "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:23": null  # review_id 43
+  "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:59": null  # review_id 45
+  "otpensource:sorted_아우터/sorted_슈트_블레이저재킷.json:135": null  # review_id 59
+  "otpensource:sorted_아우터/sorted_카디건.json:1": null  # review_id 78
+  "otpensource:sorted_아우터/sorted_트러커재킷.json:88": null  # review_id 84
+  "otpensource:sorted_아우터/sorted_트레이닝재킷.json:31": null  # review_id 95
+  "otpensource:sorted_아우터/sorted_트레이닝재킷.json:143": null  # review_id 98
+  "otpensource:sorted_아우터/sorted_트레이닝재킷.json:154": null  # review_id 99
+  "otpensource:sorted_하의/sorted_슈트팬츠_슬랙스.json:46": null  # review_id 164
+  "otpensource:sorted_하의/sorted_슈트팬츠_슬랙스.json:84": null  # review_id 166
+  "otpensource:sorted_하의/sorted_점프_슈트_오버올.json:148": null  # review_id 172
+  "otpensource:sorted_하의/sorted_트레이닝_조거팬츠.json:14": null  # review_id 177

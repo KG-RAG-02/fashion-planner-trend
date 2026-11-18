@@ -129,12 +129,11 @@ def test_overrides_split_and_clear(tmp_path):
         'attribute: set_overrides\n'
         'split:\n'
         '  "otpensource:f.json:1":\n'
-        '    name: "x"\n'
         '    components:\n'
         '      - {category_minor: "재킷", category_major: "아우터", raw: "블레이저"}\n'
         '      - {category_minor: "팬츠", category_major: "하의", raw: "셋업"}\n'
         'clear_candidate:\n'
-        '  "otpensource:f.json:2": "오버 셋업 자켓"\n', encoding="utf-8")
+        '  "otpensource:f.json:2": null\n', encoding="utf-8")
     ov = SetOverrides(cfg)
     sp = SetSplitter()
     rule = sp.decide("[SET]샘플 크롭드 블레이저 자켓 셋업[브라운]")
@@ -171,3 +170,38 @@ def test_repo_overrides_file_is_valid():
 
     ov = SetOverrides()  # configs/alias_map/set_overrides.yaml
     assert len(ov.split) == 14 and len(ov.clear) == 13 and not (set(ov.split) & ov.clear)
+
+
+def test_repo_overrides_file_has_no_product_names():
+    """검수 덮어쓰기 파일에는 상품명을 적지 않는다: split에 name 키가 없고 clear_candidate 값은 null이다."""
+    import yaml
+
+    from fashion_planner_trend.ingestion.normalization.set_split import DEFAULT_DIR
+
+    cfg = yaml.safe_load((DEFAULT_DIR / "set_overrides.yaml").read_text(encoding="utf-8"))
+    assert all(set(spec) == {"components"} for spec in cfg["split"].values())
+    assert all(v is None for v in cfg["clear_candidate"].values())
+
+
+def test_overrides_read_keys_only(tmp_path):
+    """SetOverrides는 product_id 키와 구성품만 읽는다: 상품명 값이 있든 없든 판정이 같다."""
+    from fashion_planner_trend.ingestion.normalization.set_split import SetOverrides
+
+    comps = ('    components:\n'
+             '      - {category_minor: "재킷", category_major: "아우터", raw: "블레이저"}\n'
+             '      - {category_minor: "팬츠", category_major: "하의", raw: "셋업"}\n')
+    with_names = tmp_path / "with.yaml"
+    with_names.write_text('split:\n  "p:1":\n    name: "아무 이름"\n' + comps +
+                          'clear_candidate:\n  "p:2": "아무 이름"\n', encoding="utf-8")
+    without = tmp_path / "without.yaml"
+    without.write_text('split:\n  "p:1":\n' + comps + 'clear_candidate:\n  "p:2": null\n', encoding="utf-8")
+    a, b = SetOverrides(with_names), SetOverrides(without)
+    assert a.clear == b.clear == {"p:2"}
+    assert a.split.keys() == b.split.keys() == {"p:1"}
+    assert [(c.category_minor, c.category_major, c.raw) for c in a.split["p:1"]] == \
+        [(c.category_minor, c.category_major, c.raw) for c in b.split["p:1"]]
+    rule = SetSplitter().decide("[SET]샘플 크롭드 블레이저 자켓 셋업[브라운]")
+    for ov in (a, b):
+        assert ov.apply("p:1", rule).decision == "split"
+        assert ov.apply("p:2", rule).decision == "none"
+
