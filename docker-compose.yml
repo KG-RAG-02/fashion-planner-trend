@@ -5,18 +5,18 @@
 #   docker compose ps             # healthy 가 되면 사용 가능
 #   docker compose down           # 중지 (데이터는 볼륨에 남는다)
 #   docker compose down -v        # 중지 + 그래프 데이터 삭제
-#   필요: 레포 루트 `.env`의 NEO4J_PASSWORD (사용자는 항상 `neo4j`). 비어 있으면 컨테이너가 종료와 재시작을 반복한다 (`docker compose ps`에서 Restarting, `docker logs trend-agent-neo4j`)
+#   필요: 레포 루트 `.env`의 NEO4J_PASSWORD (사용자는 항상 `neo4j`). 비어 있으면 컨테이너가 종료와 재시작을 반복한다 (`docker compose ps`에서 Restarting, `docker logs fashion-planner-trend-neo4j`)
 #   필요: Docker Desktop 메모리 4GB 이상 (Neo4j가 약 2GB). 부족하면 OOM으로 재시작을 반복하고 healthy가 되지 않는다
-#         확인: docker inspect -f '{{.State.OOMKilled}}' trend-agent-neo4j  /  docker stats --no-stream
+#         확인: docker inspect -f '{{.State.OOMKilled}}' fashion-planner-trend-neo4j  /  docker stats --no-stream
 #   선택: NEO4J_BOLT_PORT / NEO4J_HTTP_PORT — 이미 쓰는 Neo4j와 포트가 겹칠 때 (바꾸면 `.env`의 NEO4J_URI 포트도 같이)
 #
 # 브라우저: http://localhost:<HTTP 포트> (기본 포트는 아래 `:-` 뒤의 값)
-name: trend-agent
+name: fashion-planner-trend
 
 services:
   neo4j:
     image: neo4j:5.26-community        # 5.x LTS. 버전을 바꾸면 docker/demo/Dockerfile.app의 드라이버 버전과 문서도 확인한다
-    container_name: trend-agent-neo4j
+    container_name: fashion-planner-trend-neo4j
     restart: unless-stopped
     ports:                              # 이 PC에서만 접속된다 (127.0.0.1)
       - "127.0.0.1:${NEO4J_HTTP_PORT:-7474}:7474"

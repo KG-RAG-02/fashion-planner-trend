@@ -1,7 +1,7 @@
 """공용 픽스처. `neo4j` 마커 = Neo4j **테스트 인스턴스(7688)** 가 필요한 테스트 (pytest.ini는 계약 파일이라 여기서 등록한다).
 
 실행:  NEO4J_TEST_URI=bolt://localhost:7688 NEO4J_TEST_PASSWORD=<로컬값> pytest -m neo4j
-       (테스트 인스턴스: docker run -d --name trend-agent-neo4j-test -p 127.0.0.1:7688:7687 -e NEO4J_AUTH=neo4j/<로컬값> neo4j:5.26-community)
+       (테스트 인스턴스: docker run -d --name fashion-planner-trend-neo4j-test -p 127.0.0.1:7688:7687 -e NEO4J_AUTH=neo4j/<로컬값> neo4j:5.26-community)
 - `NEO4J_TEST_URI`가 없으면 neo4j 테스트는 skip한다. 로컬 주소가 아니거나(Aura 등) 7687·`NEO4J_URI`(운영 그래프)를 가리키면 실패시킨다 — 테스트는 그래프를 비운다.
 """
 from __future__ import annotations
