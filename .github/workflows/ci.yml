@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: 설치
+        run: pip install -e ".[all,dev]"
+      - name: 단위 테스트 (오프라인, NEO4J_TEST_URI가 없으면 Neo4j 테스트는 건너뜀)
+        run: python -m pytest -q -rs
