@@ -3,7 +3,7 @@
 이 프로젝트의 주요 변경을 적는다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를,
 버전은 [유의적 버전](https://semver.org/lang/ko/)을 따른다.
 
-## [1.0.0] - {{RELEASE_DATE}}
+## [1.0.0] - 2026-11-18
 
 첫 공개 버전.
 
