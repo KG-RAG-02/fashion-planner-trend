@@ -4,7 +4,7 @@
        ... python scripts/seed_fixture_graph.py --allow-wipe   # 비어 있지 않은 그래프를 비우고 적재 (일회용 인스턴스만)
        컨테이너: docker run --rm --read-only --tmpfs /tmp -e NEO4J_URI=bolt://neo4j-stub:7687 ... vogue/trend:dev \
                  python scripts/seed_fixture_graph.py
-데이터: src/trend_agent/graph/fixture.py — Neo4j 테스트 그래프 + 기사 900003 "발레코어"(합성, Vogue 원문 없음).
+데이터: src/fashion_planner_trend/graph/fixture.py — Neo4j 테스트 그래프 + 기사 900003 "발레코어"(합성, Vogue 원문 없음).
 확인:  적재 뒤 stub 질의(examples/stub/trend-request.json의 input)를 실행해 요약을 출력한다.
        status가 ok이고 trends·evidence가 비어 있지 않으면 exit 0, 아니면 exit 1.
 안전:  - 접속값은 프로세스 환경변수에서만 읽는다(`.env`를 읽지 않는다). NEO4J_URI가 없으면 거부한다 (exit 2).
@@ -25,8 +25,8 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
-from trend_agent.graph import fixture  # noqa: E402
+from fashion_planner_trend.config import neo4j_driver, neo4j_settings  # noqa: E402
+from fashion_planner_trend.graph import fixture  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 import yaml
 
-from trend_agent.schemas import vocabulary as V
+from fashion_planner_trend.schemas import vocabulary as V
 
 DEFAULT_DIR = Path(__file__).resolve().parents[4] / "configs" / "alias_map"
 

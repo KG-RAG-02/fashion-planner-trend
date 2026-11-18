@@ -1,7 +1,7 @@
 import pytest
 
-from trend_agent.ingestion.normalization.alias_map import AliasMap, norm_key
-from trend_agent.ingestion.normalization.otpensource import OtpenNormalizer
+from fashion_planner_trend.ingestion.normalization.alias_map import AliasMap, norm_key
+from fashion_planner_trend.ingestion.normalization.otpensource import OtpenNormalizer
 
 
 @pytest.fixture(scope="module")

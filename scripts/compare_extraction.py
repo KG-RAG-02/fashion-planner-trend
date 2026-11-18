@@ -30,8 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from trend_agent.schemas.article_extraction import ArticleExtraction  # noqa: E402
-from trend_agent.schemas.graph_schema import normalize_term  # noqa: E402
+from fashion_planner_trend.schemas.article_extraction import ArticleExtraction  # noqa: E402
+from fashion_planner_trend.schemas.graph_schema import normalize_term  # noqa: E402
 
 # 평가 비교용 느슨한 이름 키: 그래프의 normalize_term(결정 D-11, 엄격)에 더해 끝의 일반어를 1회 지운다.
 # 정답 라벨과 추출 결과의 Style 이름을 맞출 때만 쓰며, 그래프의 이름 일치 판정에는 쓰지 않는다.
@@ -44,7 +44,7 @@ def _norm(text: str) -> str:
         if s.endswith(suffix) and len(s) - len(suffix) >= 2:
             return s[: -len(suffix)]
     return s
-from trend_agent.schemas.vocabulary import BodyLength  # noqa: E402
+from fashion_planner_trend.schemas.vocabulary import BodyLength  # noqa: E402
 import validate_labels as VL  # noqa: E402
 
 LABELS = ROOT / "data" / "labels"

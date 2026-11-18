@@ -24,9 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 
-from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
-from trend_agent.graph import loader  # noqa: E402
-from trend_agent.ingestion.extraction.prompt import PROMPT_ID  # noqa: E402
+from fashion_planner_trend.config import neo4j_driver, neo4j_settings  # noqa: E402
+from fashion_planner_trend.graph import loader  # noqa: E402
+from fashion_planner_trend.ingestion.extraction.prompt import PROMPT_ID  # noqa: E402
 
 PROC = ROOT / "data" / "processed"
 PRODUCTS = PROC / "v2" / "musinsa_dataset_v2.jsonl"

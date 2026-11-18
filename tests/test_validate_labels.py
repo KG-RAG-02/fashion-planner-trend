@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from trend_agent.schemas.article_extraction import ArticleExtraction
+from fashion_planner_trend.schemas.article_extraction import ArticleExtraction
 
 ROOT = Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location("validate_labels", ROOT / "scripts" / "validate_labels.py")

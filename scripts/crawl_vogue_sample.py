@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent.ingestion.crawler.vogue_kr import (  # noqa: E402
+from fashion_planner_trend.ingestion.crawler.vogue_kr import (  # noqa: E402
     DEFAULT_LIMIT,
     RobotsDisallowed,
     crawl,

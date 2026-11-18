@@ -1,10 +1,10 @@
 """Product 정규화 점검·버그 수정 (a)~(i) — 합성 입력."""
 import pytest
 
-from trend_agent.ingestion.normalization.alias_map import AliasMap
-from trend_agent.ingestion.normalization.musinsa_snap import SnapNormalizer, mark_snap_duplicates
-from trend_agent.ingestion.normalization.otpensource import OtpenNormalizer, is_empty_row, mark_exact_duplicates
-from trend_agent.ingestion.normalization.text_match import TextMatcher, tokenize
+from fashion_planner_trend.ingestion.normalization.alias_map import AliasMap
+from fashion_planner_trend.ingestion.normalization.musinsa_snap import SnapNormalizer, mark_snap_duplicates
+from fashion_planner_trend.ingestion.normalization.otpensource import OtpenNormalizer, is_empty_row, mark_exact_duplicates
+from fashion_planner_trend.ingestion.normalization.text_match import TextMatcher, tokenize
 
 
 @pytest.fixture(scope="module")

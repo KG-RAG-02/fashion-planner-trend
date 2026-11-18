@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
+from fashion_planner_trend.config import neo4j_driver, neo4j_settings  # noqa: E402
 
 
 def main() -> int:

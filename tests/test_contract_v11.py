@@ -6,15 +6,15 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from trend_agent.retrieval.weights import DEFAULT_PATH, load_weights
-from trend_agent.schemas.article_extraction import ExtractedStyle
-from trend_agent.schemas.graph_schema import (
+from fashion_planner_trend.retrieval.weights import DEFAULT_PATH, load_weights
+from fashion_planner_trend.schemas.article_extraction import ExtractedStyle
+from fashion_planner_trend.schemas.graph_schema import (
     ProductNode,
     flatten,
     normalize_term,
     style_node_from_extraction,
 )
-from trend_agent.schemas.trend_analysis_result import (
+from fashion_planner_trend.schemas.trend_analysis_result import (
     SCHEMA_VERSION,
     TrendAnalysisResult,
     evidence_id,
@@ -111,8 +111,8 @@ def test_weights_yaml_has_only_scoring_sections():
 
 
 def test_llm_contract_imports_lazily():
-    sys.modules.pop("trend_agent.llm", None)
-    llm = importlib.import_module("trend_agent.llm")
+    sys.modules.pop("fashion_planner_trend.llm", None)
+    llm = importlib.import_module("fashion_planner_trend.llm")
     assert {"structured", "call", "structured_model", "strict_schema", "schema_sha256", "LLMResult",
             "LLMError", "LLMBackendError", "LLMOutputError", "LLMTimeout"} <= set(llm.__all__)
     with pytest.raises(AttributeError):

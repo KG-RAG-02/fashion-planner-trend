@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from trend_agent.api.server import CONTRACT_VERSION, _validate_request
-from trend_agent.graph import fixture, loader
-from trend_agent.schemas.article_extraction import ArticleExtraction
-from trend_agent.schemas.trend_analysis_result import evidence_id
+from fashion_planner_trend.api.server import CONTRACT_VERSION, _validate_request
+from fashion_planner_trend.graph import fixture, loader
+from fashion_planner_trend.schemas.article_extraction import ArticleExtraction
+from fashion_planner_trend.schemas.trend_analysis_result import evidence_id
 
 ROOT = Path(__file__).resolve().parents[1]
 STUB = ROOT / "examples" / "stub"

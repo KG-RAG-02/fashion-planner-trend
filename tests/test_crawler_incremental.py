@@ -5,7 +5,7 @@ from urllib.robotparser import RobotFileParser
 import pytest
 import requests
 
-from trend_agent.ingestion.crawler import vogue_kr as V
+from fashion_planner_trend.ingestion.crawler import vogue_kr as V
 
 REAL_ROBOTS_PARSER = V.robots_parser  # autouse fixture가 바꾸기 전의 실제 함수
 

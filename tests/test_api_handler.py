@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-from trend_agent.api.server import ROUTE, build_handler
-from trend_agent.config import load_env
-from trend_agent.schemas.trend_analysis_result import TrendAnalysisResult
+from fashion_planner_trend.api.server import ROUTE, build_handler
+from fashion_planner_trend.config import load_env
+from fashion_planner_trend.schemas.trend_analysis_result import TrendAnalysisResult
 from test_api_server import request_payload
 
 
@@ -32,7 +32,7 @@ def call(searcher, body=b'{}', token='synthetic', length=None, path=ROUTE, env=N
     handler.rfile = BytesIO(body)
     output = []
     handler._send_json = lambda status, value: output.append((status, value))
-    with patch('trend_agent.api.server.load_env', return_value=env if env is not None else {'VOGUE_AGENT_SERVICE_BEARER_TOKEN': 'synthetic'}):
+    with patch('fashion_planner_trend.api.server.load_env', return_value=env if env is not None else {'VOGUE_AGENT_SERVICE_BEARER_TOKEN': 'synthetic'}):
         handler.do_POST()
     return output[0], handler.rfile.tell()
 

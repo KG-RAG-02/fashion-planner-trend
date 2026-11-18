@@ -20,12 +20,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 
-from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
-from trend_agent.graph.loader import read_products  # noqa: E402
-from trend_agent.graph.search import ITEMS_CYPHER, TrendSearcher, _record  # noqa: E402
-from trend_agent.retrieval.scoring import ScoringOptions, rank_products  # noqa: E402
-from trend_agent.retrieval.weights import load_weights  # noqa: E402
-from trend_agent.schemas.graph_schema import ItemNode, ItemRecord  # noqa: E402
+from fashion_planner_trend.config import neo4j_driver, neo4j_settings  # noqa: E402
+from fashion_planner_trend.graph.loader import read_products  # noqa: E402
+from fashion_planner_trend.graph.search import ITEMS_CYPHER, TrendSearcher, _record  # noqa: E402
+from fashion_planner_trend.retrieval.scoring import ScoringOptions, rank_products  # noqa: E402
+from fashion_planner_trend.retrieval.weights import load_weights  # noqa: E402
+from fashion_planner_trend.schemas.graph_schema import ItemNode, ItemRecord  # noqa: E402
 
 PRODUCTS = ROOT / "data" / "processed" / "v2" / "musinsa_dataset_v2.jsonl"  # 02·03 통합본 (D-33)
 

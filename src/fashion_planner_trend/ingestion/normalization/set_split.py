@@ -24,8 +24,8 @@ from typing import Any, Optional
 
 import yaml
 
-from trend_agent.schemas import vocabulary as V
-from trend_agent.schemas.graph_schema import ProductNode, ProductRecord
+from fashion_planner_trend.schemas import vocabulary as V
+from fashion_planner_trend.schemas.graph_schema import ProductNode, ProductRecord
 
 from .alias_map import DEFAULT_DIR, norm_key
 from .text_match import tokenize

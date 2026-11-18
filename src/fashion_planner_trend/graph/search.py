@@ -15,7 +15,7 @@ from typing import Any, Iterable, Optional
 
 from neo4j import Driver
 
-from trend_agent.retrieval.scoring import (
+from fashion_planner_trend.retrieval.scoring import (
     ScoredProduct,
     ScoringOptions,
     attribute_values,
@@ -23,9 +23,9 @@ from trend_agent.retrieval.scoring import (
     product_passes,
     rank_products,
 )
-from trend_agent.retrieval.weights import WeightsConfig, load_weights
-from trend_agent.schemas import vocabulary as V
-from trend_agent.schemas.graph_schema import (
+from fashion_planner_trend.retrieval.weights import WeightsConfig, load_weights
+from fashion_planner_trend.schemas import vocabulary as V
+from fashion_planner_trend.schemas.graph_schema import (
     SCORED_ATTRIBUTES,
     AttrEdge,
     DetailEdge,
@@ -35,7 +35,7 @@ from trend_agent.schemas.graph_schema import (
     ProductRecord,
     _Record,
 )
-from trend_agent.schemas.trend_analysis_result import (
+from fashion_planner_trend.schemas.trend_analysis_result import (
     AppliedAttribute,
     AppliedFilters,
     DescriptionOut,
@@ -50,7 +50,7 @@ from trend_agent.schemas.trend_analysis_result import (
     TrendStyle,
     evidence_id,
 )
-from trend_agent.schemas.trend_query import CategoryRef, TrendQuery, style_matches_season
+from fashion_planner_trend.schemas.trend_query import CategoryRef, TrendQuery, style_matches_season
 
 _EDGES = """
   [(n)-[r:HAS_COLOR]->(a) | {value: a.id, raw: r.raw, approx: r.approx}] AS colors,

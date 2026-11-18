@@ -7,11 +7,11 @@ from typing import Optional
 import pytest
 from pydantic import BaseModel, Field
 
-import trend_agent.llm as llm
-from trend_agent.llm import backends, client
-from trend_agent.llm.backends import BackendReply, OpenAIAPIBackend
-from trend_agent.llm.schema import check_instance, schema_sha256, strict_schema
-from trend_agent.schemas.article_extraction import ArticleExtraction
+import fashion_planner_trend.llm as llm
+from fashion_planner_trend.llm import backends, client
+from fashion_planner_trend.llm.backends import BackendReply, OpenAIAPIBackend
+from fashion_planner_trend.llm.schema import check_instance, schema_sha256, strict_schema
+from fashion_planner_trend.schemas.article_extraction import ArticleExtraction
 
 
 # ---------- schema ----------

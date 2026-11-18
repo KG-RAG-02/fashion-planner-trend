@@ -1,7 +1,7 @@
 """점수 계산 (합성 데이터). 규칙: docs/spec.md Step 8.3, Step 9"""
 import pytest
 
-from trend_agent.retrieval.scoring import (
+from fashion_planner_trend.retrieval.scoring import (
     attribute_values,
     check_requested,
     item_passes,
@@ -9,9 +9,9 @@ from trend_agent.retrieval.scoring import (
     rank_products,
     score_product,
 )
-from trend_agent.retrieval.weights import load_weights
-from trend_agent.schemas.graph_schema import AttrEdge, DetailEdge, ItemNode, ItemRecord, ProductNode, ProductRecord
-from trend_agent.schemas.trend_query import RequestedAttribute
+from fashion_planner_trend.retrieval.weights import load_weights
+from fashion_planner_trend.schemas.graph_schema import AttrEdge, DetailEdge, ItemNode, ItemRecord, ProductNode, ProductRecord
+from fashion_planner_trend.schemas.trend_query import RequestedAttribute
 
 W = load_weights()
 

@@ -17,9 +17,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Iterable, Mapping, Optional
 
-from trend_agent.schemas.graph_schema import SCORED_ATTRIBUTES, ItemRecord, ProductRecord, _Record
-from trend_agent.schemas.trend_analysis_result import AttributeScore, MatchResult, ScoreBreakdown
-from trend_agent.schemas.trend_query import RequestedAttribute
+from fashion_planner_trend.schemas.graph_schema import SCORED_ATTRIBUTES, ItemRecord, ProductRecord, _Record
+from fashion_planner_trend.schemas.trend_analysis_result import AttributeScore, MatchResult, ScoreBreakdown
+from fashion_planner_trend.schemas.trend_query import RequestedAttribute
 
 from .weights import WeightsConfig
 

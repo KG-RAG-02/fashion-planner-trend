@@ -15,14 +15,14 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent.api.server import (  # noqa: E402
+from fashion_planner_trend.api.server import (  # noqa: E402
     CONTRACT_VERSION,
     ROUTE,
     ApiError,
     _validate_request,
     build_handler,
 )
-from trend_agent.schemas.trend_analysis_result import TrendAnalysisResult  # noqa: E402
+from fashion_planner_trend.schemas.trend_analysis_result import TrendAnalysisResult  # noqa: E402
 
 
 def request_payload(request_id="api-test-001"):
@@ -104,7 +104,7 @@ def test_runs_requires_matching_shared_bearer_token():
 
 
 def test_success_response_preserves_result_and_envelope():
-    from trend_agent.api.server import _validate_request
+    from fashion_planner_trend.api.server import _validate_request
     _, query = _validate_request(request_payload())
     result = TrendAnalysisResult(request_id=query.request_id, status="ok", limitations=["synthetic test"])
     status, response = call_api(FakeSearcher(result), request_payload())
@@ -117,7 +117,7 @@ def test_success_response_preserves_result_and_envelope():
 
 
 def test_no_results_is_a_normal_http_response():
-    from trend_agent.api.server import _validate_request
+    from fashion_planner_trend.api.server import _validate_request
     _, query = _validate_request(request_payload())
     result = TrendAnalysisResult(request_id=query.request_id, status="no_results", limitations=["no match"])
     status, response = call_api(FakeSearcher(result), request_payload())

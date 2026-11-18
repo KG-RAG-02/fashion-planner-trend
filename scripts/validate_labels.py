@@ -21,7 +21,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent.schemas.article_extraction import ArticleExtraction  # noqa: E402
+from fashion_planner_trend.schemas.article_extraction import ArticleExtraction  # noqa: E402
 
 LABELS = ROOT / "data" / "labels"
 MANIFEST = LABELS / "manifest.yaml"

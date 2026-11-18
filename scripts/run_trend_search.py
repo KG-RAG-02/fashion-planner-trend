@@ -21,10 +21,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 
-from trend_agent.config import neo4j_driver, neo4j_settings  # noqa: E402
-from trend_agent.graph.search import TrendSearcher  # noqa: E402
-from trend_agent.schemas import vocabulary as V  # noqa: E402
-from trend_agent.schemas.trend_query import (  # noqa: E402
+from fashion_planner_trend.config import neo4j_driver, neo4j_settings  # noqa: E402
+from fashion_planner_trend.graph.search import TrendSearcher  # noqa: E402
+from fashion_planner_trend.schemas import vocabulary as V  # noqa: E402
+from fashion_planner_trend.schemas.trend_query import (  # noqa: E402
     CategoryFilter,
     CategoryRef,
     Requested,

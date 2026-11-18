@@ -1,7 +1,7 @@
 """image_ref 조회 함수 (D-33). 합성 parquet로 확인한다(실제 데이터셋 불필요)."""
 import pytest
 
-from trend_agent.images import (
+from fashion_planner_trend.images import (
     SNAP_REPO_ID,
     SNAP_REVISION,
     ImageRefError,
@@ -9,7 +9,7 @@ from trend_agent.images import (
     parse_snap_ref,
     sniff_media_type,
 )
-from trend_agent.ingestion.normalization import musinsa_snap
+from fashion_planner_trend.ingestion.normalization import musinsa_snap
 
 JPEG = b"\xff\xd8\xff\xe0" + b"x" * 10
 

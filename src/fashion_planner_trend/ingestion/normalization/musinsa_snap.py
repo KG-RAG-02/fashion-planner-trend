@@ -17,8 +17,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from trend_agent.schemas import vocabulary as V
-from trend_agent.schemas.graph_schema import AttrEdge, DetailEdge, ProductNode, ProductRecord
+from fashion_planner_trend.schemas import vocabulary as V
+from fashion_planner_trend.schemas.graph_schema import AttrEdge, DetailEdge, ProductNode, ProductRecord
 
 from .alias_map import AliasMap
 

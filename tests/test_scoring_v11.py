@@ -7,15 +7,15 @@ import random
 
 import pytest
 
-from trend_agent.retrieval.scoring import (
+from fashion_planner_trend.retrieval.scoring import (
     ScoringOptions,
     attribute_values,
     category_minor_of,
     score_product,
 )
-from trend_agent.retrieval.weights import load_weights
-from trend_agent.schemas import vocabulary as V
-from trend_agent.schemas.graph_schema import (
+from fashion_planner_trend.retrieval.weights import load_weights
+from fashion_planner_trend.schemas import vocabulary as V
+from fashion_planner_trend.schemas.graph_schema import (
     SCORED_ATTRIBUTES,
     AttrEdge,
     DetailEdge,

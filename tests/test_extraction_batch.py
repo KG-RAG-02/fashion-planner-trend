@@ -6,9 +6,9 @@ import json
 
 import pytest
 
-from trend_agent.ingestion.extraction.batch import BatchConfig, run_batch
-from trend_agent.llm import LLMBackendError, client
-from trend_agent.llm.backends import BackendReply
+from fashion_planner_trend.ingestion.extraction.batch import BatchConfig, run_batch
+from fashion_planner_trend.llm import LLMBackendError, client
+from fashion_planner_trend.llm.backends import BackendReply
 
 from test_extraction import ARTICLE, _item, _llm_doc
 

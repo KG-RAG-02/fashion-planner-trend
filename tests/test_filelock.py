@@ -1,7 +1,7 @@
 """파일 잠금: 같은 프로세스의 두 번째 비차단 잠금은 거부되고, 풀리면 다시 잡힌다 (POSIX·Windows 공통)."""
 import pytest
 
-from trend_agent.filelock import file_lock
+from fashion_planner_trend.filelock import file_lock
 
 
 def test_second_nonblocking_lock_is_refused_until_released(tmp_path):

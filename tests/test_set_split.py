@@ -1,8 +1,8 @@
 """02 다중 의류 분해 — 상품명 규칙. 계약 v1.1 ProductNode."""
 import pytest
 
-from trend_agent.ingestion.normalization.otpensource import OtpenNormalizer
-from trend_agent.ingestion.normalization.set_split import SetSplitter, apply_split
+from fashion_planner_trend.ingestion.normalization.otpensource import OtpenNormalizer
+from fashion_planner_trend.ingestion.normalization.set_split import SetSplitter, apply_split
 
 
 @pytest.fixture(scope="module")
@@ -122,7 +122,7 @@ def test_apply_split_flags_on_candidate_and_multipack():
 
 # ---------- 검수 덮어쓰기 (set_overrides.yaml, 사용자 채택) ----------
 def test_overrides_split_and_clear(tmp_path):
-    from trend_agent.ingestion.normalization.set_split import SetOverrides, decision_source
+    from fashion_planner_trend.ingestion.normalization.set_split import SetOverrides, decision_source
 
     cfg = tmp_path / "ov.yaml"
     cfg.write_text(
@@ -149,7 +149,7 @@ def test_overrides_split_and_clear(tmp_path):
 
 
 def test_override_split_products_use_review_basis(tmp_path):
-    from trend_agent.ingestion.normalization.set_split import SetOverrides
+    from fashion_planner_trend.ingestion.normalization.set_split import SetOverrides
 
     cfg = tmp_path / "ov.yaml"
     cfg.write_text('split:\n  "otpensource:sorted_아우터/sorted_슈트_블레이저_재킷.json:7":\n    components:\n'
@@ -167,7 +167,7 @@ def test_override_split_products_use_review_basis(tmp_path):
 
 
 def test_repo_overrides_file_is_valid():
-    from trend_agent.ingestion.normalization.set_split import SetOverrides
+    from fashion_planner_trend.ingestion.normalization.set_split import SetOverrides
 
     ov = SetOverrides()  # configs/alias_map/set_overrides.yaml
     assert len(ov.split) == 14 and len(ov.clear) == 13 and not (set(ov.split) & ov.clear)

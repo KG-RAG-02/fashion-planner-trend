@@ -27,8 +27,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent.ingestion.normalization.image_index import ImageJoiner, load_image_index  # noqa: E402
-from trend_agent.ingestion.normalization.otpensource import (  # noqa: E402
+from fashion_planner_trend.ingestion.normalization.image_index import ImageJoiner, load_image_index  # noqa: E402
+from fashion_planner_trend.ingestion.normalization.otpensource import (  # noqa: E402
     REPO_ID,
     REVISION,
     OtpenNormalizer,
@@ -39,7 +39,7 @@ from trend_agent.ingestion.normalization.otpensource import (  # noqa: E402
     mark_exact_duplicates,
     normalization_report,
 )
-from trend_agent.ingestion.normalization.output import (  # noqa: E402
+from fashion_planner_trend.ingestion.normalization.output import (  # noqa: E402
     git_state,
     resolve_out,
     sha256_file,
@@ -48,7 +48,7 @@ from trend_agent.ingestion.normalization.output import (  # noqa: E402
     write_lines_atomic,
     write_text_atomic,
 )
-from trend_agent.ingestion.normalization.set_split import (  # noqa: E402
+from fashion_planner_trend.ingestion.normalization.set_split import (  # noqa: E402
     SetOverrides,
     SetSplitter,
     apply_split,

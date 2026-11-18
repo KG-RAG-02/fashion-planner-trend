@@ -1,7 +1,7 @@
 # 쓸 수 있는 LLM 모델 등록표 (docs/pipeline.md D-30, §6.4, §14.2)
 # - 여기 없는 모델은 호출할 수 없다(LLMBackendError). 캐시 재생도 같다. 모델 이름으로 계열을 추정하지 않는다.
 # - profile: standard(일반 모델, temperature 0) | reasoning(추론 모델, temperature 없음, reasoning_effort)
-#   계열별 요청 규칙은 src/trend_agent/llm/models/<profile>.py 에 있다.
+#   계열별 요청 규칙은 src/fashion_planner_trend/llm/models/<profile>.py 에 있다.
 # - efforts: reasoning 모델이 허용하는 추론 강도 목록 (standard에는 쓰지 않는다)
 # - checked_at: 이 모델이 이 코드로 동작하는 것을 확인한 날짜. 새 모델은 합성 문장 1건으로 확인한 뒤 적는다:
 #     python scripts/check_llm_model.py --model <모델> --profile <계열> [--reasoning-effort <강도>]

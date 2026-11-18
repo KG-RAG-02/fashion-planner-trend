@@ -1,5 +1,5 @@
 {
-  "note": "Expected response to examples/stub/trend-request.json against the graph seeded by scripts/seed_fixture_graph.py (synthetic fixture, src/trend_agent/graph/fixture.py). `result` is fixture.summarize_result(TrendAnalysisResult); tests/test_stub_fixture.py checks it against a live seeded Neo4j (pytest -m neo4j).",
+  "note": "Expected response to examples/stub/trend-request.json against the graph seeded by scripts/seed_fixture_graph.py (synthetic fixture, src/fashion_planner_trend/graph/fixture.py). `result` is fixture.summarize_result(TrendAnalysisResult); tests/test_stub_fixture.py checks it against a live seeded Neo4j (pytest -m neo4j).",
   "http_status": 200,
   "contract_version": "vogue-handoff/0.1",
   "request_id": "stub-trend-001",

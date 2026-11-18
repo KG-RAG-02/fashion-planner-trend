@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Optional
 
-from trend_agent.schemas.graph_schema import ProductRecord
+from fashion_planner_trend.schemas.graph_schema import ProductRecord
 
 INDEX_COLUMNS = ["product_id", "source", "row", "image_ref", "image_scope", "image_status", "multi_wearer_suspected"]
 

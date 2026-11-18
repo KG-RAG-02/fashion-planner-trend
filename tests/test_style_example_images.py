@@ -2,9 +2,9 @@
 import copy
 
 from conftest import synthetic_crawl, synthetic_label
-from trend_agent.graph import loader
-from trend_agent.graph.search import TrendSearcher
-from trend_agent.schemas.article_extraction import ArticleExtraction
+from fashion_planner_trend.graph import loader
+from fashion_planner_trend.graph.search import TrendSearcher
+from fashion_planner_trend.schemas.article_extraction import ArticleExtraction
 
 
 def _ev(b):

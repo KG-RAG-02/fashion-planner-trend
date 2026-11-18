@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
-from trend_agent.schemas.graph_schema import ProductRecord
+from fashion_planner_trend.schemas.graph_schema import ProductRecord
 
 # (출처 값, 파일 이름) — 이 순서로 쓴다
 SOURCES: tuple[tuple[str, str], ...] = (("otpensource", "otpensource_all.jsonl"), ("musinsa_snap", "musinsa_snap_all.jsonl"))

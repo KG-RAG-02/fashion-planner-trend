@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 from urllib.parse import urlsplit
 
-from trend_agent.schemas.graph_schema import AttrEdge, DetailEdge, ProductNode, ProductRecord
+from fashion_planner_trend.schemas.graph_schema import AttrEdge, DetailEdge, ProductNode, ProductRecord
 
 
 # ---------- 합성 데이터 (Vogue 원문·상품 데이터 없이). tests/conftest.py에서 옮김 ----------
@@ -172,7 +172,7 @@ def write_sources(root: Path, sources: Optional[list[tuple[str, str, dict[str, A
 
 def load_sources(driver: Any, root: Path, products: Iterable[ProductRecord]) -> tuple[set[str], dict[str, Any]]:
     """제약·인덱스 → 표준 값 → Product → 기사(라벨 우선). 반환: (적재한 Product id, 기사별 통계)."""
-    from trend_agent.graph import loader
+    from fashion_planner_trend.graph import loader
 
     loader.ensure_schema(driver)
     loader.seed_vocabulary(driver)
@@ -200,7 +200,7 @@ def is_managed_cloud(uri: str) -> bool:
 
 def seed_stub_graph(driver: Any, *, allow_wipe: bool = False) -> dict[str, Any]:
     """stub 그래프를 적재한다. 노드가 있으면 `allow_wipe` 없이는 GraphNotEmpty, 있으면 모두 지우고 적재한다."""
-    from trend_agent.graph import loader
+    from fashion_planner_trend.graph import loader
 
     existing = node_count(driver)
     if existing and not allow_wipe:
@@ -214,8 +214,8 @@ def seed_stub_graph(driver: Any, *, allow_wipe: bool = False) -> dict[str, Any]:
 
 def run_stub_query(driver: Any) -> dict[str, Any]:
     """`STUB_QUERY`로 검색한 TrendAnalysisResult(JSON) — API `/runs`의 result와 같은 값."""
-    from trend_agent.graph.search import TrendSearcher
-    from trend_agent.schemas.trend_query import TrendQuery
+    from fashion_planner_trend.graph.search import TrendSearcher
+    from fashion_planner_trend.schemas.trend_query import TrendQuery
 
     return TrendSearcher(driver).search(TrendQuery.model_validate(STUB_QUERY)).model_dump(mode="json")
 

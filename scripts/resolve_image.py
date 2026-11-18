@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent.images import ImageResolver, ImageRefError, ImageUnavailable  # noqa: E402
+from fashion_planner_trend.images import ImageResolver, ImageRefError, ImageUnavailable  # noqa: E402
 
 DATASET = ROOT / "data" / "processed" / "v2" / "musinsa_dataset_v2.jsonl"
 OUT = ROOT / "data" / "processed" / "images_preview"

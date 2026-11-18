@@ -27,7 +27,7 @@
     오류: LLMError ⊃ LLMBackendError(비정상 종료·인증·설정) · LLMOutputError(JSON 아님·스키마 불일치) · LLMTimeout
 
 `purpose` 예: "article_extraction". 이 인터페이스를 바꾸면 docs/pipeline.md §14.2도 같이 고친다.
-`import trend_agent.llm`은 구현 모듈을 읽지 않고, 이름을 쓰는 순간 불러온다(지연 로딩).
+`import fashion_planner_trend.llm`은 구현 모듈을 읽지 않고, 이름을 쓰는 순간 불러온다(지연 로딩).
 """
 from __future__ import annotations
 

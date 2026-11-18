@@ -1,7 +1,7 @@
 """D-42: Item이 0개인 Style은 그래프에 있어도 검색 결과 후보에서 빠지고 limitations로 알린다 (Neo4j 없이, 합성 Style)."""
-from trend_agent.graph.search import TrendSearcher
-from trend_agent.schemas import vocabulary as V
-from trend_agent.schemas.trend_query import Requested, SeasonRequest, TermRef, TrendQuery, TrendTerms
+from fashion_planner_trend.graph.search import TrendSearcher
+from fashion_planner_trend.schemas import vocabulary as V
+from fashion_planner_trend.schemas.trend_query import Requested, SeasonRequest, TermRef, TrendQuery, TrendTerms
 
 
 class FakeSearcher(TrendSearcher):

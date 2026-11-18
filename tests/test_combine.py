@@ -3,9 +3,9 @@ import json
 
 import pytest
 
-from trend_agent.ingestion.normalization.combine import CombineError, combine_products
-from trend_agent.ingestion.normalization.musinsa_snap import SnapNormalizer
-from trend_agent.ingestion.normalization.otpensource import OtpenNormalizer
+from fashion_planner_trend.ingestion.normalization.combine import CombineError, combine_products
+from fashion_planner_trend.ingestion.normalization.musinsa_snap import SnapNormalizer
+from fashion_planner_trend.ingestion.normalization.otpensource import OtpenNormalizer
 
 
 def _otp(i):

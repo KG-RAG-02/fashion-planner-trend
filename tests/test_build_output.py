@@ -3,11 +3,11 @@ import os
 
 import pytest
 
-from trend_agent.ingestion.normalization.image_index import ImageJoiner
-from trend_agent.ingestion.normalization.otpensource import OtpenNormalizer, drop_without_image
-from trend_agent.ingestion.normalization.musinsa_snap import IMAGE_BASE, REPO_ID as SNAP_REPO, REVISION as SNAP_REV, SnapNormalizer
-from trend_agent.ingestion.normalization.output import UnsafeOutput, resolve_out, write_lines_atomic
-from trend_agent.ingestion.normalization.set_split import SetSplitter, apply_split
+from fashion_planner_trend.ingestion.normalization.image_index import ImageJoiner
+from fashion_planner_trend.ingestion.normalization.otpensource import OtpenNormalizer, drop_without_image
+from fashion_planner_trend.ingestion.normalization.musinsa_snap import IMAGE_BASE, REPO_ID as SNAP_REPO, REVISION as SNAP_REV, SnapNormalizer
+from fashion_planner_trend.ingestion.normalization.output import UnsafeOutput, resolve_out, write_lines_atomic
+from fashion_planner_trend.ingestion.normalization.set_split import SetSplitter, apply_split
 
 
 def _symlink_supported(tmp_path) -> bool:

@@ -11,11 +11,11 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
  && useradd --system --uid 10001 --gid 10001 --home-dir /tmp --no-create-home --shell /usr/sbin/nologin app
 COPY src /app/src
 COPY configs /app/configs
-# One-shot stub seeding: `python scripts/seed_fixture_graph.py` (synthetic data lives in src/trend_agent/graph/fixture.py)
+# One-shot stub seeding: `python scripts/seed_fixture_graph.py` (synthetic data lives in src/fashion_planner_trend/graph/fixture.py)
 COPY scripts/seed_fixture_graph.py /app/scripts/seed_fixture_graph.py
 ENV HOME=/tmp
 USER 10001:10001
 EXPOSE 8768
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
   CMD python -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:8768/health', timeout=2).close()"
-CMD ["python", "-m", "trend_agent.api.server", "--mode", "service", "--host", "0.0.0.0", "--port", "8768"]
+CMD ["python", "-m", "fashion_planner_trend.api.server", "--mode", "service", "--host", "0.0.0.0", "--port", "8768"]

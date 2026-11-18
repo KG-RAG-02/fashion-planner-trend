@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from trend_agent import llm
-from trend_agent.llm import client, models
-from trend_agent.llm.backends import BackendReply
+from fashion_planner_trend import llm
+from fashion_planner_trend.llm import client, models
+from fashion_planner_trend.llm.backends import BackendReply
 
 ROOT = Path(__file__).resolve().parents[1]
 

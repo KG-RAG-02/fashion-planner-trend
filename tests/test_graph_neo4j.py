@@ -7,11 +7,11 @@ from types import SimpleNamespace
 import pytest
 
 from conftest import synthetic_products
-from trend_agent.graph import fixture, loader
-from trend_agent.graph.search import ITEMS_CYPHER, TrendSearcher, _record
-from trend_agent.schemas import vocabulary as V
-from trend_agent.schemas.graph_schema import ItemNode, ItemRecord
-from trend_agent.schemas.trend_query import Requested, SeasonRequest, TermRef, TrendQuery, TrendTerms
+from fashion_planner_trend.graph import fixture, loader
+from fashion_planner_trend.graph.search import ITEMS_CYPHER, TrendSearcher, _record
+from fashion_planner_trend.schemas import vocabulary as V
+from fashion_planner_trend.schemas.graph_schema import ItemNode, ItemRecord
+from fashion_planner_trend.schemas.trend_query import Requested, SeasonRequest, TermRef, TrendQuery, TrendTerms
 
 pytestmark = pytest.mark.neo4j
 

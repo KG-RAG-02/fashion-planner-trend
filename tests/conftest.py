@@ -11,8 +11,8 @@ import os
 import pytest
 
 # 합성 데이터 (Vogue 원문·상품 데이터 없이)는 stub 그래프 적재(scripts/seed_fixture_graph.py)와 같이 쓰려고
-# trend_agent.graph.fixture로 옮겼다. 테스트는 계속 `from conftest import ...`로 쓴다.
-from trend_agent.graph.fixture import (  # noqa: F401
+# fashion_planner_trend.graph.fixture로 옮겼다. 테스트는 계속 `from conftest import ...`로 쓴다.
+from fashion_planner_trend.graph.fixture import (  # noqa: F401
     ev,
     product,
     synthetic_crawl,
@@ -32,7 +32,7 @@ TEST_MODELS = {"m": "standard", "m-1": "standard", "m-test": "standard", "gpt-5-
 
 @pytest.fixture(autouse=True)
 def _test_llm_models():
-    from trend_agent.llm import models
+    from fashion_planner_trend.llm import models
     for name, profile in TEST_MODELS.items():
         models.register_model(name, profile, note="test")
     yield
@@ -53,7 +53,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 def neo4j_test_driver():
     from urllib.parse import urlsplit
 
-    from trend_agent.config import Neo4jSettings, neo4j_driver, neo4j_settings
+    from fashion_planner_trend.config import Neo4jSettings, neo4j_driver, neo4j_settings
 
     uri = os.environ["NEO4J_TEST_URI"]
     parts = urlsplit(uri)

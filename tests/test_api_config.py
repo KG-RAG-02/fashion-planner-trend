@@ -4,8 +4,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from trend_agent.config import ApiSettings, api_settings, load_env
-from trend_agent.api import server
+from fashion_planner_trend.config import ApiSettings, api_settings, load_env
+from fashion_planner_trend.api import server
 
 KEYS = ('VOGUE_AGENT_SERVICE_BEARER_TOKEN', 'TREND_API_HOST', 'TREND_API_PORT', 'TREND_API_MODE')
 

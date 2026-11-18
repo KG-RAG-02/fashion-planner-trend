@@ -1,6 +1,6 @@
 """03 musinsa-snap-new 정규화 (합성 입력). 규칙: docs/schemas/sources/alias_map.md §4.2, §8, §9"""
-from trend_agent.config import Neo4jSettings, load_env, neo4j_settings
-from trend_agent.ingestion.normalization.musinsa_snap import SnapNormalizer, parse_label
+from fashion_planner_trend.config import Neo4jSettings, load_env, neo4j_settings
+from fashion_planner_trend.ingestion.normalization.musinsa_snap import SnapNormalizer, parse_label
 
 N = SnapNormalizer()
 

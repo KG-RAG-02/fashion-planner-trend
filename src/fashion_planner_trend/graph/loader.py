@@ -26,10 +26,10 @@ from typing import Any, Iterable, Optional
 
 from neo4j import Driver
 
-from trend_agent.ingestion.normalization.alias_map import AliasMap
-from trend_agent.schemas import vocabulary as V
-from trend_agent.schemas.article_extraction import ArticleExtraction
-from trend_agent.schemas.graph_schema import (  # noqa: I001
+from fashion_planner_trend.ingestion.normalization.alias_map import AliasMap
+from fashion_planner_trend.schemas import vocabulary as V
+from fashion_planner_trend.schemas.article_extraction import ArticleExtraction
+from fashion_planner_trend.schemas.graph_schema import (  # noqa: I001
     ItemRecord,
     ProductRecord,
     _Record,

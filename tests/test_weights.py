@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from trend_agent.retrieval.weights import WeightsConfig, load_weights
+from fashion_planner_trend.retrieval.weights import WeightsConfig, load_weights
 
 
 def test_default_weights_match_decision():

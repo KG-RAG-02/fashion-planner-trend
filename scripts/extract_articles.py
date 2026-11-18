@@ -1,4 +1,4 @@
-"""Vogue 기사 일괄 추출. 본체: src/trend_agent/ingestion/extraction/batch.py
+"""Vogue 기사 일괄 추출. 본체: src/fashion_planner_trend/ingestion/extraction/batch.py
 
 실행 예:
     python scripts/extract_articles.py --limit 3                       # 3건만 시험 (기본 입력: 크롤 150건)
@@ -23,8 +23,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent.ingestion.extraction.batch import BatchConfig, run_batch, write_report  # noqa: E402
-from trend_agent.ingestion.extraction.prompt import PROMPT_ID  # noqa: E402
+from fashion_planner_trend.ingestion.extraction.batch import BatchConfig, run_batch, write_report  # noqa: E402
+from fashion_planner_trend.ingestion.extraction.prompt import PROMPT_ID  # noqa: E402
 
 DEFAULT_IN = ROOT / "data" / "raw" / "vogue_kr" / "articles_pool_150.jsonl"
 DEFAULT_PROMPT_VERSION = PROMPT_ID

@@ -9,15 +9,15 @@ from pathlib import Path
 
 import pytest
 
-from trend_agent.ingestion.extraction import extractor
-from trend_agent.ingestion.extraction.llm_schema import extraction_schema
-from trend_agent.ingestion.extraction.postprocess import postprocess
-from trend_agent.ingestion.extraction.prompt import PROMPT_ID, load_template, prompt_sha256, render_blocks, render_prompt, render_retry_suffix
-from trend_agent.ingestion.extraction.validate import squash, validate_extraction
-from trend_agent.llm import client
-from trend_agent.llm.backends import BackendReply
-from trend_agent.llm.schema import check_instance
-from trend_agent.schemas.article_extraction import ArticleExtraction
+from fashion_planner_trend.ingestion.extraction import extractor
+from fashion_planner_trend.ingestion.extraction.llm_schema import extraction_schema
+from fashion_planner_trend.ingestion.extraction.postprocess import postprocess
+from fashion_planner_trend.ingestion.extraction.prompt import PROMPT_ID, load_template, prompt_sha256, render_blocks, render_prompt, render_retry_suffix
+from fashion_planner_trend.ingestion.extraction.validate import squash, validate_extraction
+from fashion_planner_trend.llm import client
+from fashion_planner_trend.llm.backends import BackendReply
+from fashion_planner_trend.llm.schema import check_instance
+from fashion_planner_trend.schemas.article_extraction import ArticleExtraction
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -141,7 +141,7 @@ def test_prompt_has_no_label_trend_names():
     labels = sorted((ROOT / "data" / "labels").glob("*.json"))
     if not labels:
         pytest.skip("로컬 라벨 없음")
-    from trend_agent.schemas.vocabulary import CategoryMajor, CategoryMinor, Color
+    from fashion_planner_trend.schemas.vocabulary import CategoryMajor, CategoryMinor, Color
 
     # 표준 값과 같은 일반어 Style 이름(색 "화이트", 카테고리 "스커트")은 누출이 아니다
     generic = {c.value for c in Color} | {c.value for c in CategoryMinor} | {c.value for c in CategoryMajor}
@@ -156,7 +156,7 @@ def test_prompt_has_no_label_trend_names():
 
 # ---------- N3: 이름 충실성 탐지 (경고만) ----------
 def test_n3_name_not_in_article_reasons():
-    from trend_agent.ingestion.extraction.validate import name_not_in_article
+    from fashion_planner_trend.ingestion.extraction.validate import name_not_in_article
     text = squash("올봄 유행할 ‘테스트코어’(Test Core) 이번 시즌 테스트코어가 떠오르고 있습니다. 발레 룩도 보인다")
     assert name_not_in_article("테스트코어", text) is None
     assert name_not_in_article("테스트 코어", text) is None                      # 공백은 무시
@@ -176,7 +176,7 @@ def test_n3_is_warning_not_error():
 
 
 def test_placeholder_style_name_is_v1_error():
-    from trend_agent.ingestion.extraction.validate import is_placeholder_name
+    from fashion_planner_trend.ingestion.extraction.validate import is_placeholder_name
     text = squash("이번 시즌 테스트코어가 떠오르고 있습니다. TODO 리스트 룩도 있다")
     for bad in ("DUMMY-END", "PLACEHOLDER_REMOVEME", "remove me", "Lorem ipsum", "xxx"):
         assert is_placeholder_name(bad, text), bad
@@ -210,7 +210,7 @@ def _names_doc(*names):
     ("와 인 색 트렌드", ["와인색이 돌아온다."], "와 인 색", "P2"),                        # 공백 무시 비교, 표기는 유지
 ])
 def test_fix_style_names_rule_table(name, texts, expected, code):
-    from trend_agent.ingestion.extraction.postprocess import fix_style_names
+    from fashion_planner_trend.ingestion.extraction.postprocess import fix_style_names
     doc = _names_doc(name)
     notes = fix_style_names(doc, _name_article(*texts))
     assert doc["styles"][0]["name"] == expected
@@ -221,7 +221,7 @@ def test_fix_style_names_rule_table(name, texts, expected, code):
 
 
 def test_fix_style_names_collision_and_untouched_fields():
-    from trend_agent.ingestion.extraction.postprocess import fix_style_names
+    from fashion_planner_trend.ingestion.extraction.postprocess import fix_style_names
     art = _name_article("와인색이 돌아온다.")
     doc = _names_doc("와인색", "와인색 트렌드")                          # ⑤ 떼면 같은 기사의 다른 Style과 같아짐
     notes = fix_style_names(doc, art)
@@ -244,7 +244,7 @@ def test_fix_style_names_collision_and_untouched_fields():
     ("일명품 코트", ["일명품 코트가 뜬다."], "일명품 코트"),                     # '일명' 뒤가 공백·따옴표가 아니면 표지어가 아니다
 ])
 def test_fix_style_names_prefix_marker(name, texts, expected):
-    from trend_agent.ingestion.extraction.postprocess import fix_style_names
+    from fashion_planner_trend.ingestion.extraction.postprocess import fix_style_names
     doc = _names_doc(name)
     notes = fix_style_names(doc, _name_article(*texts))
     assert doc["styles"][0]["name"] == expected
@@ -255,7 +255,7 @@ def test_fix_style_names_prefix_marker(name, texts, expected):
 
 
 def test_fix_style_names_prefix_collision():
-    from trend_agent.ingestion.extraction.postprocess import fix_style_names
+    from fashion_planner_trend.ingestion.extraction.postprocess import fix_style_names
     doc = _names_doc("테스트 맨", "일명 테스트 맨")                      # ⓓ 다른 Style과 같아지면 고치지 않음
     assert fix_style_names(doc, _name_article("일명 테스트 맨입니다.")) == []
     assert [s["name"] for s in doc["styles"]] == ["테스트 맨", "일명 테스트 맨"]
@@ -306,7 +306,7 @@ def _dup_doc():
 
 
 def test_merge_duplicates_focus_and_seasons():
-    from trend_agent.ingestion.extraction.postprocess import merge_duplicates
+    from fashion_planner_trend.ingestion.extraction.postprocess import merge_duplicates
     doc = _dup_doc()
     notes = merge_duplicates(doc)
     st = doc["styles"][0]
@@ -332,7 +332,7 @@ def test_dedupe_is_off_by_default_and_fixes_v1_when_on():
 
 
 def test_dedupe_leaves_too_many_core_as_error():
-    from trend_agent.ingestion.extraction.postprocess import merge_duplicates
+    from fashion_planner_trend.ingestion.extraction.postprocess import merge_duplicates
     four = [{"attribute": a, "level": "core", "evidence": [{"block_idx": 1, "quote": "화려한 컬러"}]}
             for a in ("color", "category", "material", "pattern")]
     doc = _llm_doc(focus_attributes=four)
@@ -553,7 +553,7 @@ def test_length_area_rule_optional():
 
 
 def test_validator_uses_label_check_functions_and_fallback_agrees():
-    from trend_agent.ingestion.extraction.validate import label_checks
+    from fashion_planner_trend.ingestion.extraction.validate import label_checks
 
     lib = label_checks()
     assert lib is not None and callable(lib.check_quotes) and callable(lib.check_raws)

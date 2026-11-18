@@ -21,8 +21,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent.ingestion.normalization.combine import OUTPUT_NAME, REPORT_NAME, SOURCES, combine_products  # noqa: E402
-from trend_agent.ingestion.normalization.output import (  # noqa: E402
+from fashion_planner_trend.ingestion.normalization.combine import OUTPUT_NAME, REPORT_NAME, SOURCES, combine_products  # noqa: E402
+from fashion_planner_trend.ingestion.normalization.output import (  # noqa: E402
     git_state,
     resolve_out,
     sha256_file,

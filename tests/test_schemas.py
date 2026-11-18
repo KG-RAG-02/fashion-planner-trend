@@ -3,8 +3,8 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
-from trend_agent.schemas import vocabulary as V
-from trend_agent.schemas.article_extraction import (
+from fashion_planner_trend.schemas import vocabulary as V
+from fashion_planner_trend.schemas.article_extraction import (
     ArticleExtraction,
     Evidence,
     ExtractedDetail,
@@ -12,14 +12,14 @@ from trend_agent.schemas.article_extraction import (
     ExtractedStyle,
     FocusAttribute,
 )
-from trend_agent.schemas.graph_schema import (
+from fashion_planner_trend.schemas.graph_schema import (
     compute_style_profile,
     flatten,
     item_record_from_extraction,
     style_node_from_extraction,
 )
-from trend_agent.schemas.trend_analysis_result import TrendAnalysisResult
-from trend_agent.schemas.trend_query import (
+from fashion_planner_trend.schemas.trend_analysis_result import TrendAnalysisResult
+from fashion_planner_trend.schemas.trend_query import (
     CategoryRef,
     RequestedAttribute,
     SeasonRequest,
@@ -169,7 +169,7 @@ def test_record_drops_unmapped_values_and_flatten_skips_none():
 
 
 def test_approx_values_are_not_usable_in_first_search():
-    from trend_agent.schemas.graph_schema import AttrEdge
+    from fashion_planner_trend.schemas.graph_schema import AttrEdge
 
     rec = _item("a", V.CategoryMinor.SHIRT)
     rec.materials = [AttrEdge(value="플리스", raw="기모", approx=True), AttrEdge(value="면", raw="코튼")]

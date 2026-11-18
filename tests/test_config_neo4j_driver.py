@@ -5,7 +5,7 @@ import ssl
 
 import pytest
 
-from trend_agent.config import Neo4jSettings, neo4j_driver_args
+from fashion_planner_trend.config import Neo4jSettings, neo4j_driver_args
 
 
 @pytest.mark.parametrize("uri, expected", [
@@ -29,7 +29,7 @@ def test_other_uris_unchanged(uri: str) -> None:
 
 def test_driver_accepts_args() -> None:
     """드라이버가 바꾼 주소 + encrypted + ssl_context 조합을 받는지 (접속은 하지 않는다)."""
-    from trend_agent.config import neo4j_driver
+    from fashion_planner_trend.config import neo4j_driver
 
     d = neo4j_driver(Neo4jSettings("neo4j+s://abc.databases.neo4j.io", "u", "p"))
     try:

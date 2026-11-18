@@ -21,8 +21,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent.ingestion.normalization.image_index import ImageJoiner, load_image_index  # noqa: E402
-from trend_agent.ingestion.normalization.musinsa_snap import (  # noqa: E402
+from fashion_planner_trend.ingestion.normalization.image_index import ImageJoiner, load_image_index  # noqa: E402
+from fashion_planner_trend.ingestion.normalization.musinsa_snap import (  # noqa: E402
     REPO_ID,
     REVISION,
     SnapNormalizer,
@@ -32,7 +32,7 @@ from trend_agent.ingestion.normalization.musinsa_snap import (  # noqa: E402
     scalar_list_fields,
     snap_report,
 )
-from trend_agent.ingestion.normalization.output import (  # noqa: E402
+from fashion_planner_trend.ingestion.normalization.output import (  # noqa: E402
     git_state,
     resolve_out,
     sha256_file,

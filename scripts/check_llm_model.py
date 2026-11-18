@@ -22,9 +22,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from trend_agent import llm  # noqa: E402
-from trend_agent.llm import models  # noqa: E402
-from trend_agent.llm.errors import LLMBackendError, LLMError  # noqa: E402
+from fashion_planner_trend import llm  # noqa: E402
+from fashion_planner_trend.llm import models  # noqa: E402
+from fashion_planner_trend.llm.errors import LLMBackendError, LLMError  # noqa: E402
 
 # 기사와 무관한 합성 문장과 작은 strict 스키마
 SYNTHETIC_PROMPT = ("다음 합성 문장에서 색과 옷 종류를 뽑아 JSON 객체 하나로만 답하라. 문장에 없는 것은 null 또는 []로 둔다.\n"

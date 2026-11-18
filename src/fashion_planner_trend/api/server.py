@@ -16,10 +16,10 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from pydantic import ValidationError  # noqa: E402
 
-from trend_agent.config import api_settings, load_env, neo4j_driver, neo4j_settings  # noqa: E402
-from trend_agent.graph.search import TrendSearcher  # noqa: E402
-from trend_agent.schemas.trend_analysis_result import SCHEMA_VERSION  # noqa: E402
-from trend_agent.schemas.trend_query import TrendQuery  # noqa: E402
+from fashion_planner_trend.config import api_settings, load_env, neo4j_driver, neo4j_settings  # noqa: E402
+from fashion_planner_trend.graph.search import TrendSearcher  # noqa: E402
+from fashion_planner_trend.schemas.trend_analysis_result import SCHEMA_VERSION  # noqa: E402
+from fashion_planner_trend.schemas.trend_query import TrendQuery  # noqa: E402
 
 CONTRACT_VERSION = "vogue-handoff/0.1"
 AGENT_ID = "trend-analysis-agent"

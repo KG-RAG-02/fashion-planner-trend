@@ -1,4 +1,4 @@
-"""LLM 호출 단일 진입점 구현 (계약: `trend_agent/llm/__init__.py` docstring).
+"""LLM 호출 단일 진입점 구현 (계약: `fashion_planner_trend/llm/__init__.py` docstring).
 
     call(prompt, json_schema, *, purpose, prompt_version, backend=None, model=None, reasoning_effort=None,
          timeout_s=None, use_cache=True) -> LLMResult
