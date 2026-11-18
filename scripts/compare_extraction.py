@@ -4,7 +4,7 @@
 
 실행 (레포 루트):
   python scripts/compare_extraction.py --pred openai_api="data/processed/extractions/<pv>" [--pred 라벨2="…"] \
-      [--split dev|test|all] [--ids 857922,…] [--include-review] [--no-length-rule] [--out data/eval/extraction/<run>] [--confirm-test]
+      [--split dev|test|all] [--ids 900001,…] [--include-review] [--no-length-rule] [--out data/eval/extraction/<run>] [--confirm-test]
 
 - 예측 파일: <dir>/<aid>.json(검증 통과) · <dir>/_review/<aid>.json(검증 실패). 형식은 {"label_meta","extraction"} 또는 ArticleExtraction 단독.
   `_review`는 기본으로 "예측 없음(검토 대기)"으로 세고, --include-review면 함께 비교한다.

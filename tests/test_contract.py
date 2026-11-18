@@ -79,20 +79,20 @@ def test_split_from_review():
 
 
 def test_style_node_norm_aliases_article_id():
-    s = ExtractedStyle(name="뉴 로", name_origin="article", definition="d", aliases=["New Raw", "뉴 로", "New Raw"])
-    n = style_node_from_extraction(s, "881396-s0")
-    assert n.article_id == "881396" and n.name_norm == "뉴로"
-    assert n.aliases == ["New Raw", "뉴 로"]          # 순서 보존 중복 제거
-    assert n.aliases_norm == ["newraw"]                # name_norm과 같은 값은 뺀다
+    s = ExtractedStyle(name="피스타치오 룩", name_origin="article", definition="d", aliases=["Pistachio Look", "피스타치오 룩", "Pistachio Look"])
+    n = style_node_from_extraction(s, "900001-s0")
+    assert n.article_id == "900001" and n.name_norm == "피스타치오룩"
+    assert n.aliases == ["Pistachio Look", "피스타치오 룩"]          # 순서 보존 중복 제거
+    assert n.aliases_norm == ["pistachiolook"]                # name_norm과 같은 값은 뺀다
     assert ExtractedStyle(name="x", name_origin="article", definition="d").aliases == []
     assert style_node_from_extraction(s, "s1").article_id is None
 
 
 def test_evidence_id_is_stable_and_formatted():
-    a = evidence_id("881396", 8, "오묘한 패턴")
-    assert a == evidence_id("881396", 8, "오묘한 패턴")
-    assert a.startswith("trend:881396:8:") and len(a.rsplit(":", 1)[1]) == 8
-    assert a != evidence_id("881396", 8, "오묘한 패턴이")
+    a = evidence_id("900001", 8, "반복되는 체크 패턴")
+    assert a == evidence_id("900001", 8, "반복되는 체크 패턴")
+    assert a.startswith("trend:900001:8:") and len(a.rsplit(":", 1)[1]) == 8
+    assert a != evidence_id("900001", 8, "반복되는 체크 패턴이")
 
 
 def test_result_defaults_and_closed_status():

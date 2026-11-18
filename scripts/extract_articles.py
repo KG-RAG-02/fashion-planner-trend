@@ -2,7 +2,7 @@
 
 실행 예:
     python scripts/extract_articles.py --limit 3                       # 3건만 시험 (기본 입력: 크롤 150건)
-    python scripts/extract_articles.py --ids 857922,876706             # 기사 지정
+    python scripts/extract_articles.py --ids 900001,900002             # 기사 지정
     python scripts/extract_articles.py                                 # 입력 기사 전체 → data/processed/extractions/article-extraction/
     python scripts/extract_articles.py --report-only                   # LLM 호출 없이 보고서만
 
