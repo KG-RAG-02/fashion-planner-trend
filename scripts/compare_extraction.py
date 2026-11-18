@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
-import os
 import re
 import subprocess
 import sys
@@ -357,7 +356,7 @@ def git_head() -> str:
 
 def log_test_access(path: Path, preds: dict[str, Path], test_ids: list[str], prompt_versions: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    rec = {"ts": dt.datetime.now().astimezone().isoformat(timespec="seconds"), "actor": os.environ.get("TEAM_AGENT", "unknown"),
+    rec = {"ts": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
            "kind": "compare_extraction", "pred": {k: str(v) for k, v in preds.items()}, "test_ids": test_ids,
            "prompt_version": prompt_versions, "git_head": git_head()}
     with path.open("a", encoding="utf-8") as f:

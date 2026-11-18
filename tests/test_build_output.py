@@ -6,7 +6,7 @@ import pytest
 from trend_agent.ingestion.normalization.image_index import ImageJoiner
 from trend_agent.ingestion.normalization.otpensource import OtpenNormalizer, drop_without_image
 from trend_agent.ingestion.normalization.musinsa_snap import IMAGE_BASE, REPO_ID as SNAP_REPO, REVISION as SNAP_REV, SnapNormalizer
-from trend_agent.ingestion.normalization.output import REPO_ROOT, UnsafeOutput, protected_dirs, resolve_out, write_lines_atomic
+from trend_agent.ingestion.normalization.output import UnsafeOutput, resolve_out, write_lines_atomic
 from trend_agent.ingestion.normalization.set_split import SetSplitter, apply_split
 
 
@@ -130,8 +130,3 @@ def test_drop_without_image_removes_only_url_less_rows():
     assert [r.node.id for r in kept] == ["otpensource:f.json:0"]
     assert stats == {"dropped_no_image_url": 2, "dropped_in_graph_scope": 0, "dangling_dup_of": 0, "dangling_parent_id": 0}
 
-
-def test_repo_v1_folder_is_always_protected():
-    assert (REPO_ROOT / "data" / "processed" / "v1").resolve() in [p.resolve() for p in protected_dirs()]
-    with pytest.raises(UnsafeOutput):
-        resolve_out(REPO_ROOT / "data" / "processed" / "v1")

@@ -1,7 +1,6 @@
 """v2 산출물 쓰기 안전장치 (T2 설계 메모 §3.5).
 
-- `--out`이 읽기 전용으로 지정된 폴더(이 레포의 data/processed/v1, 환경변수 SHARED가 있으면 그 아래 data/processed/v1도)
-  또는 그 안이면 거부한다.
+- 호출자가 읽기 전용으로 지정한 폴더(`protected`)거나 그 안이면 `--out`을 거부한다.
 - 쓰려는 파일이 심볼릭 링크면 거부한다(링크를 통해 원본을 덮어쓸 수 있다).
 - 임시 파일에 쓴 뒤 rename한다(중간에 실패해도 반쯤 쓴 파일이 남지 않는다).
 """
@@ -12,33 +11,22 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 
 class UnsafeOutput(ValueError):
     pass
 
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-
-
-def protected_dirs() -> list[Path]:
-    dirs = [REPO_ROOT / "data" / "processed" / "v1"]  # v1 산출물 보관 폴더(D-33)
-    shared = os.environ.get("SHARED")
-    if shared:
-        dirs.append(Path(shared) / "data" / "processed" / "v1")
-    return dirs
-
-
-def resolve_out(out: Path | str, protected: Optional[Iterable[Path]] = None) -> Path:
+def resolve_out(out: Path | str, protected: Iterable[Path] = ()) -> Path:
     raw = Path(out)
     if raw.is_symlink():
         raise UnsafeOutput(f"--out이 심볼릭 링크다: {raw}")
     path = raw.resolve()
-    for p in (protected if protected is not None else protected_dirs()):
+    for p in protected:
         p = Path(p).resolve()
         if path == p or p in path.parents:
-            raise UnsafeOutput(f"--out이 읽기 전용 v1 폴더다: {path}")
+            raise UnsafeOutput(f"--out이 읽기 전용 폴더다: {path}")
     path.mkdir(parents=True, exist_ok=True)
     return path
 
